@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "jokolay"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytemuck",
  "cgmath",
@@ -202,9 +202,9 @@ dependencies = [
 
 [[package]]
 name = "jokolink"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86e0295dd660343cc670bb28d0155b6e2d66699136e6c5c64d3dbc6d120dd071"
+checksum = "97dd1980a8da22557e0a34c3abbe1840c3d9b7ba40bdc0d68c95edcc2b09e6c6"
 dependencies = [
  "num-derive",
  "num-traits",
