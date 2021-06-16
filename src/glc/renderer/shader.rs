@@ -45,8 +45,8 @@ impl ShaderProgram<'_> {
         }
     }
 
-    pub fn bind(&self, gl: &glow::Context) {
-        unsafe { gl.use_program(Some(self.id)) }
+    pub fn bind(&self) {
+        unsafe { self.gl.use_program(Some(self.id)) }
     }
 }
 
