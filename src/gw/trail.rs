@@ -1,6 +1,5 @@
-
 /*
-n order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker. 
+n order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
 Trails are described by the <Trail> tag and uses the same category system as the markers.
 If you put a marker and a trail in the same category, the user can hide them both at the same time by hiding the category.
 Here's an example trail:
@@ -27,5 +26,5 @@ pub struct Trail {
     //r#type: Option<Category>,
     alpha: Option<f32>,
     fade_near: Option<u32>,
-    fade_far: Option<u32>
+    fade_far: Option<u32>,
 }

@@ -1,4 +1,4 @@
-mod marker;
-mod trail;
 mod category;
+mod marker;
 pub mod mlink;
+mod trail;

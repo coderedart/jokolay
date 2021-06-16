@@ -9,4 +9,3 @@
 //     is_separator: Option<u32>,
 //     children: Option<Vec<Category>>,
 // }
-

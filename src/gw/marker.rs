@@ -1,4 +1,4 @@
-use cgmath::{Vector3};
+use cgmath::Vector3;
 
 /// Markers in the xml files are described under the <POIs> tag under the root <OverlayData> tag. The <POI> tag describes a marker.
 pub struct Marker {
@@ -9,7 +9,7 @@ pub struct Marker {
     /// base64 encoded string, optional. This is a unique identifier for the marker used in tracking activation of markers through the activationdata.xml file. If this doesn't exist for a marker, one will be generated automatically and added on the next export.
     guid: Option<String>,
     /// The icon to be displayed for the marker. If not given, this defaults to the image shown at the start of this article. This should point to a .png file. The overlay looks for the image files both starting from the root directory and the POIs directory for convenience. Make sure you don't use too high resolution (above 128x128) images because the texture atlas used for these is limited in size and it's a needless waste of resources to fill it quickly.
-    icon_file : Option<String>,
+    icon_file: Option<String>,
     /// The size of the icon in the game world. Default is 1.0 if this is not defined. Note that the "screen edges herd icons" option will limit the size of the displayed images for technical reasons.
     icon_size: Option<f32>,
     /// How opaque the displayed icon should be. The default is 1.0

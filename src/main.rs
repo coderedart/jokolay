@@ -5,8 +5,13 @@ use std::{fs::File, io::Read, mem, path::Path, sync::mpsc::Receiver};
 use cgmath::SquareMatrix;
 use glfw::{ffi::glfwGetTime, Action, Context, Key};
 use glow::*;
-use jokolay::{glc::renderer::shader::ShaderProgram, gw::mlink::get_ml};
-
+use jokolay::{
+    glc::renderer::{
+        shader::ShaderProgram,
+        vertex_buffer::{VertexBuffer, VertexBufferLayout},
+    },
+    gw::mlink::get_ml,
+};
 
 const SCR_HEIGHT: u32 = 1080;
 const SCR_WIDTH: u32 = 960;
@@ -39,9 +44,9 @@ fn main() {
         unsafe { glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _) };
     let shader_program = ShaderProgram::new(&gl, vspath, fspath);
 
-    let world_matrix = cgmath::Matrix4::<f32>::from_translation(cgmath::vec3(0.7, 0.7, 0.2));
+    let mvp = cgmath::Matrix4::<f32>::from_translation(cgmath::vec3(0.7, 0.7, 0.2));
 
-    let vao = setup_buffers(&gl);
+    let (vao, _vbo) = setup_buffers(&gl);
     let uni;
     let mut start;
     unsafe {
@@ -62,7 +67,7 @@ fn main() {
             gl.clear(glow::COLOR_BUFFER_BIT);
             gl.use_program(Some(shader_program.id));
             gl.bind_vertex_array(Some(vao));
-            let tf: &[f32; 16] = world_matrix.as_ref();
+            let tf: &[f32; 16] = mvp.as_ref();
             gl.uniform_matrix_4_f32_slice(Some(&uni), false, tf);
             gl.draw_arrays(glow::TRIANGLES, 0, 3);
             let link = get_ml("MumbleLink").unwrap();
@@ -98,7 +103,7 @@ fn process_events(
         }
     }
 }
-fn setup_buffers(gl: &glow::Context) -> u32 {
+fn setup_buffers(gl: &glow::Context) -> (u32, VertexBuffer) {
     unsafe {
         let vertices: Vec<f32> = vec![
             -0.3, -0.3, 0.0, // left
@@ -109,24 +114,21 @@ fn setup_buffers(gl: &glow::Context) -> u32 {
             0.3, 0.3, 0.0, //rightop
         ];
         let vao = gl.create_vertex_array().unwrap();
-        let vbo = gl.create_buffer().unwrap();
         gl.bind_vertex_array(Some(vao));
-        gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
-        gl.buffer_data_u8_slice(
-            glow::ARRAY_BUFFER,
-            bytemuck::cast_slice(&vertices),
-            glow::STATIC_DRAW,
-        );
-        gl.vertex_attrib_pointer_f32(
-            0,
-            3,
-            glow::FLOAT,
-            false,
-            3 * mem::size_of::<f32>() as i32,
-            0,
-        );
+        let vb = VertexBuffer::new(gl, bytemuck::cast_slice(&vertices));
+        let mut vblayout = VertexBufferLayout::default();
+        vblayout.push_float(3, false);
+        vblayout.set_layout(gl);
+
+        // gl.vertex_attrib_pointer_f32(
+        //     0,
+        //     3,
+        //     glow::FLOAT,
+        //     false,
+        //     3 * mem::size_of::<f32>() as i32,
+        //     0,
+        // );
         gl.enable_vertex_attrib_array(0);
-        gl.bind_vertex_array(Some(vao));
-        vao
+        (vao, vb)
     }
 }

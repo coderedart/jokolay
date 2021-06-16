@@ -17,17 +17,20 @@ pub fn get_ml(name: &str) -> Option<MumbleLink> {
     sending_buffer[1] = name.len() as u8;
 
     sending_buffer[2..name.len() + 2].copy_from_slice(name.as_ref());
-    socket.send(&sending_buffer).expect("failed to send message");
+    socket
+        .send(&sending_buffer)
+        .expect("failed to send message");
     let mut recv_buffer = [0 as u8; MUMBLE_LINK_SIZE + 1];
-    socket.recv(&mut recv_buffer).expect("failed to receive message");
+    socket
+        .recv(&mut recv_buffer)
+        .expect("failed to receive message");
     let response = Response::from_u8(recv_buffer[0]);
-    
+
     match response {
         Some(Response::Success) => {
             use std::ptr::read_volatile;
             unsafe { Some(read_volatile(recv_buffer[1..].as_ptr() as *const MumbleLink)) }
-        },
-        _ =>  None
-    
+        }
+        _ => None,
     }
 }
