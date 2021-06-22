@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 /*
 n order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
 Trails are described by the <Trail> tag and uses the same category system as the markers.
@@ -16,14 +18,18 @@ The texture tag points to the texture that should scroll on the trail.
 The animSpeed tag is a float value that modifies the speed of the animation on a trail.
 There's also a trailScale tag that is a float value that modifies how stretched the texture will look on the trail.
 */
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Trail {
+    #[serde(rename = "type")]
+    category: Option<String>,
     guid: Option<String>,
     trail_data: Option<String>,
     texture: Option<String>,
     anim_speed: Option<f32>,
     trail_scale: Option<f32>,
     color: Option<u32>,
-    //r#type: Option<Category>,
     alpha: Option<f32>,
     fade_near: Option<u32>,
     fade_far: Option<u32>,

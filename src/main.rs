@@ -1,25 +1,29 @@
 extern crate glfw;
 
-use std::{fs::File, io::Read, mem, path::Path, sync::mpsc::Receiver};
+use std::{convert::TryInto, path::Path, usize, vec};
 
-use cgmath::SquareMatrix;
-use glfw::{ffi::glfwGetTime, Action, Context, Key};
+use glfw::Context;
 use glow::*;
+use image::GenericImageView;
 use jokolay::{
     glc::renderer::{
-        shader::ShaderProgram,
-        vertex_array::VertexArrayObject,
-        vertex_buffer::{VertexBuffer, VertexBufferLayout},
+        node::Node,
+        scene::{self, Scene},
     },
-    gw::mlink::get_ml,
+    gw::{
+        load_markers,
+        marker::Marker,
+        mlink::{get_ml, get_win_pos_dim},
+    },
+    process_events,
+};
+use nalgebra_glm::{
+    look_at_lh, look_at_rh, make_vec3, ortho_lh, perspective_fov_lh, perspective_fov_rh, Mat4, Vec3,
 };
 
-const SCR_HEIGHT: u32 = 1080;
-const SCR_WIDTH: u32 = 960;
 fn main() {
-    let vspath: &Path = Path::new("res/shader.vs");
-    let fspath: &Path = Path::new("res/shader.fs");
-
+    let scr_height: u32;
+    let scr_width: u32;
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
     glfw.window_hint(glfw::WindowHint::ContextVersion(4, 6));
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(
@@ -29,10 +33,18 @@ fn main() {
     glfw.window_hint(glfw::WindowHint::Floating(true));
     //glfw.window_hint(glfw::WindowHint::MousePassthrough(true));
     //glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
+    let win_pos_dim = get_win_pos_dim("MumbleLink");
+    match win_pos_dim {
+        Some(w) => {
+            scr_height = w.height;
+            scr_width = w.width;
+        }
+        None => todo!(),
+    }
     let (mut window, events) = glfw
         .create_window(
-            SCR_WIDTH,
-            SCR_HEIGHT,
+            scr_width,
+            scr_height,
             "LearnOpenGL",
             glfw::WindowMode::Windowed,
         )
@@ -43,80 +55,89 @@ fn main() {
     window.set_framebuffer_size_polling(true);
     let gl =
         unsafe { glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _) };
-    let shader_program = ShaderProgram::new(&gl, vspath, fspath);
-
-    let mvp = cgmath::Matrix4::<f32>::from_translation(cgmath::vec3(0.7, 0.7, 0.2));
-
-    let vao = setup_buffers(&gl);
-    let uni;
-    let mut start;
-    unsafe {
-        uni = gl
-            .get_uniform_location(shader_program.id, "transform")
-            .unwrap();
-        start = glfwGetTime();
+    let (_marker_categories, mut markers, _trails) = load_markers();
+    let link = get_ml("MumbleLink");
+    let mut current_map_id: u32 = 15;
+    if let Some(ml) = link {
+        current_map_id = ml.get_identity().map_id;
     }
-    let sec = 1.0;
-    let mut fps = 0;
+
+    let current_map_markers: &mut Vec<Marker> = markers.entry(current_map_id).or_default();
+    let mut nodes = Vec::new();
+    for m in current_map_markers {
+        // for m in marker_vec {
+        nodes.push(Node {
+            xpos: m.xpos,
+            ypos: m.ypos,
+            zpos: m.zpos,
+        });
+        // }
+    }
+    // nodes.push(Node {xpos: 20.0, ypos: 16.0,zpos: 0.0});
+    // nodes.push(Node {xpos: 0.0, ypos: 16.0,zpos: 0.0});
+    // nodes.push(Node {xpos: -20.0, ypos: 16.0,zpos: 0.0});
+
+    dbg!(nodes.len());
+    let mut scene = Scene::new(&gl, nodes);
+
+    unsafe {
+        gl.enable(glow::DEPTH_TEST);
+        let texture = gl.create_texture().unwrap();
+        gl.bind_texture(glow::TEXTURE_2D, Some(texture)); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+                                                          // set the texture wrapping parameters
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32); // set texture wrapping to gl::REPEAT (default wrapping method)
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
+        // set texture filtering parameters
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MIN_FILTER,
+            glow::LINEAR as i32,
+        );
+        gl.tex_parameter_i32(
+            glow::TEXTURE_2D,
+            glow::TEXTURE_MAG_FILTER,
+            glow::LINEAR as i32,
+        );
+        // load image, create texture and generate mipmaps
+        let img = image::open(&Path::new("./res/tex.png")).expect("Failed to load texture");
+        let img = img.flipv();
+        let data = img.as_bytes();
+        gl.tex_image_2d(
+            glow::TEXTURE_2D,
+            0,
+            glow::RGBA as i32,
+            img.width() as i32,
+            img.height() as i32,
+            0,
+            glow::RGBA,
+            glow::UNSIGNED_BYTE,
+            Some(&data),
+        );
+        gl.generate_mipmap(glow::TEXTURE_2D);
+    }
 
     while !window.should_close() {
         process_events(&mut window, &events, &gl);
-        fps += 1;
-
-        unsafe {
-            gl.clear_color(0.0, 0.0, 0.0, 0.0);
-            gl.clear(glow::COLOR_BUFFER_BIT);
-            // gl.use_program(Some(shader_program.id));
-            shader_program.bind();
-            vao.bind();
-            let tf: &[f32; 16] = mvp.as_ref();
-            gl.uniform_matrix_4_f32_slice(Some(&uni), false, tf);
-            gl.draw_arrays(glow::TRIANGLES, 0, 3);
-            let link = get_ml("MumbleLink").unwrap();
-            if glfwGetTime() - start > sec {
-                dbg!(fps, start, link.ui_tick);
-                fps = 0;
-                start = glfwGetTime();
-            }
+        let link = get_ml("MumbleLink");
+        let model = Mat4::new_translation(&make_vec3(&[0.0, 100.0, 0.0]));
+        if let Some(ml) = link {
+            let center = make_vec3(&ml.f_camera_position) + make_vec3(&ml.f_camera_front);
+            let view = look_at_lh(
+                &make_vec3(&ml.f_camera_position),
+                &center,
+                &make_vec3(&[0.0, 1.0, 0.0]),
+            );
+            let id = ml.get_identity();
+            dbg!(id.fov, &ml.f_avatar_position);
+            let projection =
+                perspective_fov_lh(id.fov, scr_width as f32, scr_height as f32, 0.1, 30000.0);
+            //let projection  = ortho_lh(21000.0, 21000.0, 0.0, 200.0, 1.0, 10000.0);
+            scene.view_projection = projection * view;
+            scene.cam_pos = make_vec3(&ml.f_camera_position); // make_vec3(&ml.f_camera_position);
         }
-        glfw.poll_events();
+        // std::thread::sleep(std::time::Duration::from_secs(2));
+        scene.render();
         window.swap_buffers();
+        glfw.poll_events();
     }
-}
-fn process_events(
-    window: &mut glfw::Window,
-    events: &Receiver<(f64, glfw::WindowEvent)>,
-    gl: &glow::Context,
-) {
-    for (_, event) in glfw::flush_messages(events) {
-        match event {
-            glfw::WindowEvent::FramebufferSize(width, height) => {
-                // make sure the viewport matches the new window dimensions; note that width and
-                // height will be significantly larger than specified on retina displays.
-                unsafe {
-                    gl.viewport(0, 0, width, height);
-                }
-                eprintln!("resizing viewport");
-            }
-            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                window.set_should_close(true)
-            }
-            _ => {}
-        }
-    }
-}
-fn setup_buffers(gl: &glow::Context) -> VertexArrayObject {
-    let vertices: Vec<f32> = vec![
-        -0.3, -0.3, 0.0, // left
-        0.3, -0.3, 0.0, // right
-        0.0, 0.3, 0.0, // top
-        -0.3, 0.3, 0.0, //leftop
-        0.0, -0.3, 0.0, //bottom
-        0.3, 0.3, 0.0, //rightop
-    ];
-    let vb = VertexBuffer::new(gl, bytemuck::cast_slice(&vertices));
-    let mut vblayout = VertexBufferLayout::default();
-    vblayout.push_float(3, false);
-    let vao = VertexArrayObject::new(gl, vb, vblayout);
-    vao
 }

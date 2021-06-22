@@ -1,20 +1,25 @@
 use glow::*;
 use std::{fs::File, io::Read, path::Path};
 
+/// Struct to abstract away creation/binding of shader program.
+/// compiles shaders and attaches them to a new program. id is the program id.
+/// destroys the program when dropped, so keep it alive if you don't want that.
 pub struct ShaderProgram<'a> {
     pub id: u32,
     gl: &'a glow::Context,
 }
 
 impl ShaderProgram<'_> {
+    /// takes in files containing vertex/fragment shaders and returns a Shaderprogram with them attached
     pub fn new<'a>(
         gl: &'a glow::Context,
         vertex_shader_src_path: &Path,
+        geometry_shader_src_path: &Path,
         fragment_shader_src_path: &Path,
     ) -> ShaderProgram<'a> {
-        let mut vertex_shader_source: String = String::new();
+        let mut vertex_shader_source = String::new();
         let mut fragment_shader_source = String::new();
-        print!("{:?}", std::env::current_dir().unwrap());
+        let mut geometry_shader_source = String::new();
         {
             File::open(vertex_shader_src_path)
                 .expect("couldn't find shader.vs ")
@@ -24,19 +29,28 @@ impl ShaderProgram<'_> {
                 .expect("couldn't find shader.fs")
                 .read_to_string(&mut fragment_shader_source)
                 .unwrap();
+            File::open(geometry_shader_src_path)
+                .expect("couldn't find shader.fs")
+                .read_to_string(&mut geometry_shader_source)
+                .unwrap();
         }
         unsafe {
             let vertex_shader = gl.create_shader(glow::VERTEX_SHADER).unwrap();
             let frag_shader = gl.create_shader(glow::FRAGMENT_SHADER).unwrap();
+            let geometry_shader = gl.create_shader(glow::GEOMETRY_SHADER).unwrap();
             gl.shader_source(vertex_shader, &vertex_shader_source);
             gl.compile_shader(vertex_shader);
+            gl.shader_source(geometry_shader, &geometry_shader_source);
+            gl.compile_shader(geometry_shader);
             gl.shader_source(frag_shader, &fragment_shader_source);
             gl.compile_shader(frag_shader);
             let shader_program = gl.create_program().unwrap();
             gl.attach_shader(shader_program, vertex_shader);
+            gl.attach_shader(shader_program, geometry_shader);
             gl.attach_shader(shader_program, frag_shader);
             gl.link_program(shader_program);
             gl.delete_shader(vertex_shader);
+            gl.delete_shader(geometry_shader);
             gl.delete_shader(frag_shader);
             ShaderProgram {
                 id: shader_program,
@@ -44,9 +58,13 @@ impl ShaderProgram<'_> {
             }
         }
     }
-
+    /// makes the program the active one
     pub fn bind(&self) {
         unsafe { self.gl.use_program(Some(self.id)) }
+    }
+
+    pub fn get_uniform_id(&self, uniform_name: &str) -> Option<UniformLocation> {
+        unsafe { self.gl.get_uniform_location(self.id, uniform_name) }
     }
 }
 
