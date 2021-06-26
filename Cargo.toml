@@ -1,6 +1,6 @@
 [package]
 name = "jokolay"
-version = "0.1.5"
+version = "0.1.6"
 description = "An Overlay for Guild Wars 2 in rust"
 license = "MIT"
 authors = ["coderedart <redartofcode@gmail.com>"]
