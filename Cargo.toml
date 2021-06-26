@@ -1,6 +1,6 @@
 [package]
 name = "jokolay"
-version = "0.1.4"
+version = "0.1.5"
 description = "An Overlay for Guild Wars 2 in rust"
 license = "MIT"
 authors = ["coderedart <redartofcode@gmail.com>"]
@@ -21,6 +21,8 @@ serde_repr = "0.1.7"
 quick-xml = { version = "0.22.0", features = ["serialize"]}
 nalgebra-glm = "0.13.0"
 image = "0.23.14"
+anyhow = "1.0.41"
+egui = "0.13.0"
 #serde-xml-rs = "0.4.1"
 
 

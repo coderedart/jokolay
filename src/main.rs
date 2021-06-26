@@ -1,143 +1,146 @@
 extern crate glfw;
 
-use std::{convert::TryInto, path::Path, usize, vec};
+use std::net::UdpSocket;
 
-use glfw::Context;
+use egui::{epaint::Vertex, Color32, Pos2};
+use glfw::{ffi::glfwGetTime, Context};
 use glow::*;
-use image::GenericImageView;
 use jokolay::{
-    glc::renderer::{
-        node::Node,
-        scene::{self, Scene},
-    },
-    gw::{
-        load_markers,
-        marker::Marker,
-        mlink::{get_ml, get_win_pos_dim},
-    },
+    glc::renderer::{node::Node, scene::Scene, texture::Tex2D},
+    glfw_window_init,
+    gw::{load_markers, marker::Marker},
+    mlink::get_ml_udp,
     process_events,
 };
-use nalgebra_glm::{
-    look_at_lh, look_at_rh, make_vec3, ortho_lh, perspective_fov_lh, perspective_fov_rh, Mat4, Vec3,
-};
+use nalgebra_glm::{look_at_lh, perspective_fov_lh, vec3};
 
-fn main() {
-    let scr_height: u32;
-    let scr_width: u32;
-    let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
-    glfw.window_hint(glfw::WindowHint::ContextVersion(4, 6));
-    glfw.window_hint(glfw::WindowHint::OpenGlProfile(
-        glfw::OpenGlProfileHint::Core,
-    ));
-    glfw.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
-    glfw.window_hint(glfw::WindowHint::Floating(true));
-    //glfw.window_hint(glfw::WindowHint::MousePassthrough(true));
-    //glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
-    let win_pos_dim = get_win_pos_dim("MumbleLink");
-    match win_pos_dim {
-        Some(w) => {
-            scr_height = w.height;
-            scr_width = w.width;
-        }
-        None => todo!(),
-    }
-    let (mut window, events) = glfw
-        .create_window(
-            scr_width,
-            scr_height,
-            "LearnOpenGL",
-            glfw::WindowMode::Windowed,
-        )
-        .expect("Failed to create GLFW window");
-
-    window.set_key_polling(true);
-    window.make_current();
-    window.set_framebuffer_size_polling(true);
-    let gl =
-        unsafe { glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _) };
+fn main() -> anyhow::Result<()> {
+    let (mut glfw, gl, mut window, events) = glfw_window_init();
     let (_marker_categories, mut markers, _trails) = load_markers();
-    let link = get_ml("MumbleLink");
-    let mut current_map_id: u32 = 15;
-    if let Some(ml) = link {
-        current_map_id = ml.get_identity().map_id;
-    }
+    let socket = UdpSocket::bind("127.0.0.1:0").expect("failed to bind to socket");
+    socket
+        .connect("127.0.0.1:7187")
+        .expect("failed to connect to socket");
+    let link = get_ml_udp("MumbleLink", &socket)?;
+    let current_map_id = link.context.unwrap().map_id;
 
     let current_map_markers: &mut Vec<Marker> = markers.entry(current_map_id).or_default();
     let mut nodes = Vec::new();
     for m in current_map_markers {
-        // for m in marker_vec {
-        nodes.push(Node {
-            xpos: m.xpos,
-            ypos: m.ypos,
-            zpos: m.zpos,
-        });
-        // }
+        let m = &*m;
+        nodes.push(Node::from(m));
     }
-    // nodes.push(Node {xpos: 20.0, ypos: 16.0,zpos: 0.0});
-    // nodes.push(Node {xpos: 0.0, ypos: 16.0,zpos: 0.0});
-    // nodes.push(Node {xpos: -20.0, ypos: 16.0,zpos: 0.0});
 
-    dbg!(nodes.len());
-    let mut scene = Scene::new(&gl, nodes);
-
+    dbg!(nodes.len(), std::mem::size_of::<Node>());
+    let mut scene = Scene::new(&gl);
+    let nodes_len = nodes.len();
+    scene.update_nodes(&nodes);
+    let mut prev_frame_time;
     unsafe {
-        gl.enable(glow::DEPTH_TEST);
-        let texture = gl.create_texture().unwrap();
-        gl.bind_texture(glow::TEXTURE_2D, Some(texture)); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
-                                                          // set the texture wrapping parameters
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32); // set texture wrapping to gl::REPEAT (default wrapping method)
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
-        // set texture filtering parameters
-        gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
-            glow::TEXTURE_MIN_FILTER,
-            glow::LINEAR as i32,
-        );
-        gl.tex_parameter_i32(
-            glow::TEXTURE_2D,
-            glow::TEXTURE_MAG_FILTER,
-            glow::LINEAR as i32,
-        );
-        // load image, create texture and generate mipmaps
-        let img = image::open(&Path::new("./res/tex.png")).expect("Failed to load texture");
-        let img = img.flipv();
-        let data = img.as_bytes();
-        gl.tex_image_2d(
-            glow::TEXTURE_2D,
-            0,
-            glow::RGBA as i32,
-            img.width() as i32,
-            img.height() as i32,
-            0,
-            glow::RGBA,
-            glow::UNSIGNED_BYTE,
-            Some(&data),
-        );
-        gl.generate_mipmap(glow::TEXTURE_2D);
+        prev_frame_time = glfwGetTime();
+        if gl.get_error() != glow::NO_ERROR {
+            println!("{} {} {}", file!(), line!(), column!());
+        }
     }
 
+    let _t = Tex2D::new(&gl, None);
+
+    let v: Vec<Vertex> = vec![
+        Vertex {
+            //top left
+            pos: Pos2::new(-1.0, 0.0),
+            uv: Pos2::new(-0.5, -0.5),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            pos: Pos2::new(0.0, 0.0),
+            uv: Pos2::new(0.5, -0.5),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            pos: Pos2::new(-0.5, 1.0),
+            uv: Pos2::new(0.0, 0.8),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            //top right
+            pos: Pos2::new(0.0, 0.0),
+            uv: Pos2::new(-0.5, -0.5),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            pos: Pos2::new(1.0, 0.0),
+            uv: Pos2::new(0.5, -0.5),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            pos: Pos2::new(0.5, 1.0),
+            uv: Pos2::new(0.0, 0.8),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            //bottom left
+            pos: Pos2::new(-1.0, -1.0),
+            uv: Pos2::new(-0.5, -0.5),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            pos: Pos2::new(0.0, -1.0),
+            uv: Pos2::new(0.5, -0.5),
+            color: Color32::BLACK,
+        },
+        Vertex {
+            pos: Pos2::new(-0.5, 0.0),
+            uv: Pos2::new(0.0, 0.8),
+            color: Color32::BLACK,
+        },
+    ];
+    let i = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
+    let mut fps = 0_u32;
     while !window.should_close() {
-        process_events(&mut window, &events, &gl);
-        let link = get_ml("MumbleLink");
-        let model = Mat4::new_translation(&make_vec3(&[0.0, 100.0, 0.0]));
-        if let Some(ml) = link {
-            let center = make_vec3(&ml.f_camera_position) + make_vec3(&ml.f_camera_front);
-            let view = look_at_lh(
-                &make_vec3(&ml.f_camera_position),
-                &center,
-                &make_vec3(&[0.0, 1.0, 0.0]),
-            );
-            let id = ml.get_identity();
-            dbg!(id.fov, &ml.f_avatar_position);
-            let projection =
-                perspective_fov_lh(id.fov, scr_width as f32, scr_height as f32, 0.1, 30000.0);
-            //let projection  = ortho_lh(21000.0, 21000.0, 0.0, 200.0, 1.0, 10000.0);
-            scene.view_projection = projection * view;
-            scene.cam_pos = make_vec3(&ml.f_camera_position); // make_vec3(&ml.f_camera_position);
+        unsafe {
+            let cur_time = glfwGetTime();
+            fps += 1;
+            if cur_time - prev_frame_time > 1.0 {
+                dbg!(fps, cur_time);
+                fps = 0;
+                prev_frame_time = cur_time;
+                let e = gl.get_error();
+                if e != glow::NO_ERROR {
+                    println!("gl_error: {}", e);
+                }
+            }
         }
+        process_events(&mut window, &events, &gl);
+        let ml = get_ml_udp("MumbleLink", &socket)?;
+
+        let camera_position = vec3(
+            ml.f_camera_position_x,
+            ml.f_camera_position_y,
+            ml.f_camera_position_z,
+        );
+        let center = camera_position
+            + vec3(
+                ml.f_camera_front_x,
+                ml.f_camera_front_y,
+                ml.f_camera_front_z,
+            );
+        let id = ml.identity.unwrap();
+
+        let view = look_at_lh(&camera_position, &center, &vec3(0.0, 1.0, 0.0));
+        let projection = perspective_fov_lh(id.fov, 800 as f32, 600 as f32, 0.1, 30000.0);
+        let vp = projection * view;
+
         // std::thread::sleep(std::time::Duration::from_secs(2));
-        scene.render();
+        scene.clear_screen();
+
+        scene.render_nodes(&vp, &camera_position, nodes_len as i32);
+        scene.update_egui_buffers(&v, &i);
+        scene.render_egui(i.len() as i32);
+
         window.swap_buffers();
+  
         glfw.poll_events();
     }
+    Ok(())
 }

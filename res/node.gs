@@ -16,23 +16,23 @@ void main()
     vec3 up = vec3(0.0, 1.0, 0.0);                                                  
     vec3 right = cross(toCamera, up);                                               
                                                                                     
-    Pos -= (right * 25.0);                                                           
+    Pos -= (right * 0.5);                                                           
     gl_Position = VP * vec4(Pos, 1.0);                                             
     tex_coords = vec2(0.0, 0.0);                                                      
     EmitVertex();                                                                   
                                                                                     
-    Pos.y += 50.0;                                                                   
+    Pos.y += 1.0;                                                                   
     gl_Position = VP * vec4(Pos, 1.0);                                             
     tex_coords = vec2(0.0, 1.0);                                                      
     EmitVertex();                                                                   
                                                                                     
-    Pos.y -= 50.0;                                                                   
-    Pos += (right * 50.0);                                                                   
+    Pos.y -= 1.0;                                                                   
+    Pos += (right * 1.0);                                                                   
     gl_Position = VP * vec4(Pos, 1.0);                                             
     tex_coords = vec2(1.0, 0.0);                                                      
     EmitVertex();                                                                   
                                                                                     
-    Pos.y += 50.0;                                                                   
+    Pos.y += 1.0;                                                                   
     gl_Position = VP * vec4(Pos, 1.0);                                             
     tex_coords = vec2(1.0, 1.0);                                                      
     EmitVertex();                                                                   
