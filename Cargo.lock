@@ -715,9 +715,9 @@ dependencies = [
 
 [[package]]
 name = "jokolink"
-version = "0.1.22"
+version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4a377c45b61764aa6bcc7702bfb49480e00430ad26810d42e38661add680d98"
+checksum = "c0d809f3c62af818c9c07f0bd50dc0f74e947486b9b05bfd4ee9d9ff2a7cb55a"
 dependencies = [
  "anyhow",
  "bytemuck",
