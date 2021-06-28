@@ -18,3 +18,15 @@ once we get the previous 2 things done with (i estimate maybe a month and a half
 
 Been thinking of making a taco port forever on linux and when taco went opensource, i thought i can just change some code here and there to get it working on linux. yeah, i was wrong. in one of taco's blogposts, he mentions that he made it from scratch without using stdlib. that was true. that's already enough for me (a noobie) to accept defeat on working with that codebase. and the codebase being very windows specific means, i have no other choice but to rewrite. 
 ​ofcourse, i did get a rough idea of how much work it is to make an overlay because of skimming over the code. that's why i just chose using well established libraries to avoid having to write from scratch to reduce the burden. and make it crossplatform as its actually *less* work to use glfw3 than to deal with X11. 
+
+### the steps to complete jokolay are 8. 
+[] get a very stable core renderer working. 
+[] rawinput from keyboard mouse while not in focus.
+[] get a very stable egui/user interface working.
+[] start adding features like timer windows/kp lookup/switching markers.
+[] Marker/trail recorder/editor
+[] Notification system like Gw2Pao
+[] Documentation/tutorials
+[] polish and collaborate with other projects for extension of markers format/modules like blish/customization and such.
+
+The stability of the core renderer, egui and input are the most important components as the rest of the features will be based on those three components

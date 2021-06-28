@@ -4,6 +4,7 @@ pub mod trail;
 pub mod xmltypes;
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
+use std::io::Read;
 
 use crate::gw::{category::MarkerCategory, marker::Marker};
 use category::OverlayData;
@@ -12,7 +13,7 @@ use trail::Trail;
 pub fn load_markers() -> (
     BTreeMap<String, MarkerCategory>,
     BTreeMap<u32, Vec<Marker>>,
-    Vec<Trail>,
+    BTreeMap<u32, Vec<Trail>>,
 ) {
     use std::fs;
     let mut marker_cats: BTreeMap<String, MarkerCategory> = BTreeMap::new();
@@ -68,5 +69,18 @@ pub fn load_markers() -> (
             }
         }
     }
-    (marker_cats, markers_mapid, trails)
+    let mut trail_map = BTreeMap::new();
+    for t in trails.into_iter() {
+        let trail_path = t.trail_data.as_ref().unwrap();
+        let trail_file = std::fs::File::open(trail_path).unwrap();
+        let mut trail_reader = std::io::BufReader::new(trail_file);
+        let mut buffer_u32 = [0_u8; 4];
+        trail_reader.read(&mut buffer_u32).unwrap();
+        let map_id = u32::from_ne_bytes(buffer_u32);
+        trail_map
+        .entry(map_id)
+        .or_insert(Vec::new())
+        .push(t);
+    }
+    (marker_cats, markers_mapid, trail_map)
 }

@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
 use super::marker::Behavior;
-use super::marker::{Marker, POIS};
+use super::marker::POIS;
 use serde::{Deserialize, Serialize};
-pub struct Category {
-    name: String,
-    display_name: String,
-    marker_template: Option<Marker>,
-}
+// pub struct Category {
+//     name: String,
+//     display_name: String,
+//     marker_template: Option<Marker>,
+// }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
