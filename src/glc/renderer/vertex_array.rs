@@ -1,13 +1,15 @@
+use std::rc::Rc;
+
 use glow::HasContext;
 
 
-pub struct VertexArrayObject<'a> {
+pub struct VertexArrayObject {
     pub id: u32,
-    pub gl: &'a glow::Context,
+    pub gl: Rc<glow::Context>,
 }
 
-impl VertexArrayObject<'_> {
-    pub fn new<'a>(gl: &'a glow::Context) -> VertexArrayObject<'a> {
+impl VertexArrayObject {
+    pub fn new(gl: Rc<glow::Context>) -> VertexArrayObject {
         unsafe {
             let id = gl.create_vertex_array().unwrap();
             VertexArrayObject { id, gl }
@@ -29,7 +31,7 @@ impl VertexArrayObject<'_> {
 
 }
 
-impl Drop for VertexArrayObject<'_> {
+impl Drop for VertexArrayObject {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_vertex_array(self.id);

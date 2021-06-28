@@ -1,9 +1,13 @@
-use std::{collections::BTreeMap, net::UdpSocket, sync::mpsc::Receiver, time::Duration};
+use std::{collections::BTreeMap, net::UdpSocket, rc::Rc, sync::mpsc::Receiver, time::Duration};
 
+use device_query::DeviceState;
+use egui::{Pos2, RawInput, Rect};
+use glc::eglfw::egui_node::EguiSceneNode;
 use glfw::{Action, Glfw, Key, WindowEvent};
 use glow::HasContext;
-use gw::{category::MarkerCategory, load_markers, marker::Marker, trail::Trail};
+use gw::{category::MarkerCategory, marker::Marker, trail::Trail};
 use mlink::MumbleCache;
+use nalgebra_glm::make_vec2;
 
 use crate::mlink::GetMLMode;
 
@@ -13,46 +17,82 @@ pub mod mlink;
 
 pub struct JokolayApp {
     pub glfw: Glfw,
-    pub gl: glow::Context,
+    pub gl: Rc<glow::Context>,
     pub window: glfw::Window,
     pub marker_categories: BTreeMap<String, MarkerCategory>,
     pub markers: BTreeMap<u32, Vec<Marker>>,
     pub trails: BTreeMap<u32, Vec<Trail>>,
+    pub input: DeviceState,
+    pub ctx: egui::CtxRef,
+    pub e_renderer: glc::eglfw::egui_node::EguiSceneNode,
 }
 
 impl JokolayApp {
     pub fn new() -> Self {
         let (glfw, gl, window, _events) = glfw_window_init();
-        let (marker_categories, markers, trails) = load_markers();
+        // let (marker_categories, markers, trails) = load_markers();
+        let mut ctx = egui::CtxRef::default();
+        let e_renderer = EguiSceneNode::new(gl.clone());
+
+        ctx.begin_frame(RawInput::default());
+        let t = ctx.texture();
+        let tex_id = &e_renderer.material.texture[0];
+        tex_id.bind();
+        tex_id.update_pixels(&[&t.pixels], t.width as u32, t.height as u32);
+        let _ = ctx.end_frame();
 
         unsafe {
-            if gl.get_error() != glow::NO_ERROR {
-                println!("glerror at {} {} {}", file!(), line!(), column!());
+            let e = gl.get_error();
+            if e != glow::NO_ERROR {
+                println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
             }
         }
+
         JokolayApp {
             glfw,
             gl,
             window,
-            marker_categories,
-            markers,
-            trails,
+            marker_categories: BTreeMap::new(),
+            markers: BTreeMap::new(),
+            trails: BTreeMap::new(),
+            input: DeviceState::new(),
+            ctx,
+            e_renderer,
         }
     }
     pub fn run(&mut self) {
         let gl = &self.gl;
+        let ctx = &mut self.ctx;
+        let renderer = &mut self.e_renderer;
+        let mut input = RawInput::default();
+        input.pixels_per_point = Some(1_f32);
+        let input = input;
+        unsafe {
+            gl.active_texture(glow::TEXTURE0);
+        }
         loop {
             unsafe {
-                if gl.get_error() != glow::NO_ERROR {
-                    println!("glerror at {} {} {}", file!(), line!(), column!());
+                let e = self.gl.get_error();
+                if e != glow::NO_ERROR {
+                    println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
                 }
             }
-    
+            unsafe {
+                gl.clear_color(1.0, 1.0, 1.0, 1.0);
+                self.gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT);
+            }
+            ctx.begin_frame(input.clone());
+            egui::Window::new("egui window for checking").show(ctx, |ui| {
+                ui.add(egui::Label::new("whatever, big text. look at me sempai"));
+            });
+            let (_, shapes) = ctx.end_frame();
+
+            let meshes = ctx.tessellate(shapes);
+            renderer.draw_meshes(&meshes, make_vec2(&[800.0, 600.0]), 0);
             glfw::Context::swap_buffers(&mut self.window);
-    
+
             self.glfw.poll_events();
         }
-        
     }
 }
 
@@ -127,7 +167,7 @@ pub fn process_events(
 
 pub fn glfw_window_init() -> (
     Glfw,
-    glow::Context,
+    Rc<glow::Context>,
     glfw::Window,
     std::sync::mpsc::Receiver<(f64, WindowEvent)>,
 ) {
@@ -138,7 +178,7 @@ pub fn glfw_window_init() -> (
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(
         glfw::OpenGlProfileHint::Core,
     ));
-    glfw.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
+    // glfw.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
     glfw.window_hint(glfw::WindowHint::Floating(true));
     //glfw.window_hint(glfw::WindowHint::MousePassthrough(true));
     // glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
@@ -147,7 +187,7 @@ pub fn glfw_window_init() -> (
         .create_window(
             scr_width,
             scr_height,
-            "LearnOpenGL",
+            "Egui Experimentation",
             glfw::WindowMode::Windowed,
         )
         .expect("Failed to create GLFW window");
@@ -157,10 +197,11 @@ pub fn glfw_window_init() -> (
     window.set_framebuffer_size_polling(true);
     let gl =
         unsafe { glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _) };
+    let gl = Rc::new(gl);
     unsafe {
         gl.enable(glow::DEPTH_TEST);
         gl.enable(glow::BLEND);
-        gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+        gl.blend_func(glow::ONE, glow::ONE_MINUS_SRC_ALPHA);
     }
     (glfw, gl, window, events)
 }

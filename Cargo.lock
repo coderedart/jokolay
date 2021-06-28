@@ -335,6 +335,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "device_query"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0500656e17fa3bf720de64b28b6fb28c3602307fc7afbb078c6643d836acaa28"
+dependencies = [
+ "input-event-codes",
+ "pkg-config",
+ "readkey",
+ "readmouse",
+ "winapi",
+ "x11",
+]
+
+[[package]]
 name = "egui"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -657,6 +671,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "input-event-codes"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acb51da0fc0301c7b9a39fd88a5ce0c2b2c3af08f60e610f0a505bb0abfa0712"
+
+[[package]]
 name = "instant"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -705,10 +725,11 @@ dependencies = [
 
 [[package]]
 name = "jokolay"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "bytemuck",
+ "device_query",
  "egui",
  "epi",
  "glfw",
@@ -1133,6 +1154,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pkg-config"
+version = "0.3.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
+
+[[package]]
 name = "png"
 version = "0.16.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1308,6 +1335,18 @@ dependencies = [
  "lazy_static",
  "num_cpus",
 ]
+
+[[package]]
+name = "readkey"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86d401b6d6a1725a59f1b4e813275d289dff3ad09c72b373a10a7a8217ba3146"
+
+[[package]]
+name = "readmouse"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be105c72a1e6a5a1198acee3d5b506a15676b74a02ecd78060042a447f408d94"
 
 [[package]]
 name = "redox_syscall"
@@ -2049,6 +2088,16 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "x11"
+version = "2.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ecd092546cb16f25783a5451538e73afc8d32e242648d54f4ae5459ba1e773"
+dependencies = [
+ "libc",
+ "pkg-config",
+]
 
 [[package]]
 name = "yaml-rust"

@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use glow::HasContext;
 use nalgebra_glm::{Mat4, Vec3};
 
@@ -19,16 +21,16 @@ pub struct MarkerNode {
     pub tex_layer: u32,
     pub tex_slot: u32,
 }
-pub struct MarkerSceneNode<'a> {
-    pub vao: VertexArrayObject<'a>,
-    pub vb: Buffer<'a>,
-    pub ib: Buffer<'a>,
-    pub material: Material<'a>,
+pub struct MarkerSceneNode {
+    pub vao: VertexArrayObject,
+    pub vb: Buffer,
+    pub ib: Buffer,
+    pub material: Material,
     pub batches: Vec<Batch>,
-    pub gl: &'a glow::Context,
+    pub gl: Rc<glow::Context>,
 }
 const SAMPLERS_ARRAY: [u32; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-impl MarkerSceneNode<'_> {
+impl MarkerSceneNode {
     pub fn draw(&self, markers: Option<&Vec<MarkerNode>>, vp: Mat4, cam_pos: Vec3, player_pos: Vec3) {
         self.bind();
         if let Some(m) = markers {
@@ -68,7 +70,7 @@ pub struct Batch {
     pub buffer_count: u32,    
 }
 
-impl Renderable<'_> for MarkerSceneNode<'_> {
+impl Renderable for MarkerSceneNode {
     fn update_buffers(&self, vb: Option<(&[u8], u32)>, ib: Option<(&[u8], u32)>) {
         if let Some((data, usage)) = vb {
             self.vb.update(data, usage);

@@ -1,16 +1,17 @@
 use glow::Context;
 use super::{shader::ShaderProgram, texture::Texture};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, rc::Rc};
 
 
-pub struct Material<'a> {
-    pub program: ShaderProgram<'a>,
-    pub texture: Vec<Texture<'a>>,
+pub struct Material{
+    pub program: ShaderProgram,
+    pub texture: Vec<Texture>,
     pub uniforms: BTreeMap<MaterialUniforms, u32>,
-    pub gl: &'a Context,
+    pub gl: Rc<Context>,
 }
 
-impl Material<'_> {
+impl Material {
+
     pub fn bind(&self) {
         self.program.bind();
     }

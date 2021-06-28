@@ -1,15 +1,15 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, rc::Rc};
 
 use glow::*;
 
-pub struct Buffer<'a> {
+pub struct Buffer {
     pub id: u32,
     pub target: u32,
-    gl: &'a glow::Context,
+    gl: Rc<glow::Context>,
 }
 
-impl<'a> Buffer<'a> {
-    pub fn new(gl: &'a glow::Context, target: u32 ) -> Buffer<'a> {
+impl Buffer {
+    pub fn new(gl: Rc<glow::Context>, target: u32 ) -> Buffer {
         unsafe {
             let id = gl.create_buffer().expect("failed to create buffer");
             Buffer { id, target, gl }
@@ -35,7 +35,7 @@ impl<'a> Buffer<'a> {
     
 }
 
-impl Drop for Buffer<'_> {
+impl Drop for Buffer {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_buffer(self.id);
@@ -84,7 +84,7 @@ impl VertexBufferLayout {
         });
     }
 
-    pub fn set_layout(&self, gl: &glow::Context) {
+    pub fn set_layout(&self, gl: Rc<glow::Context>) {
         let mut stride: i32 = 0;
         for element in self.layout_of_elements.iter() {
             match element.etype {

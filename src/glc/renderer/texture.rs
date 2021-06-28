@@ -1,24 +1,26 @@
+use std::rc::Rc;
+
 use glow::{Context, HasContext};
 
-pub struct Texture<'a> {
-    gl: &'a Context,
+pub struct Texture {
+    gl: Rc<Context>,
     id: u32,
     target: u32,
 }
 
-impl<'a> Texture<'a> {
-    pub fn new(gl: &'a Context, target: u32) -> Self {
+impl Texture {
+    pub fn new(gl: Rc<Context>, target: u32) -> Self {
         unsafe {
             //create texture buffer id
             let id = gl.create_texture().unwrap();
             //initialize its state and set its type to target
             gl.bind_texture(target, Some(id));
             //if texture coordinates are outside of range 0.0-1.0, it will just start over from beginning and thus repeat itself
-            gl.tex_parameter_i32(target, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
-            gl.tex_parameter_i32(target, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
+            gl.tex_parameter_i32(target, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
+            gl.tex_parameter_i32(target, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
             // when the pixel is big matches multiple texels or when pixel small and matches less than one texel.
-            gl.tex_parameter_i32(target, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-            gl.tex_parameter_i32(target, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
+            gl.tex_parameter_i32(target, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
+            gl.tex_parameter_i32(target, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
 
             Texture { gl, id, target }
         }
@@ -80,7 +82,7 @@ impl<'a> Texture<'a> {
     }
 }
 
-impl Drop for Texture<'_> {
+impl Drop for Texture {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_texture(self.id);

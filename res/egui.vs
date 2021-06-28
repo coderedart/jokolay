@@ -6,6 +6,8 @@ layout (location = 2) in vec4 color; //0-255.0 range of colors
 out vec2 tex_coords_frag;
 out vec4 tex_color;
 
+uniform vec2 screen_size;
+
 vec3 linear_from_srgb(vec3 srgb) {
   bvec3 cutoff = lessThan(srgb, vec3(10.31475));
   vec3 lower = srgb / vec3(3294.6);
@@ -18,8 +20,8 @@ vec4 linear_from_srgba(vec4 srgba) {
 }
 void main()
 {
-    gl_Position = vec4(2.0 * Position.x / 800.0 - 1.0,
-    1.0 - 2.0 * Position.y / 600,
+    gl_Position = vec4(2.0 * Position.x / screen_size.x - 1.0,
+    1.0 - 2.0 * Position.y / screen_size.y,
      0.0,
       1.0);
     tex_coords_frag =  tex_coords;

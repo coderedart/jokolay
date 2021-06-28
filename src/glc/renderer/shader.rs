@@ -1,22 +1,22 @@
 use glow::*;
-use std::{fs::File, io::Read, path::Path};
+use std::{fs::File, io::Read, path::Path, rc::Rc};
 
 /// Struct to abstract away creation/binding of shader program.
 /// compiles shaders and attaches them to a new program. id is the program id.
 /// destroys the program when dropped, so keep it alive if you don't want that.
-pub struct ShaderProgram<'a> {
+pub struct ShaderProgram {
     pub id: u32,
-    gl: &'a glow::Context,
+    gl: Rc<glow::Context>,
 }
 
-impl ShaderProgram<'_> {
+impl ShaderProgram {
     /// takes in files containing vertex/fragment shaders and returns a Shaderprogram with them attached
-    pub fn new<'a>(
-        gl: &'a glow::Context,
+    pub fn new(
+        gl: Rc<glow::Context>,
         vertex_shader_src_path: &Path,
         geometry_shader_src_path: Option<&Path>,
         fragment_shader_src_path: &Path,
-    ) -> ShaderProgram<'a> {
+    ) -> ShaderProgram {
         let mut vertex_shader_source = String::new();
         let mut fragment_shader_source = String::new();
         let mut geometry_shader_source = String::new();
@@ -83,7 +83,7 @@ impl ShaderProgram<'_> {
     }
 }
 
-impl<'a> Drop for ShaderProgram<'a> {
+impl Drop for ShaderProgram {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_program(self.id);

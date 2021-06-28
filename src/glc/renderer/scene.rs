@@ -1,17 +1,19 @@
+use std::rc::Rc;
+
 use super::{buffer::Buffer,  material::Material, vertex_array::VertexArrayObject};
 
 use nalgebra_glm::{Mat4, Vec2, Vec3};
 
-pub struct SceneNode<'a> {
-    pub vao: VertexArrayObject<'a>,
-    pub vb: Buffer<'a>,
-    pub ib: Buffer<'a>,
-    pub material: Material<'a>,
-    pub gl: &'a glow::Context,
+pub struct SceneNode {
+    pub vao: VertexArrayObject,
+    pub vb: Buffer,
+    pub ib: Buffer,
+    pub material: Material,
+    pub gl: Rc<glow::Context>,
 
 }
 
-pub trait Renderable<'a> {
+pub trait Renderable {
     fn bind(&self);
     fn update_buffers(&self, vb: Option<(&[u8], u32)>, ib: Option<(&[u8], u32)>);
     fn update_uniforms(&self, uniform_data: SceneNodeUniform);
