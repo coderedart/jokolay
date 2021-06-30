@@ -31,7 +31,7 @@ pub enum SceneNodeUniform<'b> {
     },
     EguiSceneNodeUniform {
         screen_size: Vec2,
-        etex_sampler: u32,
+        u_sampler: u32,
     }
 }
 

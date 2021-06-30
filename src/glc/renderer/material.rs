@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, rc::Rc};
 
 pub struct Material{
     pub program: ShaderProgram,
-    pub texture: Vec<Texture>,
+    pub textures: Vec<Texture>,
     pub uniforms: BTreeMap<MaterialUniforms, u32>,
     pub gl: Rc<Context>,
 }
@@ -25,7 +25,7 @@ impl Material {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MaterialUniforms {
     EguiScreenSize,
-    EguiEtexSampler,
+    EguiSampler,
     MarkerVP,
     MarkerCamPos,
     MarkerPlayerPos,

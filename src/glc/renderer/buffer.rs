@@ -1,6 +1,5 @@
-use std::{convert::TryInto, rc::Rc};
-
 use glow::*;
+use std::{convert::TryInto, rc::Rc};
 
 pub struct Buffer {
     pub id: u32,
@@ -9,9 +8,10 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(gl: Rc<glow::Context>, target: u32 ) -> Buffer {
+    pub fn new(gl: Rc<glow::Context>, target: u32) -> Buffer {
         unsafe {
             let id = gl.create_buffer().expect("failed to create buffer");
+
             Buffer { id, target, gl }
         }
     }
@@ -23,7 +23,6 @@ impl Buffer {
     }
     pub fn bind(&self) {
         unsafe {
-            
             self.gl.bind_buffer(self.target, Some(self.id));
         }
     }
@@ -32,7 +31,6 @@ impl Buffer {
             self.gl.bind_buffer(self.target, None);
         }
     }
-    
 }
 
 impl Drop for Buffer {
@@ -53,7 +51,7 @@ pub struct VertexBufferLayoutElement {
 pub struct VertexBufferLayout {
     layout_of_elements: Vec<VertexBufferLayoutElement>,
 }
-// we will avoid u16/u8 types for now to keep alignment simple
+// we will avoid u16 types for now to keep alignment simple. u8 is for rgba egui until they use bytemuck
 impl VertexBufferLayout {
     pub fn push_f32(&mut self, count: i32, normalized: bool) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
@@ -69,13 +67,13 @@ impl VertexBufferLayout {
     //         normalized: false,
     //     });
     // }
-    // pub fn push_u8(&mut self, count: i32) {
-    //     &self.layout_of_elements.push(VertexBufferLayoutElement {
-    //         etype: glow::UNSIGNED_BYTE,
-    //         count,
-    //         normalized: false,
-    //     });
-    // }
+    pub fn push_u8(&mut self, count: i32) {
+        &self.layout_of_elements.push(VertexBufferLayoutElement {
+            etype: glow::UNSIGNED_BYTE,
+            count,
+            normalized: false,
+        });
+    }
     pub fn push_u32(&mut self, count: i32) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::UNSIGNED_INT,
@@ -90,13 +88,13 @@ impl VertexBufferLayout {
             match element.etype {
                 FLOAT | UNSIGNED_INT => {
                     stride += 4 * element.count as i32;
-                },
-                // UNSIGNED_BYTE => {
-                //     stride += 1 * element.count as i32;
-                // },
-                // UNSIGNED_SHORT => {
-                //     stride += 2 * element.count as i32;
-                // },              
+                }
+                UNSIGNED_BYTE => {
+                    stride += 1 * element.count as i32;
+                }
+                UNSIGNED_SHORT => {
+                    stride += 2 * element.count as i32;
+                }
                 rest @ _ => {
                     panic!("vertexBufferElement's etype is not right: {}", rest);
                 }
@@ -127,17 +125,18 @@ impl VertexBufferLayout {
                             offset,
                         );
                         offset += 4 * element.count as i32;
-                    },
-                    // UNSIGNED_BYTE => {
-                    //     gl.vertex_attrib_pointer_i32(
-                    //         index.try_into().unwrap(),
-                    //         element.count,
-                    //         UNSIGNED_BYTE,
-                    //         stride,
-                    //         offset,
-                    //     );
-                    //     offset += 1 * element.count as i32;
-                    // },
+                    }
+                    UNSIGNED_BYTE => {
+                        gl.vertex_attrib_pointer_f32(
+                            index.try_into().unwrap(),
+                            element.count,
+                            UNSIGNED_BYTE,
+                            false,
+                            stride,
+                            offset,
+                        );
+                        offset += 1 * element.count as i32;
+                    }
                     // UNSIGNED_SHORT => {
                     //     gl.vertex_attrib_pointer_i32(
                     //         index.try_into().unwrap(),
@@ -147,7 +146,7 @@ impl VertexBufferLayout {
                     //         offset,
                     //     );
                     //     offset += 2 * element.count as i32;
-                    // },   
+                    // }
                     _ => {
                         panic!("vertexBufferElement's etype is not right");
                     }

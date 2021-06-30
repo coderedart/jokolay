@@ -1,6 +1,6 @@
 [package]
 name = "jokolay"
-version = "0.1.8"
+version = "0.1.9"
 description = "An Overlay for Guild Wars 2 in rust"
 license = "MIT"
 authors = ["coderedart <redartofcode@gmail.com>"]
@@ -25,6 +25,7 @@ anyhow = "1.0.41"
 egui = "0.13.0"
 epi = "0.13.0"
 device_query = "0.2.8"
+copypasta = "0.7.1"
 #serde-xml-rs = "0.4.1"
 
 

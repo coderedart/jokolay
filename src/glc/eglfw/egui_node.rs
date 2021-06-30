@@ -1,6 +1,9 @@
-use std::{collections::BTreeMap, path::Path, rc::Rc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    rc::Rc,
+};
 
-use egui::ClippedMesh;
+use egui::{ClippedMesh, TextureId};
 use glow::{Context, HasContext, UNSIGNED_INT};
 use nalgebra_glm::Vec2;
 
@@ -13,13 +16,13 @@ use crate::glc::renderer::{
     vertex_array::VertexArrayObject,
 };
 
-
 pub struct EguiSceneNode {
     pub vao: VertexArrayObject,
     pub vb: Buffer,
     pub ib: Buffer,
     pub material: Material,
     pub gl: Rc<glow::Context>,
+    pub texture_versions: HashMap<TextureId, usize>,
 }
 
 impl EguiSceneNode {
@@ -29,97 +32,102 @@ impl EguiSceneNode {
         let ib = Buffer::new(gl.clone(), glow::ELEMENT_ARRAY_BUFFER);
         let program = ShaderProgram::new(
             gl.clone(),
-            &Path::new("./res/egui.vs"),
+            EGUI_VERTEX_SHADER_SRC,
+            EGUI_FRAGMENT_SHADER_SRC,
             None,
-            &Path::new("./res/egui.fs"),
         );
-        let texture = Texture::new(gl.clone(), glow::TEXTURE_2D);
-        let texture = vec![texture];
+
+        let textures = vec![];
         let mut uniforms: BTreeMap<MaterialUniforms, u32> = BTreeMap::new();
         unsafe {
-            let ss = gl.get_uniform_location(program.id, "screen_size").unwrap();
-            let sampler = gl.get_uniform_location(program.id, "m_sampler").unwrap();
-            uniforms.insert(MaterialUniforms::EguiScreenSize, ss);
-            uniforms.insert(MaterialUniforms::EguiEtexSampler, sampler);
+            let u_sampler = gl.get_uniform_location(program.id, "u_sampler").unwrap();
+            let screen_size = gl.get_uniform_location(program.id, "screen_size").unwrap();
+            uniforms.insert(MaterialUniforms::EguiScreenSize, screen_size);
+            uniforms.insert(MaterialUniforms::EguiSampler, u_sampler);
         }
-        
         let material = Material {
             program,
-            texture,
+            textures,
             uniforms,
             gl: gl.clone(),
         };
-        let egui_scene_node = 
-        EguiSceneNode {
+        let egui_scene_node = EguiSceneNode {
             vao,
             vb,
             ib,
             material,
             gl: gl.clone(),
+            texture_versions: HashMap::new(),
         };
         egui_scene_node.bind();
         let layout = VertexRgba::get_layout();
         layout.set_layout(gl.clone());
 
         return egui_scene_node;
-
     }
 
-    pub fn draw_meshes(&self, meshes: &Vec<ClippedMesh>, screen_size: Vec2, etex_sampler: u32) {
+    pub fn draw_meshes(&mut self, meshes: &Vec<ClippedMesh>, screen_size: Vec2, u_sampler: u32) {
         self.bind();
-        unsafe {
-            let e = self.gl.get_error();
-            if e != glow::NO_ERROR {
-                println!("glerror {} at {} {} {}",e, file!(), line!(), column!());
-            }
-        }
+
         unsafe {
             self.gl.enable(glow::FRAMEBUFFER_SRGB);
-            // IF we use clip rectangle
-            // self.gl.enable(glow::SCISSOR_TEST);
+            self.gl.disable(glow::DEPTH_TEST);
+            self.gl.enable(glow::BLEND);
+            self.gl.blend_func(glow::ONE, glow::ONE_MINUS_SRC_ALPHA);
+            self.gl.enable(glow::SCISSOR_TEST);
         }
-        unsafe {
-            let e = self.gl.get_error();
-            if e != glow::NO_ERROR {
-                println!("glerror {} at {} {} {}",e, file!(), line!(), column!());
-            }
-        }
+
         for clipped_mesh in meshes {
             self.update_uniforms(SceneNodeUniform::EguiSceneNodeUniform {
                 screen_size,
-                etex_sampler,
+                u_sampler,
             });
             unsafe {
                 let e = self.gl.get_error();
                 if e != glow::NO_ERROR {
-                    println!("glerror {} at {} {} {}",e, file!(), line!(), column!());
+                    println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
                 }
             }
             self.draw_mesh(clipped_mesh);
-            unsafe {
-                let e = self.gl.get_error();
-                if e != glow::NO_ERROR {
-                    println!("glerror {} at {} {} {}",e, file!(), line!(), column!());
-                }
-            }
-        }
-        unsafe {
-            self.gl.disable(glow::FRAMEBUFFER_SRGB);
         }
     }
-    pub fn draw_mesh(&self, clipped_mesh: &ClippedMesh) {
-        let _clip_rect = clipped_mesh.0;
+    pub fn draw_mesh(&mut self, clipped_mesh: &ClippedMesh) {
+        let clip_rect = clipped_mesh.0;
+        //clip rectangle copy pasted from glium
+        let clip_min_x = clip_rect.min.x;
+        let clip_min_y = clip_rect.min.y;
+        let clip_max_x = clip_rect.max.x;
+        let clip_max_y = clip_rect.max.y;
 
+        // Make sure clip rect can fit within a `u32`:
+        let clip_min_x = clip_min_x.clamp(0.0, 800 as f32);
+        let clip_min_y = clip_min_y.clamp(0.0, 600 as f32);
+        let clip_max_x = clip_max_x.clamp(clip_min_x, 800 as f32);
+        let clip_max_y = clip_max_y.clamp(clip_min_y, 600 as f32);
+
+        let clip_min_x = clip_min_x.round() as u32;
+        let clip_min_y = clip_min_y.round() as u32;
+        let clip_max_x = clip_max_x.round() as u32;
+        let clip_max_y = clip_max_y.round() as u32;
+
+        unsafe {
+            self.gl.scissor(
+                clip_min_x as i32,
+                600 - clip_max_y as i32,
+                (clip_max_x - clip_min_x) as i32,
+                (clip_max_y - clip_min_y) as i32,
+            );
+        }
         let mesh = &clipped_mesh.1;
         let vertices: Vec<VertexRgba> = mesh.vertices.iter().map(|v| VertexRgba::from(v)).collect();
-
         let indices = &mesh.indices;
-        let _texture_id = mesh.texture_id;
 
         self.update_buffers(
             Some((bytemuck::cast_slice(&vertices), glow::DYNAMIC_DRAW)),
             Some((bytemuck::cast_slice(indices), glow::DYNAMIC_DRAW)),
         );
+
+        self.material.textures[*self.texture_versions.get(&mesh.texture_id).unwrap()].bind();
         self.render(indices.len() as u32, 0);
     }
 }
@@ -149,32 +157,27 @@ impl Renderable for EguiSceneNode {
             } => unimplemented!(),
             SceneNodeUniform::EguiSceneNodeUniform {
                 screen_size,
-                etex_sampler,
+                u_sampler,
             } => unsafe {
                 self.gl.uniform_2_f32_slice(
-                    Some(self.material
-                        .uniforms
-                        .get(&MaterialUniforms::EguiScreenSize).unwrap()),
+                    Some(
+                        self.material
+                            .uniforms
+                            .get(&MaterialUniforms::EguiScreenSize)
+                            .unwrap(),
+                    ),
                     screen_size.as_slice(),
                 );
-                unsafe {
-                    let e = self.gl.get_error();
-                    if e != glow::NO_ERROR {
-                        println!("glerror {} at {} {} {}",e, file!(), line!(), column!());
-                    }
-                }
-                // self.gl.uniform_1_u32(
-                //     Some(self.material
-                //         .uniforms
-                //         .get(&MaterialUniforms::EguiEtexSampler).unwrap()),
-                //     etex_sampler,
-                // );
-                unsafe {
-                    let e = self.gl.get_error();
-                    if e != glow::NO_ERROR {
-                        println!("glerror {} at {} {} {}",e, file!(), line!(), column!());
-                    }
-                }
+                //sampler uniforms are i32
+                self.gl.uniform_1_i32(
+                    Some(
+                        self.material
+                            .uniforms
+                            .get(&MaterialUniforms::EguiSampler)
+                            .unwrap(),
+                    ),
+                    u_sampler as i32,
+                );
             },
         }
     }
@@ -190,6 +193,7 @@ impl Renderable for EguiSceneNode {
         self.vb.unbind();
         self.ib.unbind();
         self.material.unbind();
+        self.material.unbind();
     }
 }
 
@@ -199,12 +203,9 @@ use crate::glc::renderer::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
 #[derive(Debug, Clone, Copy)]
 pub struct VertexRgba {
-    pub position: Pos2,
+    pub pos: Pos2,
     pub uv: Pos2,
-    pub r: f32,
-    pub g: f32,
-    pub b: f32,
-    pub a: f32,
+    pub color: [u8; 4],
 }
 
 impl VertexBufferLayoutTrait for VertexRgba {
@@ -212,31 +213,25 @@ impl VertexBufferLayoutTrait for VertexRgba {
         let mut vbl = VertexBufferLayout::default();
         vbl.push_f32(2, false);
         vbl.push_f32(2, false);
-        vbl.push_f32(4, false);
+        vbl.push_u8(4);
         vbl
     }
 }
 impl From<&Vertex> for VertexRgba {
     fn from(vert: &Vertex) -> Self {
         VertexRgba {
-            position: vert.pos,
+            pos: vert.pos,
             uv: vert.uv,
-            r: vert.color.r() as f32,
-            g: vert.color.g() as f32,
-            b: vert.color.b() as f32,
-            a: vert.color.a() as f32,
+            color: vert.color.to_array(),
         }
     }
 }
 impl From<Vertex> for VertexRgba {
     fn from(vert: Vertex) -> Self {
         VertexRgba {
-            position: vert.pos,
+            pos: vert.pos,
             uv: vert.uv,
-            r: vert.color.r() as f32,
-            g: vert.color.g() as f32,
-            b: vert.color.b() as f32,
-            a: vert.color.a() as f32,
+            color: vert.color.to_array(),
         }
     }
 }
@@ -247,3 +242,48 @@ unsafe impl bytemuck::Zeroable for VertexRgba {
     }
 }
 unsafe impl bytemuck::Pod for VertexRgba {}
+
+const EGUI_FRAGMENT_SHADER_SRC: &str = r#"
+#version 450
+
+uniform sampler2D u_sampler;
+
+in vec2 v_tc;
+in vec4 v_color;
+out vec4 f_color;
+
+void main() {
+  f_color =  v_color * texture(u_sampler, v_tc) ;
+}"#;
+
+const EGUI_VERTEX_SHADER_SRC: &str = r#"
+#version 450
+
+layout(location = 0) in vec2 pos;
+layout(location = 1) in vec2 tc;
+layout(location = 2) in vec4 color;
+
+out vec2 v_tc;
+out vec4 v_color;
+
+uniform vec2 screen_size;
+
+vec3 linear_from_srgb(vec3 srgb) {
+  bvec3 cutoff = lessThan(srgb, vec3(10.31475));
+  vec3 lower = srgb / vec3(3294.6);
+  vec3 higher = pow((srgb + vec3(14.025)) / vec3(269.025), vec3(2.4));
+  return mix(higher, lower, vec3(cutoff));
+}
+
+vec4 linear_from_srgba(vec4 srgba) {
+  return vec4(linear_from_srgb(srgba.rgb), srgba.a / 255.0);
+}
+
+void main() {
+
+    gl_Position = vec4(2.0 * pos.x / screen_size.x - 1.0, 1.0 - 2.0 * pos.y / screen_size.y, 0.0, 1.0);
+    v_tc = tc;
+    v_color = linear_from_srgba(color);
+
+}
+"#;

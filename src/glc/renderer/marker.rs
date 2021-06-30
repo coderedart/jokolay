@@ -50,7 +50,7 @@ impl MarkerSceneNode {
             // we stick to 16 textures for now. but eventually shift to MAX_TEXTURE_IMAGE_UNITS to jump to 32 when possible
             let texture_offset = 16 * index;
             //bind textures to their respective slots
-            for (slot, t) in self.material.texture[texture_offset..texture_offset + 16].iter().enumerate() {
+            for (slot, t) in self.material.textures[texture_offset..texture_offset + 16].iter().enumerate() {
                 unsafe {
                     self.gl.active_texture(glow::TEXTURE0 + slot as u32);
                     t.bind();
@@ -109,7 +109,7 @@ impl Renderable for MarkerSceneNode {
             },
             super::scene::SceneNodeUniform::EguiSceneNodeUniform {
                 screen_size: _,
-                etex_sampler: _,
+                u_sampler: _,
             } => unimplemented!(),
         }
     }
