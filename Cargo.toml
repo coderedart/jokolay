@@ -26,6 +26,7 @@ egui = "0.13.0"
 epi = "0.13.0"
 device_query = "0.2.8"
 copypasta = "0.7.1"
+parking_lot = "0.11.1"
 #serde-xml-rs = "0.4.1"
 
 

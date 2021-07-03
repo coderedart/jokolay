@@ -5,7 +5,7 @@ use nalgebra_glm::{Mat4, Vec3};
 
 use crate::{glc::renderer::material::MaterialUniforms, gw::marker::Marker};
 
-use super::{buffer::{Buffer, VertexBufferLayout, VertexBufferLayoutTrait}, material::Material, scene::{Renderable, SceneNodeUniform}, vertex_array::VertexArrayObject};
+use super::{buffer::{Buffer, VertexBufferLayout, VertexBufferLayoutTrait}, material::Material, scene::{Renderable, SceneNodeUniform}, texture::Texture, vertex_array::VertexArrayObject};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MarkerNode {
@@ -48,12 +48,12 @@ impl MarkerSceneNode {
             // batches are organized based on texture index in material. so, first batch is 0-15 textures, second is 16-31 and so on.
             // we get the offset from where we start binding the 16 textures to the slots
             // we stick to 16 textures for now. but eventually shift to MAX_TEXTURE_IMAGE_UNITS to jump to 32 when possible
-            let texture_offset = 16 * index;
+            assert!(batch.textures.len() < 16);
             //bind textures to their respective slots
-            for (slot, t) in self.material.textures[texture_offset..texture_offset + 16].iter().enumerate() {
+            for (slot, texture) in batch.textures.iter().enumerate() {
                 unsafe {
                     self.gl.active_texture(glow::TEXTURE0 + slot as u32);
-                    t.bind();
+                    texture.bind();
                 }
             }
             // now that all textures for this batch are bound, we can draw the points for this batch using the offset/count of batch;
@@ -67,7 +67,8 @@ impl MarkerSceneNode {
 }
 pub struct Batch {
     pub buffer_offset: u32,
-    pub buffer_count: u32,    
+    pub buffer_count: u32,
+    pub textures: Vec<Texture>,
 }
 
 impl Renderable for MarkerSceneNode {

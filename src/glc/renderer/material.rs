@@ -5,7 +5,6 @@ use std::{collections::BTreeMap, rc::Rc};
 
 pub struct Material{
     pub program: ShaderProgram,
-    pub textures: Vec<Texture>,
     pub uniforms: BTreeMap<MaterialUniforms, u32>,
     pub gl: Rc<Context>,
 }

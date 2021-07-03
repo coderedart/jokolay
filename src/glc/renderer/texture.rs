@@ -4,8 +4,8 @@ use glow::{Context, HasContext};
 
 pub struct Texture {
     gl: Rc<Context>,
-    id: u32,
-    target: u32,
+    pub id: u32,
+    pub target: u32,
 }
 
 impl Texture {

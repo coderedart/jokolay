@@ -31,38 +31,40 @@ pub struct MumbleCache {
 }
 
 impl MumbleCache {
-    pub fn new(key: &str, update_interval: Duration, get_mode: GetMLMode) -> anyhow::Result<Self> {
-        let link = MumbleCache::get_ml(key, &get_mode)?;
-        Ok(MumbleCache {
-            key: key.to_string(),
-            last_updated: Instant::now(),
-            last_accessed: Instant::now(),
-            link,
-            update_interval,
-            auto_update: false,
-            get_mode,
-        })
-    }
-    pub fn update(&mut self) -> anyhow::Result<()> {
-        if self.last_updated.elapsed() < self.update_interval {
-            return Ok(())
-        }
-        self.link = MumbleCache::get_ml(&self.key, &self.get_mode)?;
-        self.last_updated = Instant::now();
-        Ok(())
-    }
-    pub fn get_ml(key: &str, get_mode: &GetMLMode) -> anyhow::Result<MumbleLink> {
-        let ml;
-        match get_mode {
-            GetMLMode::UdpAsync => anyhow::bail!(""),
-            GetMLMode::UdpSync(socket) => ml = MumbleCache::request_udp_sync(key, &socket, MLRequestCode::CML)?,
-            GetMLMode::GrpcAsync => anyhow::bail!(""),
-        }
-        match ml {
-            ResponseResult::Link(link) => Ok(link),
-            ResponseResult::WinDim(_) => anyhow::bail!(""),
-        }
-    }
+    // pub fn new(key: &str, update_interval: Duration, get_mode: GetMLMode) -> anyhow::Result<Self> {
+    //     let link = MumbleCache::get_ml(key, &get_mode)?;
+    //     Ok(MumbleCache {
+    //         key: key.to_string(),
+    //         last_updated: Instant::now(),
+    //         last_accessed: Instant::now(),
+    //         link,
+    //         update_interval,
+    //         auto_update: false,
+    //         get_mode,
+    //     })
+    // }
+    // pub fn update(&mut self) -> anyhow::Result<()> {
+    //     if self.last_updated.elapsed() < self.update_interval {
+    //         return Ok(())
+    //     }
+    //     self.link = MumbleCache::get_ml(&self.key, &self.get_mode)?;
+    //     self.last_updated = Instant::now();
+    //     Ok(())
+    // }
+    // pub fn get_ml(key: &str, get_mode: &GetMLMode) -> anyhow::Result<MumbleLink> {
+    //     let ml;
+    //     match get_mode {
+    //         GetMLMode::UdpAsync => anyhow::bail!(""),
+    //         GetMLMode::UdpSync(socket) => ml = MumbleCache::request_udp_sync(key, &socket, MLRequestCode::CML)?,
+    //         GetMLMode::GrpcAsync => anyhow::bail!(""),
+    //         #[cfg(target_os="windows")]
+    //         GetMLMode::RawPtrWin => {},
+    //     }
+    //     match ml {
+    //         ResponseResult::Link(link) => Ok(link),
+    //         ResponseResult::WinDim(_) => anyhow::bail!(""),
+    //     }
+    // }
     // async fn grpc_async(key: &str, request_type: MLRequestCode ) {}
 
     fn request_udp_sync(

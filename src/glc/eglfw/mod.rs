@@ -1,7 +1,6 @@
-pub mod egui_node;
+pub mod scene;
 pub mod http;
 pub mod persistence;
 pub mod window_settings;
-pub mod backend;
-pub mod input;
+pub mod eguiapp;
 
