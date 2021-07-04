@@ -1,26 +1,33 @@
 use std::{cell::RefCell, rc::Rc};
 
-use egui::{Color32, CtxRef, RawInput, TextureId, any, epaint::Shadow};
-use glow::Context;
+use egui::{any, epaint::Shadow, Color32, CtxRef, RawInput, TextureId};
+use glow::{Context, HasContext};
 use nalgebra_glm::make_vec2;
 
 use crate::{glc::renderer::texture::Texture, window::OverlayWindow};
 
-use super::scene::EguiScene;
+use super::{scene::EguiScene, widgets::MainWindow};
 
 pub struct EguiApp {
-    pub ctx: CtxRef,
     pub painter: Rc<RefCell<EguiScene>>,
+    pub main_window: Rc<RefCell<MainWindow>>,
+    pub ctx: Rc<RefCell<CtxRef>>,
     pub overlay_window: Rc<OverlayWindow>,
+
 }
 
 impl EguiApp {
+    /// Creates a egui CtxRef. ctx has a interior pointer that changes to a new generation of Context everytime we call begin frame.
+    /// So, we wrap the CtxRef in Rc so that we all are using the same/latest context inside ctx.
+    /// Creates a EguiScene and then uploads the default egui font texture from ctx by caling begin frame.
     pub fn new(gl: Rc<Context>, overlay_window: Rc<OverlayWindow>) -> Self {
-        let mut ctx = egui::CtxRef::default();
+        let ctx = Rc::new(RefCell::new(egui::CtxRef::default()));
+
         let painter = Rc::new(RefCell::new(EguiScene::new(gl.clone())));
+
         // upload the main egui font texture
-        ctx.begin_frame(RawInput::default());
-        let t = ctx.texture();
+        ctx.borrow_mut().begin_frame(RawInput::default());
+        let t = ctx.borrow().texture();
         let new_texture = Texture::new(gl.clone(), glow::TEXTURE_2D);
         new_texture.bind();
         let mut pixels = Vec::new();
@@ -37,15 +44,18 @@ impl EguiApp {
             .borrow_mut()
             .texture_versions
             .insert(egui::TextureId::Egui, new_texture);
-        let _ = ctx.end_frame();
-
+        let _ = ctx.borrow_mut().end_frame();
+        let main_window = Rc::new(RefCell::new(MainWindow::default()));
         EguiApp {
             ctx,
             painter,
             overlay_window,
+            main_window
+
         }
     }
 
+    /// functions used to upload any textures coming from egui side. assign the texture Id as the User(id) as both of them will be deleted at once when egui calls delete texture
     pub fn upload_user_texture(&self, pixels: &[u8], width: u32, height: u32) -> TextureId {
         let new_texture = Texture::new(self.painter.borrow().gl.clone(), glow::TEXTURE_2D);
         new_texture.bind();
@@ -57,21 +67,29 @@ impl EguiApp {
             .insert(egui::TextureId::User(new_texture.id.into()), new_texture);
         tex_id
     }
-
+    /// this is the primary function that is run in the event loop. we collect the pressed keys/buttons at this moment, get mouse position
+    /// and finally, check with the previous values to see if there's any change and upload those events to the raw_input.events vec.
+    /// then call begin frameto start uploading the new windows/widgets before calling endframe.
+    /// handle any output events, and draw egui.
     pub fn update(&self) -> anyhow::Result<()> {
         let overlay_window = self.overlay_window.clone();
         let mut ctx = self.ctx.clone();
         let painter = self.painter.clone();
-
-        overlay_window.query_input_events();
-        let (width, height) = overlay_window.window.borrow().get_size();
-
-        ctx.begin_frame(
+        let (width, height) = overlay_window.global_input_state.borrow().window_size;
+        let gl = self.overlay_window.gl.clone();
+        overlay_window.query_input_events(width, height);
+        // let (width, height) = overlay_window.window.borrow().get_size();
+        // let width = 800.0_f32;
+        // let height = 600.0_f32;
+        // if !overlay_window.global_input_state.borrow().raw_input.events.is_empty() {
+        // dbg!(&overlay_window.global_input_state.borrow().raw_input.events);
+        // }
+        ctx.borrow_mut().begin_frame(
             overlay_window
                 .global_input_state
                 .borrow_mut()
                 .raw_input
-                .take(),
+                .clone(),
         );
         // egui::CentralPanel::default().show(&ctx, |ui| {
         //     ui.add(egui::Label::new("whatever, big text. look at me sempai"));
@@ -83,26 +101,34 @@ impl EguiApp {
         //     };
 
         // });
-   
+
+        let mut frame = egui::Frame::default()
+            .fill(Color32::BLACK)
+            .multiply_with_opacity(0.5);
+        frame.shadow = Shadow::small_dark();
+
         egui::Window::new("egui window")
-            .show(&ctx, |ui| {
-                ui.add(egui::Label::new(
-                    "label inside window. please look at me sempai",
-                ));
+            .frame(frame)
+            .show(&ctx.borrow(), |ui| {
                 if ui.button("click me").clicked() {
                     println!("clicked");
                 }
             });
-        // egui::SidePanel::left("best panel ever").show(&ctx.borrow(), |ui| {
-        //     ui.add(egui::Label::new("ffs. what's with the blur"));
-        // });
-        let (_, shapes) = ctx.end_frame();
 
-        let meshes = ctx.tessellate(shapes);
-
+        let (egui_output, shapes) = ctx.borrow_mut().end_frame();
+        if !egui_output.events.is_empty() {
+            dbg!(egui_output.events);
+        }
+        let meshes = ctx.borrow().tessellate(shapes);
         painter
             .borrow_mut()
             .draw_meshes(&meshes, make_vec2(&[width as f32, height as f32]), 0)?;
-            Ok(())
+
+        Ok(())
     }
+    
+}
+
+pub enum UIElements {
+
 }

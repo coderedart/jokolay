@@ -29,7 +29,7 @@ impl OverlayWindow {
 
         glfw.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
 
-        glfw.window_hint(glfw::WindowHint::MousePassthrough(false));
+        glfw.window_hint(glfw::WindowHint::MousePassthrough(true));
 
         glfw.window_hint(glfw::WindowHint::Decorated(true));
 
@@ -109,6 +109,7 @@ pub struct GlobalInputState {
     pub dq: DeviceState,
     pub raw_input: RawInput,
     pub window_pos: (i32, i32),
+    pub window_size: (i32, i32)
 }
 impl GlobalInputState {
     pub fn new(window: Rc<RefCell<Window>>) -> Self {
@@ -119,6 +120,8 @@ impl GlobalInputState {
             Pos2::new(0.0, 0.0),
             Pos2::new(width as f32, height as f32),
         ));
+        raw_input.predicted_dt = 1.0 / 75.0;
+        raw_input.pixels_per_point = Some(1.0);
         let (pox_x, pox_y) = window.borrow().get_pos();
         GlobalInputState {
             global_mouse_position: Default::default(),
@@ -128,12 +131,13 @@ impl GlobalInputState {
             clipboard,
             raw_input,
             window_pos: (pox_x, pox_y),
+            window_size: (width, height)
         }
     }
 }
 
 impl OverlayWindow {
-    pub fn query_input_events(&self) {
+    pub fn query_input_events(&self, width: i32, height: i32) {
         let mut input_state = self.global_input_state.borrow_mut();
         let mut events = Vec::new();
 
@@ -167,17 +171,11 @@ impl OverlayWindow {
         }
 
         let egui_mouse_position = Pos2::new(
-            (mouse.coords.0 - input_state.window_pos.0) as f32,
-            (mouse.coords.1 - input_state.window_pos.1) as f32,
+            (mouse.coords.0 - input_state.window_pos.0)  as f32,
+            (mouse.coords.1 - input_state.window_pos.1)  as f32,
         );
-        // dbg!(mouse.coords, egui_mouse_position);
-        // check for mouse position changes
-        if input_state.global_mouse_position[0] != mouse.coords.0
-            || input_state.global_mouse_position[1] != mouse.coords.1
-        {
-            events.push(Event::PointerMoved(egui_mouse_position));
-            input_state.global_mouse_position = make_vec2(&[mouse.coords.0, mouse.coords.1]);
-        }
+                let egui_mouse_position = egui_mouse_position.clamp(Pos2::new(0.0, 0.0), Pos2::new(width as f32, height as f32));
+
 
         //mouse buttons start at 1 and can go upto 5 buttons in query. so, we compare index zero in our array to index 1 in query.
         //left click at one. but instead we swap around the right/left clicks so that our overlay is based on right clicking to avoid
@@ -186,7 +184,7 @@ impl OverlayWindow {
             input_state.mouse_buttons[0] = !input_state.mouse_buttons[0];
             events.push(Event::PointerButton {
                 pos: egui_mouse_position,
-                button: egui::PointerButton::Secondary,
+                button: egui::PointerButton::Primary,
                 pressed: input_state.mouse_buttons[0],
                 modifiers,
             });
@@ -207,11 +205,10 @@ impl OverlayWindow {
             input_state.mouse_buttons[2] = !input_state.mouse_buttons[2];
             events.push(Event::PointerButton {
                 pos: egui_mouse_position,
-                button: egui::PointerButton::Primary,
+                button: egui::PointerButton::Secondary,
                 pressed: input_state.mouse_buttons[2],
                 modifiers,
             });
-            dbg!(&events);
 
         }
 
@@ -246,6 +243,19 @@ impl OverlayWindow {
                     modifiers,
                 });
             }
+        }
+        if !&events.is_empty() {
+            dbg!(&events);
+        }
+        // dbg!(mouse.coords, egui_mouse_position);
+        // check for mouse position changes
+        if input_state.global_mouse_position[0] != mouse.coords.0
+            || input_state.global_mouse_position[1] != mouse.coords.1
+        {
+
+            events.push(Event::PointerMoved(egui_mouse_position));
+            input_state.global_mouse_position = make_vec2(&[mouse.coords.0, mouse.coords.1]);
+            // dbg!(egui_mouse_position, input_state.global_mouse_position, input_state.window_pos);
         }
         input_state.raw_input.events = events;
     }

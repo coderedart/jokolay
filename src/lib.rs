@@ -35,6 +35,7 @@ impl JokolayApp {
         let overlay_window = Rc::new( OverlayWindow::init()?);
         let gl = overlay_window.gl.clone();
         
+        
         // let (marker_categories, markers, trails) = load_markers();
         let egui_app = Rc::new(EguiApp::new(gl.clone(), overlay_window.clone()));
 
@@ -63,13 +64,19 @@ impl JokolayApp {
             gl.active_texture(glow::TEXTURE0);
         }
 
-       
+        let mut previous = std::time::Instant::now();
+        let mut fps = 0;
        
        loop {
             if overlay_window.window.borrow().should_close() {
                 break;
             }
-
+            fps += 1;
+            if previous.elapsed() > std::time::Duration::from_secs(1) {
+                previous = std::time::Instant::now();
+                // dbg!(fps);
+                fps = 0;
+            }
             unsafe {
                 let e = gl.get_error();
                 if e != glow::NO_ERROR {
@@ -80,12 +87,14 @@ impl JokolayApp {
             if self.overlay_window.process_events() {
                 break;
             }
-            unsafe {
-                gl.clear_color(0.0, 0.0, 0.0, 0.0);
-                gl.clear(
-                    glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT,
-                );
-            }
+            // unsafe {
+            //     gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            //     gl.clear(
+            //         glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT,
+            //     );
+            // }
+            // let (width, height) = overlay_window.global_input_state.borrow().window_size;
+            //     self.overlay_window.query_input_events(width, height);
            egui_app.update()?;
 
             overlay_window.window.borrow_mut().swap_buffers();
