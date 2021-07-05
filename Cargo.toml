@@ -11,8 +11,8 @@ keywords = ["GuildWars2", "GW2", "Overlay"]
 bytemuck = "1.5.1"
 glow = "0.10.0"
 glfw = "0.41.0"
-jokoapi = "0.1.0"
-jokolink = "0.1.2"
+jokoapi = "0.1.1"
+jokolink = "0.1.23"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
 serde = {version = "1.0.126", features = ["derive"]}
@@ -33,5 +33,5 @@ parking_lot = "0.11.1"
 [patch.crates-io]
 glfw = {git = "https://github.com/coderedart/glfw-rs" }
 
-[target.'cfg(windows)'.dependencies]
-jokolink = "0.1.2"
+#[target.'cfg(windows)'.dependencies]
+#jokolink = "0.1.23"
