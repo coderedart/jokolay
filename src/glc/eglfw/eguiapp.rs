@@ -102,19 +102,19 @@ impl EguiApp {
 
         // });
 
-        let mut frame = egui::Frame::default()
-            .fill(Color32::BLACK)
-            .multiply_with_opacity(0.5);
-        frame.shadow = Shadow::small_dark();
+        // let mut frame = egui::Frame::default()
+        //     .fill(Color32::BLACK)
+        //     .multiply_with_opacity(0.5);
+        // frame.shadow = Shadow::small_dark();
 
-        egui::Window::new("egui window")
-            .frame(frame)
-            .show(&ctx.borrow(), |ui| {
-                if ui.button("click me").clicked() {
-                    println!("clicked");
-                }
-            });
-
+        // egui::Window::new("egui window")
+        //     .frame(frame)
+        //     .show(&ctx.borrow(), |ui| {
+        //         if ui.button("click me").clicked() {
+        //             println!("clicked");
+        //         }
+        //     });
+        self.main_window.borrow_mut().add_widgets_to_ui(&ctx.borrow());
         let (egui_output, shapes) = ctx.borrow_mut().end_frame();
         if !egui_output.events.is_empty() {
             dbg!(egui_output.events);

@@ -26,6 +26,7 @@ pub struct JokolayApp {
     // pub marker_categories: BTreeMap<String, MarkerCategory>,
     // pub markers: BTreeMap<u32, Vec<Marker>>,
     // pub trails: BTreeMap<u32, Vec<Trail>>,
+    pub markers_overlay_show: bool,
     pub egui_app: Rc<EguiApp>,
     pub overlay_window: Rc<OverlayWindow>,
 }
@@ -49,6 +50,7 @@ impl JokolayApp {
         Ok(JokolayApp {
             overlay_window,
             egui_app,
+            markers_overlay_show: false,
             // marker_categories: BTreeMap::new(),
             // markers: BTreeMap::new(),
             // trails: BTreeMap::new(),
@@ -87,12 +89,12 @@ impl JokolayApp {
             if self.overlay_window.process_events() {
                 break;
             }
-            // unsafe {
-            //     gl.clear_color(0.0, 0.0, 0.0, 0.0);
-            //     gl.clear(
-            //         glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT,
-            //     );
-            // }
+            unsafe {
+                gl.clear_color(0.0, 0.0, 0.0, 0.0);
+                gl.clear(
+                    glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT,
+                );
+            }
             // let (width, height) = overlay_window.global_input_state.borrow().window_size;
             //     self.overlay_window.query_input_events(width, height);
            egui_app.update()?;
