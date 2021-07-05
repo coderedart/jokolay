@@ -20,6 +20,7 @@ pub enum GetMLMode {
     RawPtrWin,
 }
 /// This is used to update
+#[derive(Debug)]
 pub struct MumbleCache {
     pub key: String,
     pub last_updated: Instant,
@@ -43,10 +44,10 @@ impl MumbleCache {
             get_mode,
         })
     }
-    pub fn update(&mut self) -> anyhow::Result<()> {
-        if self.last_updated.elapsed() < self.update_interval {
-            return Ok(())
-        }
+    pub fn update_link(&mut self) -> anyhow::Result<()> {
+        // if self.last_updated.elapsed() < self.update_interval {
+        //     return Ok(())
+        // }
         self.link = MumbleCache::get_ml(&self.key, &self.get_mode)?;
         self.last_updated = Instant::now();
         Ok(())
@@ -58,7 +59,7 @@ impl MumbleCache {
             GetMLMode::UdpSync(socket) => ml = MumbleCache::request_udp_sync(key, &socket, MLRequestCode::CML)?,
             GetMLMode::GrpcAsync => anyhow::bail!(""),
             #[cfg(target_os="windows")]
-            GetMLMode::RawPtrWin => {},
+            GetMLMode::RawPtrWin => anyhow::bail!(""),
         }
         match ml {
             ResponseResult::Link(link) => Ok(link),

@@ -29,7 +29,7 @@ impl OverlayWindow {
 
         glfw.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
 
-        glfw.window_hint(glfw::WindowHint::MousePassthrough(true));
+        glfw.window_hint(glfw::WindowHint::MousePassthrough(false));
 
         glfw.window_hint(glfw::WindowHint::Decorated(true));
 
@@ -244,9 +244,7 @@ impl OverlayWindow {
                 });
             }
         }
-        if !&events.is_empty() {
-            dbg!(&events);
-        }
+
         // dbg!(mouse.coords, egui_mouse_position);
         // check for mouse position changes
         if input_state.global_mouse_position[0] != mouse.coords.0

@@ -62,7 +62,8 @@ impl Default for MumbleLinkWindow {
 
 impl MumbleLinkWindow {
     pub fn add_widgets_to_ui(&mut self, ctx: &CtxRef) {
-        self.cache.update().unwrap();
+        self.cache.update_link().unwrap();
+        dbg!(&self.cache);
         Window::new(&self.name).show(&ctx, |ui | {
             ui.label(self.cache.link.identity.as_ref().unwrap().name.clone());
             
