@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
-use super::{category::MarkerCategory, trail::Trail};
-/// Markers in the xml files are described under the <POIs> tag under the root <OverlayData> tag. The <POI> tag describes a marker.
+use super::{xml_category::MarkerCategory, xml_trail::Trail};
+
+
+/// Markers format in the xml files are described under the <POIs> tag under the root <OverlayData> tag. The <POI> tag describes a marker.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename = "POI")]
 #[serde(rename_all = "camelCase")]

@@ -1,16 +1,15 @@
-pub mod category;
-pub mod marker;
-pub mod trail;
-pub mod xmltypes;
-use std::collections::BTreeMap;
-use std::ffi::OsStr;
-use std::io::Read;
+use std::{collections::BTreeMap, ffi::OsStr, io::Read};
 
-use crate::gw::{category::MarkerCategory, marker::Marker};
-use category::OverlayData;
-use trail::Trail;
+use crate::glc::tactical::xmltypes::xml_category::OverlayData;
 
-pub fn load_markers() -> (
+use self::{xml_category::MarkerCategory, xml_marker::Marker, xml_trail::Trail};
+
+pub mod xml_category;
+pub mod xml_marker;
+pub mod xml_trail;
+
+
+pub fn load_markers(location: &str) -> (
     BTreeMap<String, MarkerCategory>,
     BTreeMap<u32, Vec<Marker>>,
     BTreeMap<u32, Vec<Trail>>,
@@ -19,8 +18,8 @@ pub fn load_markers() -> (
     let mut marker_cats: BTreeMap<String, MarkerCategory> = BTreeMap::new();
     let mut markers_mapid: BTreeMap<u32, Vec<Marker>> = BTreeMap::new();
     let mut trails: Vec<Trail> = vec![];
-    for f in fs::read_dir("/home/red/extra/projects/programming/gw2_addons/jokolay/res/tw/")
-        .expect("couldn't open directory ./res/tw")
+    for f in fs::read_dir(&location)
+        .expect(&format!("couldn't open directory {}", &location))
     {
         let entry = f.expect("f to e");
 
@@ -72,15 +71,12 @@ pub fn load_markers() -> (
     let mut trail_map = BTreeMap::new();
     for t in trails.into_iter() {
         let trail_path = t.trail_data.as_ref().unwrap();
-        let trail_file = std::fs::File::open(trail_path).unwrap();
+        let trail_file = std::fs::File::open(format!("{}/{}", "./res/tw", trail_path)).unwrap();
         let mut trail_reader = std::io::BufReader::new(trail_file);
         let mut buffer_u32 = [0_u8; 4];
         trail_reader.read(&mut buffer_u32).unwrap();
         let map_id = u32::from_ne_bytes(buffer_u32);
-        trail_map
-        .entry(map_id)
-        .or_insert(Vec::new())
-        .push(t);
+        trail_map.entry(map_id).or_insert(Vec::new()).push(t);
     }
     (marker_cats, markers_mapid, trail_map)
 }

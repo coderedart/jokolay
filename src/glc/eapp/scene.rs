@@ -8,7 +8,14 @@ use egui::{ClippedMesh, Rect, TextureId};
 use glow::{Context, HasContext, UNSIGNED_INT};
 use nalgebra_glm::Vec2;
 
-use crate::glc::renderer::{buffer::Buffer, material::{Material, MaterialUniforms}, scene::{Renderable, SceneNodeUniform}, shader::ShaderProgram, texture::Texture, vertex_array::VertexArrayObject};
+use crate::glc::gltypes::{
+    buffer::Buffer,
+    material::{Material, MaterialUniforms},
+    scene::{Renderable, SceneNodeUniform},
+    shader::ShaderProgram,
+    texture::Texture,
+    vertex_array::VertexArrayObject,
+};
 
 pub struct EguiScene {
     pub vao: VertexArrayObject,
@@ -17,7 +24,6 @@ pub struct EguiScene {
     pub material: Material,
     pub texture_versions: HashMap<TextureId, Texture>,
     pub gl: Rc<glow::Context>,
-
 }
 
 impl EguiScene {
@@ -62,7 +68,12 @@ impl EguiScene {
         return egui_scene_node;
     }
 
-    pub fn draw_meshes(&mut self, meshes: &Vec<ClippedMesh>, screen_size: Vec2, u_sampler: u32) -> anyhow::Result<()> {
+    pub fn draw_meshes(
+        &mut self,
+        meshes: &Vec<ClippedMesh>,
+        screen_size: Vec2,
+        u_sampler: u32,
+    ) -> anyhow::Result<()> {
         self.bind();
 
         unsafe {
@@ -72,11 +83,11 @@ impl EguiScene {
             self.gl.blend_func(glow::ONE, glow::ONE_MINUS_SRC_ALPHA);
             self.gl.enable(glow::SCISSOR_TEST);
         }
-
+        
         for clipped_mesh in meshes {
             self.update_uniforms(SceneNodeUniform::EguiSceneNodeUniform {
                 screen_size,
-                u_sampler,
+                u_sampler: u_sampler as i32,
             });
             unsafe {
                 let e = self.gl.get_error();
@@ -87,10 +98,13 @@ impl EguiScene {
             self.draw_mesh(clipped_mesh, screen_size)?;
         }
 
-
         Ok(())
     }
-    pub fn draw_mesh(&mut self, clipped_mesh: &ClippedMesh, screen_size: Vec2) -> anyhow::Result<()> {
+    pub fn draw_mesh(
+        &mut self,
+        clipped_mesh: &ClippedMesh,
+        screen_size: Vec2,
+    ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
         let vertices: Vec<VertexRgba> = mesh.vertices.iter().map(|v| VertexRgba::from(v)).collect();
@@ -101,11 +115,14 @@ impl EguiScene {
             Some((bytemuck::cast_slice(indices), glow::DYNAMIC_DRAW)),
         );
 
-        self.texture_versions.get(&mesh.texture_id).context("no such texture to bind in egui draw call")?.bind();
+        self.texture_versions
+            .get(&mesh.texture_id)
+            .context("no such texture to bind in egui draw call")?
+            .bind();
         self.render(indices.len() as u32, 0);
         Ok(())
     }
-    fn set_scissor(clip_rect: Rect, gl: Rc<glow::Context>, screen_size: Vec2)  {
+    fn set_scissor(clip_rect: Rect, gl: Rc<glow::Context>, screen_size: Vec2) {
         //clip rectangle copy pasted from glium
         let clip_min_x = clip_rect.min.x;
         let clip_min_y = clip_rect.min.y;
@@ -113,7 +130,7 @@ impl EguiScene {
         let clip_max_y = clip_rect.max.y;
 
         // Make sure clip rect can fit within a `u32`:
-        let clip_min_x = clip_min_x.clamp(0.0, screen_size.x );
+        let clip_min_x = clip_min_x.clamp(0.0, screen_size.x);
         let clip_min_y = clip_min_y.clamp(0.0, screen_size.y);
         let clip_max_x = clip_max_x.clamp(clip_min_x, screen_size.x);
         let clip_max_y = clip_max_y.clamp(clip_min_y, screen_size.y);
@@ -126,7 +143,7 @@ impl EguiScene {
         unsafe {
             gl.scissor(
                 clip_min_x as i32,
-                (screen_size.y - clip_max_y as f32)as i32,
+                (screen_size.y - clip_max_y as f32) as i32,
                 (clip_max_x - clip_min_x) as i32,
                 (clip_max_y - clip_min_y) as i32,
             );
@@ -140,6 +157,7 @@ impl Renderable for EguiScene {
         self.ib.bind();
         self.material.bind();
     }
+
     fn update_buffers(&self, vb: Option<(&[u8], u32)>, ib: Option<(&[u8], u32)>) {
         if let Some((data, usage)) = vb {
             self.vb.update(data, usage);
@@ -195,13 +213,12 @@ impl Renderable for EguiScene {
         self.vb.unbind();
         self.ib.unbind();
         self.material.unbind();
-        self.material.unbind();
     }
 }
 
 use egui::{epaint::Vertex, Pos2};
 
-use crate::glc::renderer::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
+use crate::glc::gltypes::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
 #[derive(Debug, Clone, Copy)]
 pub struct VertexRgba {

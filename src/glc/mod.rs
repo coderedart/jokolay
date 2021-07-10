@@ -1,3 +1,4 @@
-pub mod renderer;
-pub mod eglfw;
+pub mod eapp;
+pub mod gltypes;
 pub mod tactical;
+pub mod iapp;

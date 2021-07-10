@@ -1,45 +1,31 @@
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    net::UdpSocket,
-    rc::Rc,
-    time::{Duration, Instant},
-};
+use std::{cell::RefCell, rc::Rc};
 
-use egui::{epaint::Shadow, Color32, Event};
-use glc::{eglfw::{eguiapp::EguiApp, scene::EguiScene}, renderer::texture::Texture};
-use glfw::Context as _;
+use egui::{Pos2, RawInput, Rect};
+use glc::{eapp::EguiInterface, iapp::ImguiInterface};
 use glow::HasContext;
-use gw::{category::MarkerCategory, marker::Marker, trail::Trail};
-use mlink::MumbleCache;
-use nalgebra_glm::make_vec2;
-use window::OverlayWindow;
-
-use crate::mlink::GetMLMode;
+use window::{glfw_window::GlfwWindow, OverlayWindow};
 
 pub mod glc;
-pub mod gw;
 pub mod mlink;
 pub mod window;
 
-pub struct JokolayApp {
-    // pub marker_categories: BTreeMap<String, MarkerCategory>,
-    // pub markers: BTreeMap<u32, Vec<Marker>>,
-    // pub trails: BTreeMap<u32, Vec<Trail>>,
+pub struct JokolayApp<T>
+where
+    T: OverlayWindow,
+{
+  
     pub markers_overlay_show: bool,
-    pub egui_app: Rc<EguiApp>,
-    pub overlay_window: Rc<OverlayWindow>,
+    pub egui_app: Rc<EguiInterface>,
+    pub overlay_window: Rc<RefCell<T>>,
 }
 
-impl JokolayApp {
+impl JokolayApp<GlfwWindow> {
     pub fn new() -> anyhow::Result<Self> {
-        let overlay_window = Rc::new( OverlayWindow::init()?);
-        let gl = overlay_window.gl.clone();
-        
-        
-        // let (marker_categories, markers, trails) = load_markers();
-        let egui_app = Rc::new(EguiApp::new(gl.clone(), overlay_window.clone()));
+        let overlay_window = Rc::new(RefCell::new(GlfwWindow::create(true, true, false, true)?));
+        let gl = overlay_window.borrow().get_gl_context();
 
+        let egui_app = Rc::new(EguiInterface::new(gl.clone(), overlay_window.clone()));
+        
         unsafe {
             let e = gl.get_error();
             if e != glow::NO_ERROR {
@@ -51,14 +37,11 @@ impl JokolayApp {
             overlay_window,
             egui_app,
             markers_overlay_show: false,
-            // marker_categories: BTreeMap::new(),
-            // markers: BTreeMap::new(),
-            // trails: BTreeMap::new(),
             
         })
     }
     pub fn run(&mut self) -> anyhow::Result<()> {
-        let gl = self.overlay_window.gl.clone();
+        let gl = self.overlay_window.borrow().get_gl_context();
         let egui_app = self.egui_app.clone();
         let overlay_window = self.overlay_window.clone();
 
@@ -68,42 +51,43 @@ impl JokolayApp {
 
         let mut previous = std::time::Instant::now();
         let mut fps = 0;
-       
-       loop {
-            if overlay_window.window.borrow().should_close() {
+        let mut input = RawInput::default();
+        let (width, height) = overlay_window.borrow().window_size;
+        input.screen_rect = Some(Rect::from_two_pos(
+            Pos2::new(0.0, 0.0),
+            Pos2::new(width as f32, height as f32),
+        ));
+        input.predicted_dt = 1.0 / 75.0;
+        input.pixels_per_point = Some(1.0);
+
+        Ok(loop {
+            if overlay_window.borrow().should_close() {
                 break;
             }
             fps += 1;
             if previous.elapsed() > std::time::Duration::from_secs(1) {
                 previous = std::time::Instant::now();
-                // dbg!(fps);
+                dbg!(fps);
                 fps = 0;
             }
+            overlay_window.borrow_mut().fill_rawinput_with_events(&mut input);
+
             unsafe {
                 let e = gl.get_error();
                 if e != glow::NO_ERROR {
                     println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
                 }
             }
-
-            if self.overlay_window.process_events() {
-                break;
-            }
             unsafe {
                 gl.clear_color(0.0, 0.0, 0.0, 0.0);
-                gl.clear(
-                    glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT,
-                );
+                gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT);
             }
             // let (width, height) = overlay_window.global_input_state.borrow().window_size;
             //     self.overlay_window.query_input_events(width, height);
-           egui_app.update()?;
+            egui_app.update(input.take())?;
 
-            overlay_window.window.borrow_mut().swap_buffers();
-
-            overlay_window.glfw.borrow_mut().poll_events();
-        }
-        Ok(())
+            overlay_window.borrow().redraw_request();
+        })
     }
 }
 

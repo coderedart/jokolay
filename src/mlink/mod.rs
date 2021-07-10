@@ -25,7 +25,7 @@ pub struct MumbleCache {
     pub key: String,
     pub last_updated: Instant,
     pub last_accessed: Instant,
-    pub link: MumbleLink,
+    pub link: Option<MumbleLink>,
     pub update_interval: Duration,
     pub auto_update: bool,
     pub get_mode: GetMLMode,
@@ -33,7 +33,7 @@ pub struct MumbleCache {
 
 impl MumbleCache {
     pub fn new(key: &str, update_interval: Duration, get_mode: GetMLMode) -> anyhow::Result<Self> {
-        let link = MumbleCache::get_ml(key, &get_mode)?;
+        let link = MumbleCache::get_ml(key, &get_mode).ok();
         Ok(MumbleCache {
             key: key.to_string(),
             last_updated: Instant::now(),
@@ -45,10 +45,10 @@ impl MumbleCache {
         })
     }
     pub fn update_link(&mut self) -> anyhow::Result<()> {
-        // if self.last_updated.elapsed() < self.update_interval {
-        //     return Ok(())
-        // }
-        self.link = MumbleCache::get_ml(&self.key, &self.get_mode)?;
+        if self.last_updated.elapsed() < self.update_interval {
+            return Ok(())
+        }
+        self.link = MumbleCache::get_ml(&self.key, &self.get_mode).ok();
         self.last_updated = Instant::now();
         Ok(())
     }
@@ -56,9 +56,11 @@ impl MumbleCache {
         let ml;
         match get_mode {
             GetMLMode::UdpAsync => anyhow::bail!(""),
-            GetMLMode::UdpSync(socket) => ml = MumbleCache::request_udp_sync(key, &socket, MLRequestCode::CML)?,
+            GetMLMode::UdpSync(socket) => {
+                ml = MumbleCache::request_udp_sync(key, &socket, MLRequestCode::CML)?
+            }
             GetMLMode::GrpcAsync => anyhow::bail!(""),
-            #[cfg(target_os="windows")]
+            #[cfg(target_os = "windows")]
             GetMLMode::RawPtrWin => anyhow::bail!(""),
         }
         match ml {
@@ -83,12 +85,10 @@ impl MumbleCache {
             .expect("failed to send message");
 
         let mut response_buffer = [0_u8; USEFUL_C_MUMBLE_LINK_SIZE + 4];
-        socket
-            .recv(&mut response_buffer)?;
+        socket.recv(&mut response_buffer)?;
         let ml = decode_response(&response_buffer, request_type)?;
         Ok(ml)
     }
-
 }
 
 pub fn encode_request(key: &str, request_type: MLRequestCode) -> [u8; 64] {
@@ -116,26 +116,27 @@ fn decode_response(
     response_buffer: &[u8],
     response_type: MLRequestCode,
 ) -> anyhow::Result<ResponseResult> {
+    
     let response = MumbleStatus::from_i32(response_buffer[0] as i32);
 
     match response {
         Some(MumbleStatus::Success) => match response_type {
             MLRequestCode::CML => {
                 let mut ml = MumbleLink::default();
-                
+
                 ml.update(response_buffer[4..].as_ptr() as *const CMumbleLink)?;
                 Ok(ResponseResult::Link(ml))
             }
             MLRequestCode::WD => {
                 use std::ptr::read_volatile;
-                
+
                 let wd;
                 unsafe {
                     wd = read_volatile(response_buffer[1..].as_ptr() as *const WindowDimensions);
                 }
                 Ok(ResponseResult::WinDim(wd))
-            },
-            MLRequestCode::Nothing => anyhow::bail!("")
+            }
+            MLRequestCode::Nothing => anyhow::bail!(""),
         },
         _ => anyhow::bail!("response is not success. buffer = {:?}", &response_buffer),
     }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use super::{buffer::Buffer,  material::Material, vertex_array::VertexArrayObject};
+use super::{buffer::Buffer, material::Material, vertex_array::VertexArrayObject};
 
 use nalgebra_glm::{Mat4, Vec2, Vec3};
 
@@ -10,7 +10,6 @@ pub struct SceneNode {
     pub ib: Buffer,
     pub material: Material,
     pub gl: Rc<glow::Context>,
-
 }
 
 pub trait Renderable {
@@ -19,38 +18,20 @@ pub trait Renderable {
     fn update_uniforms(&self, uniform_data: SceneNodeUniform);
     fn render(&self, count: u32, offset: u32);
     fn unbind(&self);
-
-
 }
 pub enum SceneNodeUniform<'b> {
     MarkerSceneNodeUniform {
         vp: Mat4,
         cam_pos: Vec3,
         player_pos: Vec3,
-        samplers: &'b [u32],
+        samplers: &'b [i32],
     },
     EguiSceneNodeUniform {
         screen_size: Vec2,
-        u_sampler: u32,
-    }
+        u_sampler: i32,
+    },
 }
 
-// fn setup_vao_node<'a>(gl: &'a glow::Context) -> VertexArrayObject<'a> {
-//     let vb = Buffer::new(gl);
-//     let vblayout = MarkerNode::get_buffer_layout();
-//     let mut ib_id = None;
-//     unsafe {
-//         ib_id = Some(gl.create_buffer().unwrap());
-//     }
-//     let program_node = ShaderProgram::new(
-//         &gl,
-//         Path::new("./res/node.vs"),
-//         Some(Path::new("./res/node.gs")),
-//         Path::new("./res/node.fs"),
-//     );
-//     let vao = VertexArrayObject::new(gl, vb, vblayout, ib_id, program_node);
-//     vao
-// }
 
 // fn setup_vao_egui<'a>(gl: &'a glow::Context) -> VertexArrayObject<'a> {
 //     let vb = Buffer::new(gl);

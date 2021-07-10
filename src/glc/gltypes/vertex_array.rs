@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use glow::HasContext;
 
-
 pub struct VertexArrayObject {
     pub id: u32,
     pub gl: Rc<glow::Context>,
@@ -14,21 +13,18 @@ impl VertexArrayObject {
             let id = gl.create_vertex_array().unwrap();
             VertexArrayObject { id, gl }
         }
-
     }
 
     pub fn bind(&self) {
         unsafe {
             self.gl.bind_vertex_array(Some(self.id));
-                   }
+        }
     }
     pub fn unbind(&self) {
         unsafe {
             self.gl.bind_vertex_array(None);
- 
         }
     }
-
 }
 
 impl Drop for VertexArrayObject {

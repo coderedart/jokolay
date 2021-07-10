@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use super::marker::Behavior;
-use super::marker::POIS;
 use serde::{Deserialize, Serialize};
+
+use super::xml_marker::{POIS, Behavior};
 // pub struct Category {
 //     name: String,
 //     display_name: String,

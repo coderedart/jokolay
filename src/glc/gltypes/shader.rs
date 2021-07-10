@@ -28,7 +28,6 @@ impl ShaderProgram {
             gl.shader_source(frag_shader, &fragment_shader_source);
             gl.compile_shader(frag_shader);
 
-           
             gl.attach_shader(shader_program, vertex_shader);
             gl.attach_shader(shader_program, frag_shader);
             let mut geometry_shader = 0;
@@ -45,7 +44,7 @@ impl ShaderProgram {
                 gl.delete_shader(geometry_shader);
             }
             gl.delete_shader(frag_shader);
-         
+
             ShaderProgram {
                 id: shader_program,
                 gl,
