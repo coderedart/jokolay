@@ -751,7 +751,7 @@ dependencies = [
 [[package]]
 name = "glfw"
 version = "0.41.0"
-source = "git+https://github.com/coderedart/glfw-rs#e6d55d2d36e6c95b476ae982b60b39ab50dbac6c"
+source = "git+https://github.com/coderedart/glfw-rs.git#0904ea8340d4bf585ee9e53e8ea81783ef49e897"
 dependencies = [
  "bitflags",
  "glfw-sys",
