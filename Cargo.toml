@@ -29,13 +29,14 @@ parking_lot = "0.11.1"
 winit = "0.25.0"
 imgui-opengl-renderer = "0.11.0"
 imgui = "0.7.0"
-glfw = "0.41.0"
+#glfw = "0.41.0"
 
-#[dependencies.glfw]
-#git = "https://github.com/coderedart/glfw-rs.git"
+[dependencies.glfw]
+version = "0.41.0"
+git = "https://github.com/coderedart/glfw-rs.git"
 
-[patch.crates-io]
-glfw = {git = "https://github.com/coderedart/glfw-rs.git" }
+#[patch.crates-io]
+#glfw = {git = "https://github.com/coderedart/glfw-rs.git" }
 
 #[target.'cfg(windows)'.dependencies]
 #jokolink = "0.1.23"
