@@ -1,14 +1,10 @@
-use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::xml_marker::{POIS, Behavior};
-// pub struct Category {
-//     name: String,
-//     display_name: String,
-//     marker_template: Option<Marker>,
-// }
+use super::xml_marker::{Behavior, POIS};
 
+
+/// Marker Category tag in xml files
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MarkerCategory {
@@ -62,6 +58,7 @@ pub struct MarkerCategory {
     pub mini_map_visibility: Option<bool>,
 }
 
+/// The root overlay tag in any valid xml file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OverlayData {
     #[serde(rename = "MarkerCategory")]
@@ -69,6 +66,7 @@ pub struct OverlayData {
     #[serde(rename = "POIs")]
     pub pois: Option<POIS>,
 }
+
 impl MarkerCategory {
     pub fn inherit_if_none(&mut self, other: &MarkerCategory) {
         if self.map_display_size.is_none() {
@@ -136,35 +134,35 @@ impl MarkerCategory {
         }
     }
 
-    pub fn build_categories(
-        mut prefix: String,
-        mut cat: MarkerCategory,
-        cat_map: &mut BTreeMap<String, MarkerCategory>,
-    ) {
-        let previous_cat = cat_map.get(&prefix);
-        let template;
-        if previous_cat.is_some() {
-            template = previous_cat.unwrap().clone();
-            cat.inherit_if_none(&template);
-        }
-        if !prefix.is_empty() {
-            prefix.push('.');
-        }
-        prefix += &cat.name;
+    // pub fn build_categories(
+    //     mut prefix: String,
+    //     mut cat: MarkerCategory,
+    //     cat_map: &mut BTreeMap<String, MarkerCategory>,
+    // ) {
+    //     let previous_cat = cat_map.get(&prefix);
+    //     let template;
+    //     if previous_cat.is_some() {
+    //         template = previous_cat.unwrap().clone();
+    //         cat.inherit_if_none(&template);
+    //     }
+    //     if !prefix.is_empty() {
+    //         prefix.push('.');
+    //     }
+    //     prefix += &cat.name;
 
-        if cat.children.is_none() {
-            cat_map.insert(prefix, cat);
-        } else {
-            let children = cat.children;
-            cat.children = None;
-            cat_map.insert(prefix.clone(), cat);
-            if children.is_some() {
-                for mc in children.unwrap() {
-                    Self::build_categories(prefix.clone(), mc, cat_map);
-                }
-            }
-        }
-    }
+    //     if cat.children.is_none() {
+    //         cat_map.insert(prefix, cat);
+    //     } else {
+    //         let children = cat.children;
+    //         cat.children = None;
+    //         cat_map.insert(prefix.clone(), cat);
+    //         if children.is_some() {
+    //             for mc in children.unwrap() {
+    //                 Self::build_categories(prefix.clone(), mc, cat_map);
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 // #[cfg(test)]

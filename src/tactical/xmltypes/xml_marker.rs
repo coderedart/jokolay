@@ -3,8 +3,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use super::{xml_category::MarkerCategory, xml_trail::Trail};
 
-
 /// Markers format in the xml files are described under the <POIs> tag under the root <OverlayData> tag. The <POI> tag describes a marker.
+/// everything is optional except xpos, ypos, zpos.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename = "POI")]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +71,7 @@ pub struct Marker {
     pub category: Option<String>,
 }
 
-/*
+/**
 behavior - integer. This is an important one, it describes the way the marker will behave when a player presses 'F' over it. The following values are valid for this parameter:
     0: the default value. Marker is always visible.
     1: 'Reappear on map change' - this is not implemented yet, it will be useful for markers that need to reappear if the player changes the map instance.
@@ -82,8 +82,7 @@ behavior - integer. This is an important one, it describes the way the marker wi
     6: 'Once per instance' - these markers disappear when triggered but reappear if you go into another instance of the map
     7: 'Once daily per character' - these markers disappear when triggered, but reappear with the daily reset, and can be triggered separately for every character
 
-*/
-
+**/
 #[derive(Serialize_repr, Deserialize_repr, PartialEq, Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum Behavior {
@@ -98,6 +97,8 @@ pub enum Behavior {
     OncePerInstancePerChar = 8,
     WvWObjective = 9,
 }
+
+/// POIS tag under OverlayData which contains the array of tags POI/Trail 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename = "POIs")]
 pub struct POIS {
@@ -106,6 +107,7 @@ pub struct POIS {
     #[serde(rename = "Trail")]
     pub trail: Option<Vec<Trail>>,
 }
+
 impl Marker {
     pub fn inherit_if_none(&mut self, other: &MarkerCategory) {
         if self.map_display_size.is_none() {

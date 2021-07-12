@@ -88,7 +88,7 @@ impl imgui::ClipboardBackend for Clipboard {
 /// * backend flgs are updated
 /// * keys are configured
 /// * platform name is set
-pub fn init(imgui: &mut Context)  {
+pub fn init(imgui: &mut Context) {
     let io = imgui.io_mut();
     io.backend_flags.insert(BackendFlags::HAS_MOUSE_CURSORS);
     io.backend_flags.insert(BackendFlags::HAS_SET_MOUSE_POS);
@@ -120,13 +120,12 @@ pub fn init(imgui: &mut Context)  {
         "imgui-glfw-support {}",
         env!("CARGO_PKG_VERSION")
     ))));
-    
 }
 
 /// Adds platform clipboard integration for the provided window. The caller **must** ensure that
 /// the `Window` outlives the imgui `Context` **and** that any imgui functions that may access
 /// the clipboard are called from the **main thread** (the thread that's executing the event polling).
-pub unsafe fn set_clipboard_backend( imgui: &mut Context, window: &Window) {
+pub unsafe fn set_clipboard_backend(imgui: &mut Context, window: &Window) {
     use glfw::Context;
     let window_ptr = window.window_ptr();
     imgui.set_clipboard_backend(Box::new(Clipboard { window_ptr }));
@@ -136,7 +135,7 @@ pub unsafe fn set_clipboard_backend( imgui: &mut Context, window: &Window) {
 ///
 /// * framebuffer sacle (i.e. DPI factor) is set
 /// * display size is set
-pub fn attach_window( io: &mut Io, window: &Window) {
+pub fn attach_window(io: &mut Io, window: &Window) {
     // let (scale_factor_x, _scale_factor_y) = window.get_content_scale();
     // let (hidpi_mode, hidpi_factor) = hidpi_mode.apply(scale_factor_x as _);
     // self.hidpi_mode = hidpi_mode;
@@ -199,7 +198,7 @@ pub fn handle_event(io: &mut Io, event: &WindowEvent) {
 /// Call before calling the imgui-rs `Context::frame` function.
 ///
 /// * mouse cursor is repositioned if requested by imgui
-pub fn prepare_frame( io: &mut Io, window: &mut Window) -> Result<(), String> {
+pub fn prepare_frame(io: &mut Io, window: &mut Window) -> Result<(), String> {
     if io.want_set_mouse_pos {
         let [x, y] = io.mouse_pos;
         window.set_cursor_pos(x as _, y as _);
@@ -214,7 +213,7 @@ pub fn prepare_frame( io: &mut Io, window: &mut Window) -> Result<(), String> {
 /// Call before calling the imgui backend renderer function (e.g. `imgui_wgpu::Renderer::render`).
 ///
 /// * the mouse cursor is changed or hidden if requested by imgui
-pub fn prepare_render( ui: &Ui, window: &mut Window) {
+pub fn prepare_render(ui: &Ui, window: &mut Window) {
     let io = ui.io();
     if !io
         .config_flags

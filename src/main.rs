@@ -1,7 +1,7 @@
-use jokolay::JokolayApp;
+// use jokolay::JokolayApp;
 
 fn main() -> anyhow::Result<()> {
-    let mut app = JokolayApp::new()?;
-    app.run()?;
+    // let mut app = JokolayApp::new()?;
+    // app.run()?;
     Ok(())
 }

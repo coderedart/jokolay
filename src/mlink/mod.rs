@@ -46,7 +46,7 @@ impl MumbleCache {
     }
     pub fn update_link(&mut self) -> anyhow::Result<()> {
         if self.last_updated.elapsed() < self.update_interval {
-            return Ok(())
+            return Ok(());
         }
         self.link = MumbleCache::get_ml(&self.key, &self.get_mode).ok();
         self.last_updated = Instant::now();
@@ -116,7 +116,6 @@ fn decode_response(
     response_buffer: &[u8],
     response_type: MLRequestCode,
 ) -> anyhow::Result<ResponseResult> {
-    
     let response = MumbleStatus::from_i32(response_buffer[0] as i32);
 
     match response {

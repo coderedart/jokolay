@@ -1,6 +1,4 @@
 pub mod buffer;
-pub mod material;
-pub mod scene;
 pub mod shader;
 pub mod texture;
 pub mod vertex_array;

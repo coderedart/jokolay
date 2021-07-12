@@ -5,13 +5,9 @@ use parking_lot::Mutex;
 
 use crate::mlink::{GetMLMode, MumbleCache};
 
-
-
-
-
 pub struct MumbleLinkSetupWindow {
     pub name: String,
-    pub cache: Arc<Mutex<Option<MumbleCache>>>,
+    // pub cache: Arc<Mutex<Option<MumbleCache>>>,
     pub link_name: String,
     pub server_ip_port: String,
     pub show_mumble: bool,
@@ -19,11 +15,11 @@ pub struct MumbleLinkSetupWindow {
     // pub marker_window_show: bool,
 }
 
-impl MumbleLinkSetupWindow {
-    pub fn new(cache: Arc<Mutex<Option<MumbleCache>>>) -> Self {
+impl Default for MumbleLinkSetupWindow {
+    fn default() -> Self {
         MumbleLinkSetupWindow {
             name: "MumbleLinkWindow".to_string(),
-            cache,
+            // cache: None,
             link_name: "MumbleLink".to_string(),
             server_ip_port: "127.0.0.1:7187".to_string(),
             show_mumble: false,
@@ -42,7 +38,7 @@ impl MumbleLinkSetupWindow {
                 socket.connect(&self.server_ip_port).unwrap();
                 let cache = MumbleCache::new(
                     &self.link_name,
-                    std::time::Duration::from_millis(10),
+                    std::time::Duration::from_secs(1),
                     GetMLMode::UdpSync(socket),
                 )
                 .unwrap();
@@ -55,7 +51,6 @@ impl MumbleLinkSetupWindow {
                 ui.checkbox(&mut self.show_mumble, "show mumble info");
             }
             if self.show_mumble {
-                
                 mc.as_mut().unwrap().update_link().unwrap();
                 Window::new("Mumble Info").show(&ctx, |ui| {
                     ui.label(format!("{:#?}", mc.as_ref().unwrap().link));
@@ -64,4 +59,3 @@ impl MumbleLinkSetupWindow {
         });
     }
 }
-

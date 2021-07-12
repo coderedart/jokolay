@@ -11,7 +11,7 @@ use imgui::Io;
 use nalgebra_glm::{make_vec2, I32Vec2};
 use std::collections::BTreeSet;
 
-use crate::glc;
+use crate::gui;
 
 use super::OverlayWindow;
 
@@ -75,7 +75,6 @@ impl OverlayWindow for GlfwWindow {
         })
     }
 
-   
     fn set_inner_size(&self, width: i32, height: i32) {
         self.window.borrow_mut().set_size(width, height);
     }
@@ -114,7 +113,6 @@ impl OverlayWindow for GlfwWindow {
     fn get_gl_context(&self) -> Rc<Context> {
         self.gl.clone()
     }
-    
 }
 
 pub struct GlobalInputState {
@@ -127,7 +125,7 @@ pub struct GlobalInputState {
 impl GlobalInputState {
     pub fn new() -> Self {
         let clipboard = ClipboardContext::new().expect("couldn't get clipboard");
-        
+
         GlobalInputState {
             global_mouse_position: Default::default(),
             mouse_buttons: [false, false, false],
@@ -139,12 +137,12 @@ impl GlobalInputState {
 }
 
 impl GlfwWindow {
-    pub fn send_events_to_imgui(&mut self, io: &mut Io) {
-        self.glfw.borrow_mut().poll_events();
-        for (_, event) in glfw::flush_messages(&self.glfw_events) {
-            glc::iapp::iglfw::handle_event( io, &event);
-        }
-    }
+    // pub fn send_events_to_imgui(&mut self, io: &mut Io) {
+    //     self.glfw.borrow_mut().poll_events();
+    //     for (_, event) in glfw::flush_messages(&self.glfw_events) {
+    //         gui::iapp::iglfw::handle_event(io, &event);
+    //     }
+    // }
     pub fn fill_rawinput_with_events(&mut self, input: &mut RawInput) {
         self.glfw.borrow_mut().poll_events();
         for (_, event) in glfw::flush_messages(&self.glfw_events) {
@@ -189,7 +187,14 @@ impl GlfwWindow {
         let (xpos, ypos) = self.window_pos;
         self.query_input_events(input, width, height, xpos, ypos);
     }
-    fn query_input_events(&self, input: &mut RawInput, width: i32, height: i32, xpos: i32, ypos: i32) {
+    fn query_input_events(
+        &self,
+        input: &mut RawInput,
+        width: i32,
+        height: i32,
+        xpos: i32,
+        ypos: i32,
+    ) {
         let mut input_state = self.global_input_state.borrow_mut();
         let mut events = Vec::new();
 
