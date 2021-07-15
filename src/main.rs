@@ -1,7 +1,12 @@
-// use jokolay::JokolayApp;
+use jokolay::JokolayApp;
 
 fn main() -> anyhow::Result<()> {
-    // let mut app = JokolayApp::new()?;
-    // app.run()?;
+    jokolay::log_init(
+        log::LevelFilter::Error,
+        log::LevelFilter::Trace,
+        "./joko.log".into(),
+    )?;
+    let mut app = JokolayApp::new()?;
+    app.run()?;
     Ok(())
 }

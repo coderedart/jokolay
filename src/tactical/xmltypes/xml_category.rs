@@ -1,8 +1,6 @@
-
 use serde::{Deserialize, Serialize};
 
 use super::xml_marker::{Behavior, POIS};
-
 
 /// Marker Category tag in xml files
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

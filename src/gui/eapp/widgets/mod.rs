@@ -9,16 +9,16 @@ use wmlink::MumbleLinkSetupWindow;
 
 use crate::mlink::MumbleCache;
 
-// use self::wmarker::MarkersWindow;
+use self::wmarker::MarkersWindow;
 
 pub struct MainWindow {
     pub name: String,
     pub mumble_window: MumbleLinkSetupWindow,
     pub mumble_window_show: bool,
     pub mcache: Arc<Mutex<Option<MumbleCache>>>,
-    // pub timer_window_show: bool,
-    // pub marker_window_show: bool,
-    // pub marker_window: MarkersWindow,
+    pub timer_window_show: bool,
+    pub marker_window_show: bool,
+    pub marker_window: MarkersWindow,
 }
 
 impl MainWindow {
@@ -26,14 +26,15 @@ impl MainWindow {
         let mcache = Arc::new(Mutex::new(None));
 
         let mumble_window = MumbleLinkSetupWindow::new(mcache.clone());
-        // let marker_window = MarkersWindow::new(gl);
+        let marker_window = MarkersWindow::new(gl);
         MainWindow {
             name: "MainWindow".to_string(),
             mumble_window,
             mumble_window_show: false,
-            // marker_window,
-            // marker_window_show: false,
+            marker_window,
+            marker_window_show: false,
             mcache,
+            timer_window_show: false,
         }
     }
 }
@@ -46,11 +47,11 @@ impl MainWindow {
                 self.mumble_window
                     .add_widgets_to_ui(&ctx, self.mcache.clone());
             };
-            // ui.checkbox(&mut self.marker_window_show, "show Marker Window");
-            // if self.marker_window_show {
-            //     self.marker_window
-            //         .add_widgets_to_ui(&ctx, self.mcache.clone());
-            // };
+            ui.checkbox(&mut self.marker_window_show, "show Marker Window");
+            if self.marker_window_show {
+                self.marker_window
+                    .add_widgets_to_ui(&ctx, self.mcache.clone());
+            };
         });
     }
 }

@@ -1,7 +1,4 @@
-use std::{
-    ffi::OsStr,
-    fs::read_dir,
-};
+use std::{collections::BTreeMap, ffi::OsStr, fs::read_dir};
 
 use anyhow::Context;
 
@@ -16,16 +13,18 @@ pub mod xml_category;
 pub mod xml_marker;
 pub mod xml_trail;
 
+#[derive(Debug)]
 pub struct MarCat {
     pub xml_cat: XMLCategory,
     pub markers: Vec<XMLMarker>,
     pub trails: Vec<XMLTrail>,
-    pub children: Vec<MarCat>,
+    pub children: BTreeMap<String, MarCat>,
     pub enabled: bool,
+    pub id: u32, //to have a unique id for all the categories to be displayed with egui
 }
 
-impl From<OverlayData> for MarCat {
-    fn from(od: OverlayData) -> Self {
+impl MarCat {
+    fn from_od(od: OverlayData, id: &mut u32) -> Self {
         let mut markers: Vec<XMLMarker> = Vec::new();
         let mut trails: Vec<XMLTrail> = Vec::new();
 
@@ -40,25 +39,32 @@ impl From<OverlayData> for MarCat {
         let mut cat = od.categories;
         let prefix = cat.name.clone();
 
-        
-        let present_cat_markers = markers.iter().filter(|&m| {
-            if let Some(m_cat) = &m.category {
-                m_cat == &prefix
-            } else {
-                true
-            }
-        }).map(|m| m.clone()).collect();
-        let present_cat_trails = trails.iter().filter(|&t| {
-            if let Some(t_cat) = &t.category {
-                t_cat == &prefix
-            } else {
-                true
-            }
-        }).map(|m|m.clone()).collect();
+        let present_cat_markers = markers
+            .iter()
+            .filter(|&m| {
+                if let Some(m_cat) = &m.category {
+                    m_cat == &prefix
+                } else {
+                    true
+                }
+            })
+            .map(|m| m.clone())
+            .collect();
+        let present_cat_trails = trails
+            .iter()
+            .filter(|&t| {
+                if let Some(t_cat) = &t.category {
+                    t_cat == &prefix
+                } else {
+                    true
+                }
+            })
+            .map(|m| m.clone())
+            .collect();
 
-        let mut children = Vec::new();
+        let mut children = BTreeMap::new();
         if let Some(xml_children) = cat.children {
-            children = MarCat::build_mar_cats(prefix, xml_children, &markers, &trails);
+            children = MarCat::build_mar_cats(prefix, xml_children, &markers, &trails, id);
         }
         cat.children = Some(Vec::new());
         MarCat {
@@ -67,6 +73,7 @@ impl From<OverlayData> for MarCat {
             trails: present_cat_trails,
             children,
             enabled: false,
+            id: *id,
         }
     }
 }
@@ -74,47 +81,80 @@ impl MarCat {
     pub fn build_mar_cats(
         prefix: String,
         cats: Vec<XMLCategory>,
-         markers: &Vec<XMLMarker>,
-         trails: &Vec<XMLTrail>,
-    ) -> Vec<MarCat> {
-        let mut result = Vec::new();
+        markers: &Vec<XMLMarker>,
+        trails: &Vec<XMLTrail>,
+        id: &mut u32,
+    ) -> BTreeMap<String, MarCat> {
+        let mut result: BTreeMap<String, MarCat> = BTreeMap::new();
 
         for mut c in cats {
-            let prefix: String  = prefix.clone() + "." + &c.name;
-            let present_cat_markers = markers.iter().filter(|&m| {
-                if let Some(m_cat) = &m.category {
-                    m_cat == &prefix
-                } else {
-                    true
-                }
-            }).map(|m| m.clone()).collect();
-            let present_cat_trails = trails.iter().filter(|&t| {
-                if let Some(t_cat) = &t.category {
-                    t_cat == &prefix
-                } else {
-                    true
-                }
-            }).map(|m|m.clone()).collect();
+            let prefix: String = prefix.clone() + "." + &c.name;
+            let mut present_cat_markers = markers
+                .iter()
+                .filter(|&m| {
+                    if let Some(m_cat) = &m.category {
+                        m_cat == &prefix
+                    } else {
+                        true
+                    }
+                })
+                .map(|m| m.clone())
+                .collect();
+            let mut present_cat_trails = trails
+                .iter()
+                .filter(|&t| {
+                    if let Some(t_cat) = &t.category {
+                        t_cat == &prefix
+                    } else {
+                        true
+                    }
+                })
+                .map(|m| m.clone())
+                .collect();
 
-            let mut children = Vec::new();
+            let mut children = BTreeMap::new();
             if let Some(xml_children) = c.children {
-                children = MarCat::build_mar_cats(prefix, xml_children, &markers, &trails);
+                children = MarCat::build_mar_cats(prefix, xml_children, &markers, &trails, id);
             }
             c.children = Some(Vec::new());
-            result.push(MarCat {
-                xml_cat: c,
-                markers: present_cat_markers,
-                trails: present_cat_trails,
-                children,
-                enabled: false,
-            });
+            if result.contains_key(&c.name) {
+                let v = result.get_mut(&c.name).unwrap();
+                v.markers.append(&mut present_cat_markers);
+                v.trails.append(&mut present_cat_trails);
+                v.children.append(&mut children);
+            } else {
+                result.insert(
+                    c.name.clone(),
+                    MarCat {
+                        xml_cat: c,
+                        markers: present_cat_markers,
+                        trails: present_cat_trails,
+                        children,
+                        enabled: false,
+                        id: *id,
+                    },
+                );
+                *id += 1;
+            }
         }
         return result;
     }
 }
-
-pub fn load_markers(location: &str) -> anyhow::Result<Vec<MarCat>> {
-    let mut mar_cats = Vec::new();
+pub fn merge(original: &mut BTreeMap<String, MarCat>, other: BTreeMap<String, MarCat>) {
+    for (k, mut v) in other {
+        if original.contains_key(&k) {
+            let ori_v = original.get_mut(&k).unwrap();
+            ori_v.markers.append(&mut v.markers);
+            ori_v.trails.append(&mut v.trails);
+            merge(&mut ori_v.children, v.children);
+        } else {
+            original.insert(k, v);
+        }
+    }
+}
+pub fn load_markers(location: &str) -> anyhow::Result<BTreeMap<String, MarCat>> {
+    let mut mar_cats: BTreeMap<String, MarCat> = BTreeMap::new();
+    let mut id = 0u32;
     let entries = read_dir(&location).context(format!("couldn't open directory {}", &location))?;
     for f in entries {
         let entry = f?;
@@ -125,7 +165,10 @@ pub fn load_markers(location: &str) -> anyhow::Result<Vec<MarCat>> {
 
             match quick_xml::de::from_reader::<_, OverlayData>(marker_file_reader) {
                 Ok(od) => {
-                    mar_cats.push(MarCat::from(od));
+                    let mut new_cat_map = BTreeMap::new();
+                    let new_cat = MarCat::from_od(od, &mut id);
+                    new_cat_map.insert(new_cat.xml_cat.name.clone(), new_cat);
+                    merge(&mut mar_cats, new_cat_map);
                 }
                 Err(e) => {
                     log::error!(

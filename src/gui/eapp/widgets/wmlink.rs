@@ -52,9 +52,12 @@ impl MumbleLinkSetupWindow {
             }
             if self.show_mumble {
                 mc.as_mut().unwrap().update_link().unwrap();
-                Window::new("Mumble Info").show(&ctx, |ui| {
-                    ui.label(format!("{:#?}", mc.as_ref().unwrap().link));
-                });
+                Window::new("Mumble Info")
+                    .scroll(true)
+                    .default_height(150.0)
+                    .show(&ctx, |ui| {
+                        ui.label(format!("{:#?}", mc.as_ref().unwrap().link));
+                    });
             }
         });
     }

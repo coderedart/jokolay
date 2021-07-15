@@ -1,14 +1,17 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use glow::{Context, HasContext};
-use image::DynamicImage;
+
 use nalgebra_glm::{Mat4, Vec3};
 
-use crate::gltypes::{
-    buffer::{Buffer, VertexBufferLayout},
-    shader::ShaderProgram,
-    texture::TextureArray,
-    vertex_array::VertexArrayObject,
+use crate::{
+    gl_error,
+    gltypes::{
+        buffer::{Buffer, VertexBufferLayout},
+        shader::ShaderProgram,
+        texture::Texture,
+        vertex_array::VertexArrayObject,
+    },
 };
 
 use super::xmltypes::xml_marker::Marker;
@@ -72,11 +75,13 @@ pub struct MarkerScene {
     pub u_camera_position: u32,
     pub u_view_projection: u32,
     pub gl: Rc<glow::Context>,
+    pub max_texture_units: i32,
 }
+#[derive(Debug)]
 pub struct Batch {
-    pub vb_offset: u32,
-    pub vb_count: u32,
-    pub textures: Vec<TextureArray>,
+    pub vb_offset: usize,
+    pub vb_count: usize,
+    pub textures: Vec<Texture>,
 }
 
 // const SAMPLERS_ARRAY: [i32; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
@@ -93,11 +98,12 @@ impl MarkerScene {
         );
         let u_camera_position: u32;
         let u_view_projection: u32;
+        let max_texture_units: i32;
         unsafe {
             u_camera_position = gl.get_uniform_location(sp.id, "camera_position").unwrap();
             u_view_projection = gl.get_uniform_location(sp.id, "view_projection").unwrap();
+            max_texture_units = gl.get_parameter_i32(glow::MAX_TEXTURE_IMAGE_UNITS);
         }
-
         let scene = MarkerScene {
             vao,
             vb,
@@ -105,6 +111,7 @@ impl MarkerScene {
             batches: Vec::new(),
             u_camera_position,
             u_view_projection,
+            max_texture_units,
             gl: gl.clone(),
         };
         scene.bind();
@@ -114,13 +121,13 @@ impl MarkerScene {
     }
     pub fn draw(&self, view_projection: Mat4, camera_position: Vec3) {
         unsafe {
-            // self.gl.disable(glow::FRAMEBUFFER_SRGB);
-            self.gl.disable(glow::SCISSOR_TEST);
+            self.gl.disable(glow::FRAMEBUFFER_SRGB);
             self.gl.enable(glow::DEPTH_TEST);
+            self.gl
+                .blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
         }
         self.bind();
         self.update_uniforms(view_projection, camera_position);
-
         for batch in self.batches.iter() {
             // batches are organized based on texture index in material. so, first batch is 0-15 textures, second is 16-31 and so on.
             // we get the offset from where we start binding the 16 textures to the slots
@@ -132,8 +139,10 @@ impl MarkerScene {
                     texture.bind();
                 }
             }
+            gl_error!(self.gl);
+
             // now that all textures for this batch are bound, we can draw the points for this batch using the offset/count of batch;
-            self.render(batch.vb_offset, batch.vb_count);
+            self.render(batch.vb_offset as u32, batch.vb_count as u32);
         }
     }
 
@@ -160,88 +169,68 @@ impl MarkerScene {
             self.gl
                 .uniform_3_f32_slice(Some(&self.u_camera_position), camera_position.as_slice());
         }
+        gl_error!(self.gl);
     }
     pub fn update_marker_nodes(&mut self, markers: &Vec<Marker>) -> anyhow::Result<()> {
         use image::GenericImageView;
-        let images: BTreeMap<String, DynamicImage> = markers
-            .iter()
-            .filter_map(|m| {
-                let i = m
-                    .icon_file
-                    .as_ref()
-                    .ok_or_else(|| {
-                        log::error!("marker has no icon file");
-                        anyhow::Error::msg("None")
-                    })
-                    .ok()?;
-                let img = image::open(i)
+        let max_texture_slots: usize = self.max_texture_units as usize;
+
+        let mut textures: Vec<Texture> = Vec::new();
+        let mut images: BTreeMap<String, usize> = BTreeMap::new();
+        let mut nodes = Vec::new();
+        for m in markers.iter() {
+            let img_path = m
+                .icon_file
+                .as_ref()
+                .ok_or_else(|| {
+                    log::error!("marker has no icon file");
+                    anyhow::Error::msg("None")
+                })
+                .unwrap();
+            let index = images.entry(img_path.to_string()).or_insert_with(|| {
+                let img = image::open(format!("./res/tw/{}", img_path))
                     .map_err(|e| {
                         log::error!("couldn't open image: {}", &e);
                         e
                     })
-                    .ok()?;
-                Some((i.clone(), img))
-            })
-            .collect();
-        let mut sizes_to_slot_map: BTreeMap<(u32, u32), (u32, u32)> = BTreeMap::new();
-        let mut textures = Vec::new();
-        let mut nodes = Vec::new();
-        let mut pixels: Vec<Vec<&[u8]>> = Vec::new();
-        for m in markers {
-            if m.icon_file.is_none() {
-                let n = MarkerNode::from(m);
-                nodes.push(n);
-                continue;
-            }
-            let name = m.icon_file.as_ref().unwrap();
-            let i = images.get(name).unwrap();
-            let (slot, layer) = sizes_to_slot_map.entry(i.dimensions()).or_insert_with(|| {
-                let t = TextureArray::new(self.gl.clone(), i.width(), i.height());
+                    .unwrap();
+                let img = img.flipv();
+                let pixels = img.as_bytes();
+                let t = Texture::new(self.gl.clone());
+                t.bind();
+                t.update_pixels(pixels, img.width(), img.height());
+                let index = textures.len();
                 textures.push(t);
-                pixels.push(Vec::new());
-                ((textures.len() - 1) as u32, 0)
+                index
             });
-            pixels[*slot as usize].push(i.as_bytes());
 
             let mut n = MarkerNode::from(m);
-            n.tex_slot = *slot;
-            n.tex_layer = *layer;
-            *layer += 1;
+            n.tex_slot = (*index % max_texture_slots) as u32;
             nodes.push(n);
         }
-        for (t, p) in textures.iter_mut().zip(pixels.iter()) {
-            t.bind();
-            t.update_pixels(&p);
-        }
         nodes.sort_unstable_by_key(|n| n.tex_slot);
-        self.batches.clear();
-        let num_of_batches = textures.len() / 16;
-        let mut current_batch = 0;
-        let mut previous_offset = 0;
-        while current_batch < num_of_batches {
-            let start_of_batch = previous_offset;
-            let end_of_batch = nodes[previous_offset..]
-                .iter()
-                .position(|n| n.tex_slot % 16 > current_batch as u32);
-            match end_of_batch {
-                Some(count) => {
-                    previous_offset += count;
-                    self.batches.push(Batch {
-                        vb_offset: start_of_batch as u32,
-                        vb_count: count as u32,
-                        textures: textures.drain(0..16).collect(),
-                    });
-                }
-                None => {}
+        let mut batches: Vec<Batch> = Vec::new();
+        let mut start_node_index = 0;
+        let mut current_batch_num = 0;
+        for (node_index, n) in nodes.iter().enumerate() {
+            if n.tex_slot / 16 > current_batch_num {
+                batches.push(Batch {
+                    vb_offset: start_node_index,
+                    vb_count: node_index - start_node_index,
+                    textures: textures.drain(0..max_texture_slots).collect(),
+                });
+                current_batch_num = n.tex_slot / 16;
+                start_node_index = node_index;
             }
-            current_batch += 1;
         }
-        self.batches.push(Batch {
-            vb_offset: previous_offset as u32,
-            vb_count: (previous_offset + nodes[previous_offset..].len()) as u32,
-            textures,
+        batches.push(Batch {
+            vb_offset: start_node_index,
+            vb_count: nodes.len() - start_node_index,
+            textures: textures.drain(0..).collect(),
         });
-        self.vb.update(bytemuck::cast_slice(&nodes), glow::STREAM_DRAW);
+        self.batches = batches;
+        self.vb
+            .update(bytemuck::cast_slice(&nodes), glow::STREAM_DRAW);
         Ok(())
     }
 

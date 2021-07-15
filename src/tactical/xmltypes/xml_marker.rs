@@ -98,7 +98,7 @@ pub enum Behavior {
     WvWObjective = 9,
 }
 
-/// POIS tag under OverlayData which contains the array of tags POI/Trail 
+/// POIS tag under OverlayData which contains the array of tags POI/Trail
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename = "POIs")]
 pub struct POIS {
