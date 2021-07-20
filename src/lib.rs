@@ -7,7 +7,7 @@ use log::LevelFilter;
 use tokio::{runtime::Handle, sync::oneshot::channel};
 use window::glfw_window::GlfwWindow;
 
-use crate::input::InputManager;
+use crate::{input::InputManager, mlink::MumbleManager};
 
 pub mod gltypes;
 pub mod gui;
@@ -21,6 +21,7 @@ pub struct JokolayApp {
     pub overlay_window: Rc<RefCell<GlfwWindow>>,
     pub input_manager: InputManager<imgui::Context>,
     pub handle: Handle,
+    pub mumble_manager: MumbleManager,
     shutdown_tx: tokio::sync::oneshot::Sender<()>,
 }
 
@@ -50,10 +51,12 @@ impl JokolayApp {
         });
         let handle = handle_rx.recv().unwrap();
         let input_manager = InputManager::new(events, glfw);
+        let mumble_manager = MumbleManager::new("MumbleLink", "127.0.0.1:7187", handle.clone());
         Ok(JokolayApp {
             overlay_window,
             imgui_app,
             input_manager,
+            mumble_manager,
             handle,
             shutdown_tx,
         })
@@ -90,8 +93,9 @@ impl JokolayApp {
                 dbg!(fps);
                 fps = 0;
             }
-            self.input_manager.process_events(&mut overlay_window.borrow_mut(), &mut imgui_app.ctx);
+            self.mumble_manager.update();
 
+            self.input_manager.process_events(&mut overlay_window.borrow_mut(), &mut imgui_app.ctx, self.mumble_manager.get_window_dimensions());
             gl_error!(gl);
             unsafe {
                 gl.disable(glow::SCISSOR_TEST);
@@ -99,7 +103,7 @@ impl JokolayApp {
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             }
             
-            imgui_app.update(&mut overlay_window.borrow_mut().window.borrow_mut()).unwrap();
+            imgui_app.update(&mut overlay_window.borrow_mut().window.borrow_mut(), &mut self.mumble_manager).unwrap();
 
             overlay_window.borrow().redraw_request();
         }

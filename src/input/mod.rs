@@ -9,6 +9,7 @@ use egui::{Event, Key, RawInput, Rect};
 
 use glfw::{Action, Glfw, Modifiers, MouseButton, WindowEvent};
 use glow::HasContext;
+use jokolink::mlp::WindowDimensions;
 
 use std::collections::BTreeSet;
 
@@ -27,10 +28,24 @@ pub struct InputManager<T> {
 
 
 impl InputManager<imgui::Context> {
-    pub fn process_events(&mut self, overlay_window: &mut GlfwWindow, ctx: &mut imgui::Context) {
+    pub fn process_events(&mut self, overlay_window: &mut GlfwWindow, ctx: &mut imgui::Context, wd: Option<WindowDimensions>) {
         self.glfw.poll_events();
 
         let (xpos, ypos) = overlay_window.get_inner_position();
+        // check if gw2 window has changed locations and adjust our overlay position
+        {
+        let (width, height) = overlay_window.get_inner_position();
+        if let Some(dim) = wd {
+            dbg!(dim);
+            if dim.x  != xpos  || dim.y != ypos    {
+                overlay_window.set_inner_position(dim.x , dim.y );
+            }
+            if dim.width != width || dim.height  != height {
+                overlay_window.set_inner_size(dim.width , dim.height );
+            }
+        }
+
+        }
         let mouse = self.dq.query_pointer();
         if self.global_mouse_position != mouse.coords {
             self.global_mouse_position = mouse.coords;

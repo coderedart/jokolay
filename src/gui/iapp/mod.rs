@@ -6,6 +6,8 @@ use imgui::{im_str, Condition, Window as IWindow};
 
 use painter::Painter;
 
+use crate::mlink::MumbleManager;
+
 pub mod iglfw;
 pub mod painter;
 pub struct ImguiApp {
@@ -25,13 +27,16 @@ impl ImguiApp {
             &mut ctx,
         );
         iglfw::init(&mut ctx);
+        let mut style = ctx.style_mut();
+        
+       iglfw::set_imgui_style(&mut style);
         ImguiApp {
             ctx,
             painter,
         }
     }
 
-    pub fn update(&mut self, window: &mut Window) -> anyhow::Result<()> {
+    pub fn update(&mut self, window: &mut Window, mumble_manager: &mut MumbleManager) -> anyhow::Result<()> {
         let ctx = &mut self.ctx;
         let painter = &mut self.painter;
 
@@ -43,13 +48,11 @@ impl ImguiApp {
         };
         let ui = ctx.frame();
         ui.show_demo_window(&mut show);
-        ui.show_user_guide();
-        IWindow::new(im_str!("Hello world"))
+        
+        IWindow::new(im_str!("MumbleLink Data"))
             .size([300.0, 110.0], Condition::FirstUseEver)
             .build(&ui, || {
-                ui.text(im_str!("Hello world!"));
-                ui.text(im_str!("こんにちは世界！"));
-                ui.text(im_str!("This...is...imgui-rs!"));
+                ui.text(format!("{:#?}", mumble_manager.get_link()));
                 ui.separator();
             });
 

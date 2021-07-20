@@ -1,7 +1,4 @@
-use glfw::{
-    Action, Cursor, CursorMode, Key as GlfwKey, Modifiers, MouseButton, StandardCursor, Window,
-    WindowEvent,
-};
+use glfw::{Cursor, CursorMode, Key as GlfwKey, StandardCursor, Window};
 use imgui::{BackendFlags, ConfigFlags, Context, ImString, Io, Key, Ui};
 
 // pub struct GlfwPlatform {
@@ -129,60 +126,63 @@ pub fn attach_window(io: &mut Io, window: &Window) {
     io.display_size = [width as f32, height as f32];
 }
 
-/// Handles a glfw window event
-///
-/// * keyboard state is updated
-/// * mouse state is updated
-pub fn handle_event(io: &mut Io, event: &WindowEvent) {
-    match *event {
-        WindowEvent::Key(key, _scancode, action, modifiers) => {
-            if key as i32 >= 0 {
-                if action == Action::Release {
-                    io.keys_down[key as usize] = false;
-                } else {
-                    io.keys_down[key as usize] = true;
-                }
-            }
-            io.key_shift = modifiers.contains(Modifiers::Shift);
-            io.key_ctrl = modifiers.contains(Modifiers::Control);
-            io.key_alt = modifiers.contains(Modifiers::Alt);
-            io.key_super = modifiers.contains(Modifiers::Super);
-        }
-        WindowEvent::Size(width, height) => {
-            io.display_size = [width as _, height as _];
-        }
-        WindowEvent::Char(ch) => {
-            // Exclude the backspace key
-            if ch != '\u{7f}' {
-                io.add_input_character(ch);
-            }
-        }
-        // WindowEvent::CursorPos(x, y) => {
-        //     io.mouse_pos = [x as _, y as _];
-        // }
-        WindowEvent::Scroll(x, y) => {
-            io.mouse_wheel_h = x as _;
-            io.mouse_wheel = y as _;
-        }
-        WindowEvent::MouseButton(button, action, _modifiers) => {
-            let pressed = action == Action::Press;
-            match button {
-                MouseButton::Button1 => io.mouse_down[0] = pressed,
-                MouseButton::Button2 => io.mouse_down[1] = pressed,
-                MouseButton::Button3 => io.mouse_down[2] = pressed,
-                _ => (),
-            }
-        }
-        _ => {}
-    }
+pub fn set_imgui_style(style: &mut imgui::Style) {
+    style.window_padding = [15.0, 15.0];
+    style.window_rounding = 5.0;
+    style.frame_padding = [5.0, 5.0];
+    style.frame_rounding = 4.0;
+    style.item_spacing = [12.0, 8.0];
+    style.item_inner_spacing = [8.0, 6.0];
+    style.indent_spacing = 25.0;
+    style.scrollbar_size = 15.0;
+    style.scrollbar_rounding = 9.0;
+    style.grab_min_size = 5.0;
+    style.grab_rounding = 3.0;
+ 
+    style.colors[imgui::sys::ImGuiCol_Text as usize as usize] = [0.80, 0.80, 0.83, 1.00];
+    style.colors[imgui::sys::ImGuiCol_TextDisabled as usize] = [0.24, 0.23, 0.29, 1.00];
+    style.colors[imgui::sys::ImGuiCol_WindowBg as usize] = [0.06, 0.05, 0.07, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ChildBg as usize] = [0.07, 0.07, 0.09, 1.00];
+    style.colors[imgui::sys::ImGuiCol_PopupBg as usize] = [0.07, 0.07, 0.09, 1.00];
+    style.colors[imgui::sys::ImGuiCol_Border as usize] = [0.80, 0.80, 0.83, 0.88];
+    style.colors[imgui::sys::ImGuiCol_BorderShadow as usize] = [0.92, 0.91, 0.88, 0.00];
+    style.colors[imgui::sys::ImGuiCol_FrameBg as usize] = [0.10, 0.09, 0.12, 1.00];
+    style.colors[imgui::sys::ImGuiCol_FrameBgHovered as usize] = [0.24, 0.23, 0.29, 1.00];
+    style.colors[imgui::sys::ImGuiCol_FrameBgActive as usize] = [0.56, 0.56, 0.58, 1.00];
+    style.colors[imgui::sys::ImGuiCol_TitleBg as usize] = [0.10, 0.09, 0.12, 1.00];
+    style.colors[imgui::sys::ImGuiCol_TitleBgCollapsed as usize] = [1.00, 0.98, 0.95, 0.75];
+    style.colors[imgui::sys::ImGuiCol_TitleBgActive as usize] = [0.07, 0.07, 0.09, 1.00];
+    style.colors[imgui::sys::ImGuiCol_MenuBarBg as usize] = [0.10, 0.09, 0.12, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ScrollbarBg as usize] = [0.10, 0.09, 0.12, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ScrollbarGrab as usize] = [0.80, 0.80, 0.83, 0.31];
+    style.colors[imgui::sys::ImGuiCol_ScrollbarGrabHovered as usize] = [0.56, 0.56, 0.58, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ScrollbarGrabActive as usize] = [0.06, 0.05, 0.07, 1.00];
+    // style.colors[imgui::sys::ImGuiCol_ComboBg as usize] = [0.19, 0.18, 0.21, 1.00];
+    style.colors[imgui::sys::ImGuiCol_CheckMark as usize] = [0.80, 0.80, 0.83, 0.31];
+    style.colors[imgui::sys::ImGuiCol_SliderGrab as usize] = [0.80, 0.80, 0.83, 0.31];
+    style.colors[imgui::sys::ImGuiCol_SliderGrabActive as usize] = [0.06, 0.05, 0.07, 1.00];
+    style.colors[imgui::sys::ImGuiCol_Button as usize] = [0.10, 0.09, 0.12, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ButtonHovered as usize] = [0.24, 0.23, 0.29, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ButtonActive as usize] = [0.56, 0.56, 0.58, 1.00];
+    style.colors[imgui::sys::ImGuiCol_Header as usize] = [0.10, 0.09, 0.12, 1.00];
+    style.colors[imgui::sys::ImGuiCol_HeaderHovered as usize] = [0.56, 0.56, 0.58, 1.00];
+    style.colors[imgui::sys::ImGuiCol_HeaderActive as usize] = [0.06, 0.05, 0.07, 1.00];
+    // style.colors[imgui::sys::ImGuiCol_Column as usize] = [0.56, 0.56, 0.58, 1.00];
+    // style.colors[imgui::sys::ImGuiCol_ColumnHovered as usize] = [0.24, 0.23, 0.29, 1.00];
+    // style.colors[imgui::sys::ImGuiCol_ColumnActive as usize] = [0.56, 0.56, 0.58, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ResizeGrip as usize] = [0.00, 0.00, 0.00, 0.00];
+    style.colors[imgui::sys::ImGuiCol_ResizeGripHovered as usize] = [0.56, 0.56, 0.58, 1.00];
+    style.colors[imgui::sys::ImGuiCol_ResizeGripActive as usize] = [0.06, 0.05, 0.07, 1.00];
+    // style.colors[imgui::sys::ImGuiCol_CloseButton as usize] = [0.40, 0.39, 0.38, 0.16];
+    // style.colors[imgui::sys::ImGuiCol_CloseButtonHovered as usize] = [0.40, 0.39, 0.38, 0.39];
+    // style.colors[imgui::sys::ImGuiCol_CloseButtonActive as usize] = [0.40, 0.39, 0.38, 1.00];
+    style.colors[imgui::sys::ImGuiCol_PlotLines as usize] = [0.40, 0.39, 0.38, 0.63];
+    style.colors[imgui::sys::ImGuiCol_PlotLinesHovered as usize] = [0.25, 1.00, 0.00, 1.00];
+    style.colors[imgui::sys::ImGuiCol_PlotHistogram as usize] = [0.40, 0.39, 0.38, 0.63];
+    style.colors[imgui::sys::ImGuiCol_PlotHistogramHovered as usize] = [0.25, 1.00, 0.00, 1.00];
+    style.colors[imgui::sys::ImGuiCol_TextSelectedBg as usize] = [0.25, 1.00, 0.00, 0.43];
+    // style.colors[imgui::sys::ImGuiCol_ModalWindowDarkening as usize] = [1.00, 0.98, 0.95, 0.73];
 }
-
-/// Prepare the window for the next frame.
-///
-/// Call before calling the imgui-rs `Context::frame` function.
-///
-/// * mouse cursor is repositioned if requested by imgui
-
 
 /// Prepare the window for rendering.
 ///
