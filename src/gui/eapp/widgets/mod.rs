@@ -7,7 +7,7 @@ use egui::{CtxRef, Window};
 use parking_lot::Mutex;
 use wmlink::MumbleLinkSetupWindow;
 
-use crate::mlink::MumbleCache;
+use crate::mlink::MumbleManager;
 
 use self::wmarker::MarkersWindow;
 
@@ -15,7 +15,7 @@ pub struct MainWindow {
     pub name: String,
     pub mumble_window: MumbleLinkSetupWindow,
     pub mumble_window_show: bool,
-    pub mcache: Arc<Mutex<Option<MumbleCache>>>,
+    pub mcache: Arc<Mutex<Option<MumbleManager>>>,
     pub timer_window_show: bool,
     pub marker_window_show: bool,
     pub marker_window: MarkersWindow,

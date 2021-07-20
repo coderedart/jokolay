@@ -6,7 +6,7 @@ fn main() -> anyhow::Result<()> {
         log::LevelFilter::Trace,
         "./joko.log".into(),
     )?;
-    let mut app = JokolayApp::new()?;
+    let app = JokolayApp::new()?;
     app.run()?;
     Ok(())
 }

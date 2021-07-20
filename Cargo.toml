@@ -18,19 +18,18 @@ serde = {version = "1.0.126", features = ["derive"]}
 serde_derive = "1.0.126"
 serde_repr = "0.1.7"
 quick-xml = { version = "0.22.0", features = ["serialize"]}
-nalgebra-glm = "0.13.0"
+nalgebra-glm = "0.14.0"
 image = "0.23.14"
 anyhow = "1.0.41"
 egui = "0.13.0"
-epi = "0.13.0"
 device_query = "0.2.8"
 copypasta = "0.7.1"
 parking_lot = "0.11.1"
-winit = "0.25.0"
-imgui-opengl-renderer = "0.11.0"
 imgui = "0.7.0"
 log = "0.4.14"
 simplelog = "0.10.0"
+tokio = {version = "1.8.1", features = ["full"]}
+imgui-opengl-renderer = "0.11.0"
 #glfw = "0.41.0"
 
 [dependencies.glfw]

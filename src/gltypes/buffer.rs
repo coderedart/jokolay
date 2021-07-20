@@ -67,18 +67,18 @@ impl VertexBufferLayout {
     //         normalized: false,
     //     });
     // }
-    pub fn push_u8(&mut self, count: i32) {
+    pub fn push_u8(&mut self, count: i32, normalized: bool) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::UNSIGNED_BYTE,
             count,
-            normalized: false,
+            normalized,
         });
     }
-    pub fn push_u32(&mut self, count: i32) {
+    pub fn push_u32(&mut self, count: i32, normalized: bool) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::UNSIGNED_INT,
             count,
-            normalized: false,
+            normalized,
         });
     }
 
@@ -131,7 +131,7 @@ impl VertexBufferLayout {
                             index.try_into().unwrap(),
                             element.count,
                             UNSIGNED_BYTE,
-                            false,
+                            element.normalized,
                             stride,
                             offset,
                         );

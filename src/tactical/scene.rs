@@ -54,15 +54,15 @@ impl MarkerNode {
     fn get_layout() -> VertexBufferLayout {
         let mut vbl = VertexBufferLayout::default();
         vbl.push_f32(3, false); // position
-        vbl.push_u32(1); // tex_layer
-        vbl.push_u32(1); // tex_slot
-                         //         vbl.push_f32(1, false); // scale
-                         //         vbl.push_f32(1, false); // alpha
-                         //         vbl.push_u32(1); // fade_near
-                         //         vbl.push_u32(1); // fade_far
-                         //         vbl.push_u32(1); // min_size
-                         //         vbl.push_u32(1); // max_size
-                         //         vbl.push_u8(4); // color as u32
+        vbl.push_u32(1, false); // tex_layer
+        vbl.push_u32(1, false); // tex_slot
+                                //         vbl.push_f32(1, false); // scale
+                                //         vbl.push_f32(1, false); // alpha
+                                //         vbl.push_u32(1); // fade_near
+                                //         vbl.push_u32(1); // fade_far
+                                //         vbl.push_u32(1); // min_size
+                                //         vbl.push_u32(1); // max_size
+                                //         vbl.push_u8(4); // color as u32
 
         vbl
     }

@@ -1,83 +1,60 @@
-// pub mod iglfw;
-// pub mod widgets;
-// use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
-// use crate::window::{glfw_window::GlfwWindow, OverlayWindow};
-// use glow::HasContext;
-// use iglfw::*;
-// use imgui::Context as ICtx;
-// use imgui_opengl_renderer::Renderer;
+use glfw::Window;
+use glow::Context;
+use imgui::{im_str, Condition, Window as IWindow};
 
-// // use widgets::MainWindow;
+use painter::Painter;
 
-// pub struct ImguiInterface {
-//     pub painter: Rc<RefCell<Renderer>>,
-//     pub main_window: Rc<RefCell<MainWindow>>,
-//     pub ctx: Rc<RefCell<ICtx>>,
-//     pub overlay_window: Rc<RefCell<GlfwWindow>>,
-// }
+pub mod iglfw;
+pub mod painter;
+pub struct ImguiApp {
+    painter: Painter,
+    pub ctx: imgui::Context,
+}
 
-// impl ImguiInterface {
-//     pub fn new(gl: Rc<glow::Context>, overlay_window: Rc<RefCell<GlfwWindow>>) -> Self {
-//         let ctx = Rc::new(RefCell::new(ICtx::create()));
+impl ImguiApp {
+    pub fn new(gl: Rc<Context>) -> Self {
+        let mut ctx = imgui::Context::create();
+        if std::mem::size_of::<imgui::DrawIdx>() != 2 {
+            panic!("index not short");
+        }
 
-//         let painter = Rc::new(RefCell::new(Renderer::new(&mut ctx.borrow_mut(), |s| {
-//             overlay_window
-//                 .borrow_mut()
-//                 .window
-//                 .borrow_mut()
-//                 .get_proc_address(s) as *const _
-//         })));
+        let painter = Painter::new(
+            gl.clone(),
+            &mut ctx,
+        );
+        iglfw::init(&mut ctx);
+        ImguiApp {
+            ctx,
+            painter,
+        }
+    }
 
-//         let main_window = Rc::new(RefCell::new(MainWindow::new(gl.clone())));
-//         init(&mut ctx.borrow_mut());
-//         attach_window(
-//             ctx.borrow_mut().io_mut(),
-//             &mut overlay_window.borrow_mut().window.borrow_mut(),
-//         );
-//         ImguiInterface {
-//             ctx,
-//             painter,
-//             overlay_window,
-//             main_window,
-//         }
-//     }
+    pub fn update(&mut self, window: &mut Window) -> anyhow::Result<()> {
+        let ctx = &mut self.ctx;
+        let painter = &mut self.painter;
 
-//     /// this is the primary function that is run in the event loop. we collect the pressed keys/buttons at this moment, get mouse position
-//     /// and finally, check with the previous values to see if there's any change and upload those events to the raw_input.events vec.
-//     /// then call begin frameto start uploading the new windows/widgets before calling endframe.
-//     /// handle any output events, and draw egui.
-//     pub fn update(&self) -> anyhow::Result<()> {
-//         let overlay_window = self.overlay_window.clone();
-//         let ctx = self.ctx.clone();
-//         let gl = overlay_window.borrow().get_gl_context();
-//         let painter = self.painter.clone();
-//         let (width, height) = overlay_window.borrow().get_inner_size();
+        let mut show = true;
+       
+        if ctx.io().want_set_mouse_pos {
+            let [x, y] = ctx.io().mouse_pos;
+            window.set_cursor_pos(x as _, y as _);
+        };
+        let ui = ctx.frame();
+        ui.show_demo_window(&mut show);
+        ui.show_user_guide();
+        IWindow::new(im_str!("Hello world"))
+            .size([300.0, 110.0], Condition::FirstUseEver)
+            .build(&ui, || {
+                ui.text(im_str!("Hello world!"));
+                ui.text(im_str!("こんにちは世界！"));
+                ui.text(im_str!("This...is...imgui-rs!"));
+                ui.separator();
+            });
 
-//         unsafe {
-//             gl.clear_color(0.0, 0.0, 0.0, 0.0);
-//             gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT);
-//         }
-//         {
-//             let mut ctx = ctx.borrow_mut();
-//             overlay_window
-//                 .borrow_mut()
-//                 .send_events_to_imgui(ctx.io_mut());
-//             prepare_frame(
-//                 ctx.io_mut(),
-//                 &mut overlay_window.borrow_mut().window.borrow_mut(),
-//             )
-//             .unwrap();
-
-//             let ui = ctx.frame();
-//             ui.show_demo_window(&mut true);
-//             self.main_window.borrow_mut().add_widgets_to_ui(&ui);
-//             prepare_render(&ui, &mut overlay_window.borrow_mut().window.borrow_mut());
-//             painter.borrow_mut().render(ui);
-//         }
-
-//         Ok(())
-//     }
-// }
-
-// pub enum UIElements {}
+        iglfw::mouse_cursor_change(&ui, window);
+        painter.draw_meshes(ui);
+        Ok(())
+    }
+}

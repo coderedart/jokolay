@@ -1,19 +1,3 @@
-//! Provides a glfw-based backend platform for imgui-rs. This crate is modeled
-//! after the winit version.
-//!
-//! ## Usage
-//!
-//! 1. Initialize a `GlfwPlatform`
-//! 2. Attach it to a glfw `Window`
-//! 3. Optionally, enable platform clipboard integration
-//! 4. Pass events to the platform (every frame)
-//! 5. Call frame preparation (every frame)
-//! 6. Call render preperation (every frame)
-//!
-//! ## Examples
-//!
-//! The [examples](https://github.com/aloucks/imgui-glfw-support/tree/master/examples) can be found on github.
-
 use glfw::{
     Action, Cursor, CursorMode, Key as GlfwKey, Modifiers, MouseButton, StandardCursor, Window,
     WindowEvent,
@@ -173,9 +157,9 @@ pub fn handle_event(io: &mut Io, event: &WindowEvent) {
                 io.add_input_character(ch);
             }
         }
-        WindowEvent::CursorPos(x, y) => {
-            io.mouse_pos = [x as _, y as _];
-        }
+        // WindowEvent::CursorPos(x, y) => {
+        //     io.mouse_pos = [x as _, y as _];
+        // }
         WindowEvent::Scroll(x, y) => {
             io.mouse_wheel_h = x as _;
             io.mouse_wheel = y as _;
@@ -198,22 +182,14 @@ pub fn handle_event(io: &mut Io, event: &WindowEvent) {
 /// Call before calling the imgui-rs `Context::frame` function.
 ///
 /// * mouse cursor is repositioned if requested by imgui
-pub fn prepare_frame(io: &mut Io, window: &mut Window) -> Result<(), String> {
-    if io.want_set_mouse_pos {
-        let [x, y] = io.mouse_pos;
-        window.set_cursor_pos(x as _, y as _);
-        Ok(())
-    } else {
-        Ok(())
-    }
-}
+
 
 /// Prepare the window for rendering.
 ///
 /// Call before calling the imgui backend renderer function (e.g. `imgui_wgpu::Renderer::render`).
 ///
 /// * the mouse cursor is changed or hidden if requested by imgui
-pub fn prepare_render(ui: &Ui, window: &mut Window) {
+pub fn mouse_cursor_change(ui: &Ui, window: &mut Window) {
     let io = ui.io();
     if !io
         .config_flags

@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 
 use crate::{
     gltypes::texture::Texture,
-    mlink::MumbleCache,
+    mlink::MumbleManager,
     tactical::{xmltypes::MarCat, MarkerManager},
 };
 
@@ -45,7 +45,7 @@ impl MarkersWindow {
             marker_manager,
         }
     }
-    pub fn add_widgets_to_ui(&mut self, ctx: &CtxRef, mcache: Arc<Mutex<Option<MumbleCache>>>) {
+    pub fn add_widgets_to_ui(&mut self, ctx: &CtxRef, mcache: Arc<Mutex<Option<MumbleManager>>>) {
         Window::new(&self.name).show(&ctx, |ui| {
             ui.text_edit_singleline(&mut self.location);
             if ui.button("load markers").clicked() {
@@ -71,7 +71,7 @@ impl MarkersWindow {
 
             if self.draw_markers {
                 let mut mc = mcache.lock();
-                mc.as_mut().unwrap().update_link().unwrap();
+                mc.as_mut().unwrap().try_update();
                 if let Some(c) = mc.as_ref() {
                     if let Some(link) = c.link.as_ref() {
                         let map_id = &link.identity.as_ref().unwrap().map_id;

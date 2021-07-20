@@ -1,13 +1,14 @@
-use std::{net::UdpSocket, sync::Arc};
+use std::sync::Arc;
 
 use egui::{CtxRef, Window};
 use parking_lot::Mutex;
+use tokio::runtime::Handle;
 
-use crate::mlink::{GetMLMode, MumbleCache};
+use crate::mlink::MumbleManager;
 
 pub struct MumbleLinkSetupWindow {
     pub name: String,
-    pub cache: Arc<Mutex<Option<MumbleCache>>>,
+    pub manager: Rc,
     pub link_name: String,
     pub server_ip_port: String,
     pub show_mumble: bool,
@@ -16,10 +17,10 @@ pub struct MumbleLinkSetupWindow {
 }
 
 impl MumbleLinkSetupWindow {
-    pub fn new(cache: Arc<Mutex<Option<MumbleCache>>>) -> Self {
+    pub fn new(manager: Arc<Mutex<Option<MumbleManager>>>) -> Self {
         MumbleLinkSetupWindow {
             name: "MumbleLinkWindow".to_string(),
-            cache,
+            manager,
             link_name: "MumbleLink".to_string(),
             server_ip_port: "127.0.0.1:7187".to_string(),
             show_mumble: false,
@@ -28,21 +29,13 @@ impl MumbleLinkSetupWindow {
 }
 
 impl MumbleLinkSetupWindow {
-    pub fn add_widgets_to_ui(&mut self, ctx: &CtxRef, mcache: Arc<Mutex<Option<MumbleCache>>>) {
+    pub fn add_widgets_to_ui(&mut self, ctx: &CtxRef, handle: Handle) {
         Window::new(&self.name).show(&ctx, |ui| {
             ui.text_edit_singleline(&mut self.link_name);
             ui.text_edit_singleline(&mut self.server_ip_port);
             let mut mc = mcache.lock();
             if ui.button("connect").clicked() {
-                let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-                socket.connect(&self.server_ip_port).unwrap();
-                let cache = MumbleCache::new(
-                    &self.link_name,
-                    std::time::Duration::from_millis(10),
-                    GetMLMode::UdpSync(socket),
-                )
-                .unwrap();
-                mc.replace(cache);
+                mc.replace(MumbleManager::new(&self.link_name, receiver));
             }
             if mc.is_none() {
                 ui.label("status: not connected");
@@ -51,7 +44,7 @@ impl MumbleLinkSetupWindow {
                 ui.checkbox(&mut self.show_mumble, "show mumble info");
             }
             if self.show_mumble {
-                mc.as_mut().unwrap().update_link().unwrap();
+                mc.as_mut().unwrap().try_update();
                 Window::new("Mumble Info")
                     .scroll(true)
                     .default_height(150.0)

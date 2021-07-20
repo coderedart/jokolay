@@ -1,10 +1,13 @@
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
-use egui::{Pos2, RawInput, Rect};
+
 use glow::HasContext;
-use gui::eapp::EguiInterface;
+use gui::iapp::ImguiApp;
 use log::LevelFilter;
+use tokio::{runtime::Handle, sync::oneshot::channel};
 use window::glfw_window::GlfwWindow;
+
+use crate::input::InputManager;
 
 pub mod gltypes;
 pub mod gui;
@@ -14,52 +17,70 @@ pub mod tactical;
 pub mod window;
 
 pub struct JokolayApp {
-    pub markers_overlay_show: bool,
-    pub egui_app: Rc<EguiInterface>,
+    pub imgui_app: ImguiApp,
     pub overlay_window: Rc<RefCell<GlfwWindow>>,
+    pub input_manager: InputManager<imgui::Context>,
+    pub handle: Handle,
+    shutdown_tx: tokio::sync::oneshot::Sender<()>,
 }
 
 impl JokolayApp {
     pub fn new() -> anyhow::Result<Self> {
-        let overlay_window = Rc::new(RefCell::new(GlfwWindow::create(true, true, false, true)?));
+        let (overlay_window, events, glfw) = GlfwWindow::create(true, true, false, true)?;
+        let overlay_window = Rc::new(RefCell::new(overlay_window));
         let gl = overlay_window.borrow().get_gl_context();
 
-        let egui_app = Rc::new(EguiInterface::new(gl.clone(), overlay_window.clone()));
+        let imgui_app =ImguiApp::new(gl.clone());
         unsafe {
             let e = gl.get_error();
             if e != glow::NO_ERROR {
                 println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
             }
         }
+        let (shutdown_tx, shutdown_rx) = channel::<()>();
+        let (handle_tx, handle_rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
 
+            let hndl = rt.handle();
+            handle_tx.send(hndl.clone()).unwrap();
+            rt.block_on(async {
+                shutdown_rx.await.unwrap();
+            })
+        });
+        let handle = handle_rx.recv().unwrap();
+        let input_manager = InputManager::new(events, glfw);
         Ok(JokolayApp {
             overlay_window,
-            egui_app,
-            markers_overlay_show: false,
+            imgui_app,
+            input_manager,
+            handle,
+            shutdown_tx,
         })
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
+    pub fn run(mut self) -> anyhow::Result<()> {
         let gl = self.overlay_window.borrow().get_gl_context();
-        let egui_app = self.egui_app.clone();
+        let imgui_app = &mut self.imgui_app;
         let overlay_window = self.overlay_window.clone();
 
-        unsafe {
-            gl.active_texture(glow::TEXTURE0);
-        }
-
+        // fps counter stuff
         let mut previous = std::time::Instant::now();
         let mut fps = 0;
-        let mut input = RawInput::default();
         let (width, height) = overlay_window.borrow().window_size;
-        input.screen_rect = Some(Rect::from_two_pos(
-            Pos2::new(0.0, 0.0),
-            Pos2::new(width as f32, height as f32),
-        ));
-        input.predicted_dt = 1.0 / 75.0;
-        input.pixels_per_point = Some(1.0);
 
-        Ok(loop {
+        //preparing input for imgui
+        imgui_app.ctx.io_mut().display_size = [width as f32, height as f32];
+
+        //preparing input for egui
+        // let mut input = RawInput::default();
+        // input.screen_rect = Some(Rect::from_two_pos(
+        //     Pos2::new(0.0, 0.0),
+        //     Pos2::new(width as f32, height as f32),
+        // ));
+        // input.pixels_per_point = Some(1.0);
+
+        loop {
             if overlay_window.borrow().should_close() {
                 break;
             }
@@ -69,25 +90,21 @@ impl JokolayApp {
                 dbg!(fps);
                 fps = 0;
             }
-            overlay_window.borrow_mut().process_events(&mut input);
+            self.input_manager.process_events(&mut overlay_window.borrow_mut(), &mut imgui_app.ctx);
 
-            unsafe {
-                let e = gl.get_error();
-                if e != glow::NO_ERROR {
-                    println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
-                }
-            }
+            gl_error!(gl);
             unsafe {
                 gl.disable(glow::SCISSOR_TEST);
                 gl.clear_color(0.0, 0.0, 0.0, 0.0);
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             }
-            // let (width, height) = overlay_window.global_input_state.borrow().window_size;
-            //     self.overlay_window.query_input_events(width, height);
-            egui_app.update(input.take())?;
+            
+            imgui_app.update(&mut overlay_window.borrow_mut().window.borrow_mut()).unwrap();
 
             overlay_window.borrow().redraw_request();
-        })
+        }
+        self.shutdown_tx.send(()).unwrap();
+        Ok(())
     }
 }
 
@@ -112,6 +129,7 @@ pub fn log_init(
     ])?;
     Ok(())
 }
+
 #[macro_export]
 macro_rules! gl_error {
     ($gl:expr) => {
