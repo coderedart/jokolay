@@ -36,7 +36,6 @@ impl InputManager<imgui::Context> {
         {
         let (width, height) = overlay_window.get_inner_position();
         if let Some(dim) = wd {
-            dbg!(dim);
             if dim.x  != xpos  || dim.y != ypos    {
                 overlay_window.set_inner_position(dim.x , dim.y );
             }
@@ -57,15 +56,9 @@ impl InputManager<imgui::Context> {
         let mut io = ctx.io_mut();
         io.mouse_pos = local_mouse_position;
         if io.want_capture_mouse {
-            overlay_window
-                .window
-                .borrow_mut()
-                .set_mouse_passthrough(false);
+            overlay_window.set_passthrough(false);
         } else {
-            overlay_window
-                .window
-                .borrow_mut()
-                .set_mouse_passthrough(true);
+            overlay_window.set_passthrough(true);
         }
         for (_, event) in glfw::flush_messages(&self.events) {
             match event {

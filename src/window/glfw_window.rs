@@ -70,12 +70,19 @@ impl GlfwWindow {
         self.window.borrow_mut().set_pos(xpos, ypos);
     }
 
-    // pub fn decorations(&self, decorated: bool) {
-    //     self.window.borrow_mut().set_decorated(decorated);
-    // }
-    // pub fn _input_passthrough(&self) {
-    //     // self.window.borrow_mut().set
-    // }
+    pub fn set_decorations(&self, decorated: bool) {
+        self.window.borrow_mut().set_decorated(decorated);
+    }
+    pub fn set_passthrough(&mut self, passthrough: bool) {
+        if passthrough == self.passthrough {
+            return
+        }
+        self.passthrough = passthrough;
+        self.window.borrow_mut().set_mouse_passthrough(passthrough);
+        if !passthrough {
+            self.window.borrow_mut().focus();
+        }
+    }
     // pub fn _transparent(&self) {
 
     // }

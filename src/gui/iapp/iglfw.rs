@@ -184,6 +184,62 @@ pub fn set_imgui_style(style: &mut imgui::Style) {
     // style.colors[imgui::sys::ImGuiCol_ModalWindowDarkening as usize] = [1.00, 0.98, 0.95, 0.73];
 }
 
+/*
+arcdps mock colors
+ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 4.f, 4.f });
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, { 5.f, 3.f });
+	ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 4.f, 4.f });
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 5.f, 3.f });
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, { 5.f, 3.f });
+	ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 25.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 9.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 0.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, 25.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_TabRounding, 0.f);
+
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.83f, 1.f));
+	ImGui::PushStyleColor(ImGuiCol_TextDisabled, ImVec4(0.24f, 0.23f, 0.29f, 1.f));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.06f, 0.05f, 0.07f, 0.75f));
+	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.07f, 0.07f, 0.09f, 0.f));
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.07f, 0.07f, 0.09f, 0.85f));
+	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.64f, 0.57f, 0.7f, 0.2f));
+	ImGui::PushStyleColor(ImGuiCol_BorderShadow, ImVec4(0.64f, 0.62f, 0.67f, 0.f));
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.62f, 0.6f, 0.65f, 0.2f));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.62f, 0.6f, 0.65f, 0.75f));
+	ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.56f, 0.56f, 0.58f, 0.75f));
+	ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.1f, 0.09f, 0.12f, 0.85f));
+	ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.1f, 0.09f, 0.12f, 0.85f));
+	ImGui::PushStyleColor(ImGuiCol_TitleBgCollapsed, ImVec4(0.1f, 0.09f, 0.12f, 0.85f));
+	ImGui::PushStyleColor(ImGuiCol_MenuBarBg, ImVec4(0.1f, 0.09f, 0.12f, 0.7f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.1f, 0.09f, 0.12f, 0.8f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.46f, 0.45f, 0.47f, 0.78f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.67f, 0.67f, 0.69f, 0.78f));
+	ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.78f, 0.78f, 0.8f, 0.78f));
+	ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(0.8f, 0.8f, 0.83f, 0.81f));
+	ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.8f, 0.8f, 0.83f, 0.31f));
+	ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.06f, 0.05f, 0.07f, 1.f));
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.62f, 0.6f, 0.65f, 0.3f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.62f, 0.6f, 0.65f, 0.6f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.62f, 0.6f, 0.65f, 0.9f));
+	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.36f, 0.36f, 0.38f, 0.7f));
+	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.36f, 0.36f, 0.38f, 0.35f));
+	ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.36f, 0.36f, 0.38f, 0.7f));
+	ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(0.f, 0.f, 0.f, 0.f));
+	ImGui::PushStyleColor(ImGuiCol_ResizeGripHovered, ImVec4(0.56f, 0.56f, 0.58f, 1.f));
+	ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, ImVec4(0.06f, 0.05f, 0.07f, 1.f));
+	ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.7f, 0.68f, 0.69f, 0.1f));
+	ImGui::PushStyleColor(ImGuiCol_TabHovered, ImVec4(0.7f, 0.68f, 0.69f, 0.3f));
+	ImGui::PushStyleColor(ImGuiCol_TabActive, ImVec4(0.7f, 0.68f, 0.69f, 0.43f));
+	ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.7f, 0.68f, 0.66f, 0.56f));
+	ImGui::PushStyleColor(ImGuiCol_PlotLinesHovered, ImVec4(0.25f, 1.f, 0.f, 1.f));
+	ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.7f, 0.68f, 0.66f, 0.48f));
+	ImGui::PushStyleColor(ImGuiCol_PlotHistogramHovered, ImVec4(0.25f, 1.f, 0.f, 1.f));
+	ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, ImVec4(0.36f, 0.36f, 0.88f, 0.55f));
+*/
+
 /// Prepare the window for rendering.
 ///
 /// Call before calling the imgui backend renderer function (e.g. `imgui_wgpu::Renderer::render`).
