@@ -2,26 +2,26 @@ use std::{collections::HashMap, rc::Rc};
 
 use anyhow::Context as _;
 use egui::{ClippedMesh, Rect, TextureId};
-use glow::{Context, HasContext, UNSIGNED_INT};
-use nalgebra_glm::Vec2;
+use glm::Vec2;
+use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
 use crate::gltypes::{
     buffer::Buffer, shader::ShaderProgram, texture::Texture, vertex_array::VertexArrayObject,
 };
 
-pub struct EguiScene {
+pub struct Painter {
     pub vao: VertexArrayObject,
     pub sp: ShaderProgram,
     pub vb: Buffer,
     pub ib: Buffer,
-    pub u_sampler: u32,
-    pub u_screen_size: u32,
+    pub u_sampler: NativeUniformLocation,
+    pub u_screen_size: NativeUniformLocation,
     pub texture_versions: HashMap<TextureId, Texture>,
     pub gl: Rc<glow::Context>,
 }
 
-impl EguiScene {
-    pub fn new(gl: Rc<Context>) -> EguiScene {
+impl Painter {
+    pub fn new(gl: Rc<Context>) -> Painter {
         let vao = VertexArrayObject::new(gl.clone());
         let vb = Buffer::new(gl.clone(), glow::ARRAY_BUFFER);
         let ib = Buffer::new(gl.clone(), glow::ELEMENT_ARRAY_BUFFER);
@@ -32,15 +32,15 @@ impl EguiScene {
             None,
         );
 
-        let u_sampler: u32;
-        let u_screen_size: u32;
+        let u_sampler;
+        let u_screen_size;
 
         unsafe {
             u_sampler = gl.get_uniform_location(program.id, "u_sampler").unwrap();
             u_screen_size = gl.get_uniform_location(program.id, "screen_size").unwrap();
         }
 
-        let egui_scene_node = EguiScene {
+        let egui_scene_node = Painter {
             vao,
             vb,
             ib,
@@ -136,7 +136,7 @@ impl EguiScene {
         }
     }
 }
-impl EguiScene {
+impl Painter {
     fn bind(&self) {
         self.vao.bind();
         self.vb.bind();
@@ -197,7 +197,7 @@ impl VertexBufferLayoutTrait for VertexRgba {
         let mut vbl = VertexBufferLayout::default();
         vbl.push_f32(2, false);
         vbl.push_f32(2, false);
-        vbl.push_u8(4);
+        vbl.push_u8(4, false);
         vbl
     }
 }

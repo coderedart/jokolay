@@ -1,9 +1,12 @@
+use std::path::PathBuf;
+
+use imgui::ImString;
 use serde::{Deserialize, Serialize};
 
 use super::xml_marker::{Behavior, POIS};
 
 /// Marker Category tag in xml files
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[serde(default)]
 pub struct MarkerCategory {
     pub name: String,
@@ -60,9 +63,15 @@ pub struct MarkerCategory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OverlayData {
     #[serde(rename = "MarkerCategory")]
-    pub categories: MarkerCategory,
+    pub categories: Option<MarkerCategory>,
     #[serde(rename = "POIs")]
     pub pois: Option<POIS>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarkerFile {
+    pub od: OverlayData,
+    pub path: PathBuf,
 }
 
 impl MarkerCategory {

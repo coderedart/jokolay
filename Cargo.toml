@@ -9,16 +9,16 @@ keywords = ["GuildWars2", "GW2", "Overlay"]
 
 [dependencies]
 bytemuck = "1.5.1"
-glow = "0.10.0"
+glow = {version = "0.10.0", git = "https://github.com/coderedart/glow.git"}
 jokoapi = "0.1.1"
-jokolink = "0.1.23"
+jokolink = "0.2.0"
 num-derive = "0.3.3"
 num-traits = "0.2.14"
 serde = {version = "1.0.126", features = ["derive"]}
 serde_derive = "1.0.126"
 serde_repr = "0.1.7"
 quick-xml = { version = "0.22.0", features = ["serialize"]}
-nalgebra-glm = "0.14.0"
+glm = {version="0.14.0", package="nalgebra-glm"}
 image = "0.23.14"
 anyhow = "1.0.41"
 egui = "0.13.0"
@@ -29,7 +29,8 @@ imgui = "0.7.0"
 log = "0.4.14"
 simplelog = "0.10.0"
 tokio = {version = "1.8.1", features = ["full"]}
-imgui-opengl-renderer = "0.11.0"
+guillotiere = "0.6.1"
+uuid = {version="0.8.2", features = ["serde", "v5"]}
 #glfw = "0.41.0"
 
 [dependencies.glfw]

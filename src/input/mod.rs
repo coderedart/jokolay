@@ -1,21 +1,24 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
-
-use copypasta::{ClipboardProvider};
+use copypasta::ClipboardProvider;
 use device_query::{DeviceState, Keycode};
-use egui::Pos2;
+use egui::{CtxRef, Pos2};
 use egui::{Event, Key, RawInput, Rect};
 
 use glfw::{Action, Glfw, Modifiers, MouseButton, WindowEvent};
 use glow::HasContext;
-use jokolink::mlp::WindowDimensions;
+use jokolink::mlink::WindowDimensions;
+use log::{error, trace, warn};
 
 use std::collections::BTreeSet;
 
+use crate::gui::eapp::EguiApp;
 use crate::window::glfw_window::GlfwWindow;
 
-pub struct InputManager<T> {
+pub struct InputManager {
     pub events: Receiver<(f64, WindowEvent)>,
     pub glfw: Glfw,
     pub global_mouse_position: (i32, i32),
@@ -23,112 +26,13 @@ pub struct InputManager<T> {
     pub mouse_buttons: [bool; 3],
     pub keys_pressed: BTreeSet<Key>,
     pub clipboard: copypasta::ClipboardContext,
-    gui_ctx_type: PhantomData<T>,
 }
 
-
-impl InputManager<imgui::Context> {
-    pub fn process_events(&mut self, overlay_window: &mut GlfwWindow, ctx: &mut imgui::Context, wd: Option<WindowDimensions>) {
+impl InputManager {
+    pub fn process_events(&mut self, overlay_window: &mut GlfwWindow, input: &mut RawInput) {
         self.glfw.poll_events();
 
-        let (xpos, ypos) = overlay_window.get_inner_position();
-        // check if gw2 window has changed locations and adjust our overlay position
-        {
-        let (width, height) = overlay_window.get_inner_position();
-        if let Some(dim) = wd {
-            if dim.x  != xpos  || dim.y != ypos    {
-                overlay_window.set_inner_position(dim.x , dim.y );
-            }
-            if dim.width != width || dim.height  != height {
-                overlay_window.set_inner_size(dim.width , dim.height );
-            }
-        }
-
-        }
-        let mouse = self.dq.query_pointer();
-        if self.global_mouse_position != mouse.coords {
-            self.global_mouse_position = mouse.coords;
-        }
-        let local_mouse_position = [
-            (mouse.coords.0 - xpos) as f32,
-            (mouse.coords.1 - ypos) as f32,
-        ];
-        let mut io = ctx.io_mut();
-        io.mouse_pos = local_mouse_position;
-        if io.want_capture_mouse {
-            overlay_window.set_passthrough(false);
-        } else {
-            overlay_window.set_passthrough(true);
-        }
-        for (_, event) in glfw::flush_messages(&self.events) {
-            match event {
-                WindowEvent::Key(key, _scancode, action, modifiers) => {
-                    if key as i32 >= 0 {
-                        if action == Action::Release {
-                            io.keys_down[key as usize] = false;
-                        } else {
-                            io.keys_down[key as usize] = true;
-                        }
-                    }
-                    io.key_shift = modifiers.contains(Modifiers::Shift);
-                    io.key_ctrl = modifiers.contains(Modifiers::Control);
-                    io.key_alt = modifiers.contains(Modifiers::Alt);
-                    io.key_super = modifiers.contains(Modifiers::Super);
-                }
-                WindowEvent::Char(ch) => {
-                    // Exclude the backspace key
-                    if ch != '\u{7f}' {
-                        io.add_input_character(ch);
-                    }
-                }
-                WindowEvent::Scroll(x, y) => {
-                    io.mouse_wheel_h = (x * 20.0) as _;
-                    io.mouse_wheel = (y * 20.0) as _;
-                }
-                WindowEvent::MouseButton(button, action, _modifiers) => {
-                    let pressed = action == Action::Press;
-                    match button {
-                        MouseButton::Button1 => io.mouse_down[0] = pressed,
-                        MouseButton::Button2 => io.mouse_down[1] = pressed,
-                        MouseButton::Button3 => io.mouse_down[2] = pressed,
-                        _ => (),
-                    }
-                }
-                glfw::WindowEvent::FramebufferSize(width, height) => {
-                    // make sure the viewport matches the new window dimensions; note that width and
-                    // height will be significantly larger than specified on retina displays.
-                    unsafe {
-                        overlay_window.gl.viewport(0, 0, width, height);
-                    }
-                    io.display_size = [width as f32, height as f32];
-                    overlay_window.set_inner_size(width, height);
-                }
-                WindowEvent::Pos(x, y) => {
-                    overlay_window.set_inner_position(x, y);
-                }
-                WindowEvent::Close => {
-                    overlay_window.window.borrow_mut().set_should_close(true);
-                }
-                // WindowEvent::Size(_, _) => todo!(), //we only care about framebuffer size
-                // WindowEvent::Refresh => todo!(),//we draw continuously, so no need to care about this
-                // WindowEvent::Focus(_) => todo!(), //need to deal with the whole input system first and xshapecombineregion
-                // WindowEvent::Iconify(_) => todo!(), //later with assets
-                // WindowEvent::CursorPos(_, _) => todo!(), //we use device query for this
-                // WindowEvent::CursorEnter(_) => todo!(), //does not matter yet
-                // WindowEvent::CharModifiers(_, _) => todo!(), //unicode points
-                // WindowEvent::FileDrop(_) => todo!(), //too much for me right now
-                // WindowEvent::Maximize(_) => todo!(), // we will do it based on gw2 window, so doesn't matter
-                // WindowEvent::ContentScale(_, _) => todo!(), //this will need to be tackled with hidpi screens
-                _ => {}
-            }
-        }
-    }
-}
-impl InputManager<egui::CtxRef> {
-    pub fn process_events(&mut self, overlay_window: &mut GlfwWindow, input: &mut egui::RawInput) {
-        self.glfw.poll_events();
-
-        let (xpos, ypos) = overlay_window.get_inner_position();
+        let (xpos, ypos) = overlay_window.window_pos;
         let mouse = self.dq.query_pointer();
         if self.global_mouse_position != mouse.coords {
             self.global_mouse_position = mouse.coords;
@@ -137,6 +41,9 @@ impl InputManager<egui::CtxRef> {
             (mouse.coords.0 - xpos) as f32,
             (mouse.coords.1 - ypos) as f32,
         );
+        input
+            .events
+            .push(egui::Event::PointerMoved(local_mouse_position));
 
         for (_, event) in glfw::flush_messages(&self.events) {
             match event {
@@ -146,17 +53,17 @@ impl InputManager<egui::CtxRef> {
                     unsafe {
                         overlay_window.gl.viewport(0, 0, width, height);
                     }
-                    overlay_window.set_inner_size(width, height);
+                    overlay_window.window_size = (width, height);
                     input.screen_rect = Some(Rect::from_two_pos(
                         Pos2::default(),
                         Pos2::new(width as f32, height as f32),
                     ));
                 }
                 WindowEvent::Pos(x, y) => {
-                    overlay_window.set_inner_position(x, y);
+                    overlay_window.window_pos = (x, y);
                 }
                 WindowEvent::Close => {
-                    overlay_window.window.borrow_mut().set_should_close(true);
+                    overlay_window.window.set_should_close(true);
                 }
                 WindowEvent::MouseButton(button, action, modifiers) => {
                     let ebutton = match button {
@@ -186,7 +93,7 @@ impl InputManager<egui::CtxRef> {
                 }
 
                 WindowEvent::Scroll(x, y) => {
-                    input.scroll_delta = [(x * 10.0) as f32, (y * 10.0) as f32].into();
+                    input.scroll_delta = [(x * 40.0) as f32, (y * 40.0) as f32].into();
                 }
                 WindowEvent::Key(key, _, action, modifiers) => {
                     let ekey = Self::glfw_to_egui_key(key);
@@ -194,7 +101,10 @@ impl InputManager<egui::CtxRef> {
                         let epress = match action {
                             glfw::Action::Release => false,
                             glfw::Action::Press => true,
-                            _ => panic!("glfw mouse repeat {} {}", file!(), line!()),
+                            _ => {
+                                warn!("glfw mouse repeat {} {}", file!(), line!());
+                                continue;
+                            }
                         };
                         let emodifiers = egui::Modifiers {
                             alt: modifiers.contains(glfw::Modifiers::Alt),
@@ -226,11 +136,8 @@ impl InputManager<egui::CtxRef> {
             }
         }
     }
-}
 
-impl<T> InputManager<T> {
-    pub fn new(events: Receiver<(f64, WindowEvent)>, glfw: Glfw ) -> Self {
-
+    pub fn new(events: Receiver<(f64, WindowEvent)>, glfw: Glfw) -> Self {
         Self {
             events,
             glfw,
@@ -239,7 +146,6 @@ impl<T> InputManager<T> {
             dq: Default::default(),
             mouse_buttons: Default::default(),
             keys_pressed: Default::default(),
-            gui_ctx_type: PhantomData,            
         }
     }
     pub fn glfw_to_egui_key(key: glfw::Key) -> Option<Key> {

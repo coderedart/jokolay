@@ -5,7 +5,7 @@ use super::{xml_category::MarkerCategory, xml_trail::Trail};
 
 /// Markers format in the xml files are described under the <POIs> tag under the root <OverlayData> tag. The <POI> tag describes a marker.
 /// everything is optional except xpos, ypos, zpos.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[serde(rename = "POI")]
 #[serde(rename_all = "camelCase")]
 pub struct Marker {
@@ -15,10 +15,10 @@ pub struct Marker {
     pub zpos: f32,
     /// Describes which map the marker is located on.
     #[serde(rename = "MapID")]
-    pub map_id: Option<u32>,
+    pub map_id: u32,
     /// base64 encoded string, optional. This is a unique identifier for the marker used in tracking activation of markers through the activationdata.xml file. If this doesn't exist for a marker, one will be generated automatically and added on the next export.
     #[serde(rename = "GUID")]
-    pub guid: Option<String>,
+    pub guid: String,
     #[serde(rename = "mapDisplaySize")]
     pub map_display_size: Option<u32>,
     /// The icon to be displayed for the marker. If not given, this defaults to the image shown at the start of this article. This should point to a .png file. The overlay looks for the image files both starting from the root directory and the POIs directory for convenience. Make sure you don't use too high resolution (above 128x128) images because the texture atlas used for these is limited in size and it's a needless waste of resources to fill it quickly.
@@ -72,7 +72,7 @@ pub struct Marker {
 }
 
 /**
-behavior - integer. This is an important one, it describes the way the marker will behave when a player presses 'F' over it. The following values are valid for this parameter:
+behavior - integer. it describes the way the marker will behave when a player presses 'F' over it. The following values are valid for this parameter:
     0: the default value. Marker is always visible.
     1: 'Reappear on map change' - this is not implemented yet, it will be useful for markers that need to reappear if the player changes the map instance.
     2: 'Reappear on daily reset' - these markers disappear if the player presses 'F' over them, and reappear at the daily reset. These were used for the orphan markers during wintersday.
@@ -83,7 +83,7 @@ behavior - integer. This is an important one, it describes the way the marker wi
     7: 'Once daily per character' - these markers disappear when triggered, but reappear with the daily reset, and can be triggered separately for every character
 
 **/
-#[derive(Serialize_repr, Deserialize_repr, PartialEq, Debug, Clone, Copy)]
+#[derive(Serialize_repr, Deserialize_repr, PartialEq, Debug, Clone, Copy, PartialOrd, Eq, Ord)]
 #[repr(u8)]
 pub enum Behavior {
     AlwaysVisible = 0,
@@ -175,3 +175,4 @@ impl Marker {
         }
     }
 }
+

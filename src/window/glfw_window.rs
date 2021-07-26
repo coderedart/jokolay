@@ -3,11 +3,11 @@ use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver};
 use anyhow::Context as _;
 
 use glfw::{Context as _, Glfw, Window, WindowEvent};
-use glow::Context;
+use glow::{Context, HasContext};
 
 pub struct GlfwWindow {
     pub gl: Rc<glow::Context>,
-    pub window: Rc<RefCell<Window>>,
+    pub window: Window,
     pub window_pos: (i32, i32),
     pub window_size: (i32, i32),
     pub passthrough: bool,
@@ -45,10 +45,10 @@ impl GlfwWindow {
         let gl = unsafe {
             glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _)
         };
+        // log::trace!("{:#?}",&gl.extensions);
         let passthrough = window.is_mouse_passthrough();
-        let window = Rc::new(RefCell::new(window));
-        let (xpos, ypos) = window.borrow().get_pos();
-        let (width, height) = window.borrow().get_framebuffer_size();
+        let (xpos, ypos) = window.get_pos();
+        let (width, height) = window.get_framebuffer_size();
         Ok((
             GlfwWindow {
                 window,
@@ -58,50 +58,47 @@ impl GlfwWindow {
                 passthrough,
             },
             events,
-            glfw
+            glfw,
         ))
     }
 
-    pub fn set_inner_size(&self, width: i32, height: i32) {
-        self.window.borrow_mut().set_size(width, height);
+    pub fn set_inner_size(&mut self, width: i32, height: i32) {
+        self.window.set_size(width, height);
     }
 
-    pub fn set_inner_position(&self, xpos: i32, ypos: i32) {
-        self.window.borrow_mut().set_pos(xpos, ypos);
+    pub fn set_inner_position(&mut self, xpos: i32, ypos: i32) {
+        self.window.set_pos(xpos, ypos);
     }
 
-    pub fn set_decorations(&self, decorated: bool) {
-        self.window.borrow_mut().set_decorated(decorated);
+    pub fn set_decorations(&mut self, decorated: bool) {
+        self.window.set_decorated(decorated);
     }
     pub fn set_passthrough(&mut self, passthrough: bool) {
         if passthrough == self.passthrough {
-            return
+            return;
         }
         self.passthrough = passthrough;
-        self.window.borrow_mut().set_mouse_passthrough(passthrough);
-        if !passthrough {
-            self.window.borrow_mut().focus();
-        }
+        self.window.set_mouse_passthrough(passthrough);
     }
     // pub fn _transparent(&self) {
 
     // }
 
-    pub fn get_inner_size(&self) -> (i32, i32) {
-        self.window.borrow_mut().get_framebuffer_size()
+    pub fn get_inner_size(&mut self) -> (i32, i32) {
+        self.window.get_framebuffer_size()
     }
 
-    pub fn get_inner_position(&self) -> (i32, i32) {
-        self.window.borrow_mut().get_pos()
+    pub fn get_inner_position(&mut self) -> (i32, i32) {
+        self.window.get_pos()
     }
 
-    pub fn redraw_request(&self) {
-        self.window.borrow_mut().swap_buffers();
+    pub fn redraw_request(&mut self) {
+        self.window.swap_buffers();
         // unsafe { self.gl.flush() };
     }
 
-    pub fn should_close(&self) -> bool {
-        self.window.borrow().should_close()
+    pub fn should_close(&mut self) -> bool {
+        self.window.should_close()
     }
 
     pub fn get_gl_context(&self) -> Rc<Context> {

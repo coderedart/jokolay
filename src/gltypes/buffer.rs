@@ -2,7 +2,7 @@ use glow::*;
 use std::{convert::TryInto, rc::Rc};
 
 pub struct Buffer {
-    pub id: u32,
+    pub id: glow::NativeBuffer,
     pub target: u32,
     gl: Rc<glow::Context>,
 }

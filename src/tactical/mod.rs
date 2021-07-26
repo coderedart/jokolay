@@ -11,7 +11,7 @@ pub mod scene;
 pub mod xmltypes;
 
 pub struct MarkerManager {
-    pub mar_cats: BTreeMap<String, MarCat>,
+    pub mar_cats: Vec<MarCat>,
     pub scene: MarkerScene,
 }
 impl MarkerManager {
@@ -25,17 +25,17 @@ impl MarkerManager {
         self.mar_cats = load_markers(marker_path).unwrap();
     }
     pub fn get_present_map_markers_with_inherit(
-        marker_cats: &BTreeMap<String, MarCat>,
+        marker_cats: &Vec<MarCat>,
         map_id: u32,
         current_enabled_map_markers: &mut Vec<XMLMarker>,
         prev_template: &XMLCategory,
     ) {
-        for mc in marker_cats.values() {
+        for mc in marker_cats.iter() {
             if mc.enabled {
                 let mut current_template = prev_template.clone();
                 current_template.inherit_if_none(&mc.xml_cat);
                 for m in &mc.markers {
-                    if m.map_id == Some(map_id) {
+                    if m.map_id == map_id {
                         let mut marker = m.clone();
                         marker.inherit_if_none(&current_template);
                         current_enabled_map_markers.push(marker);

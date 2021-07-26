@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
-use glow::HasContext;
+use glow::{HasContext, NativeVertexArray};
 
 pub struct VertexArrayObject {
-    pub id: u32,
+    pub id: NativeVertexArray,
     pub gl: Rc<glow::Context>,
 }
 
