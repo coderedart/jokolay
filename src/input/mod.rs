@@ -1,21 +1,21 @@
-use std::cell::RefCell;
-use std::marker::PhantomData;
-use std::rc::Rc;
+
+
+
 use std::sync::mpsc::Receiver;
 
 use copypasta::ClipboardProvider;
 use device_query::{DeviceState, Keycode};
-use egui::{CtxRef, Pos2};
+use egui::{Pos2};
 use egui::{Event, Key, RawInput, Rect};
 
-use glfw::{Action, Glfw, Modifiers, MouseButton, WindowEvent};
+use glfw::{Glfw, WindowEvent};
 use glow::HasContext;
-use jokolink::mlink::WindowDimensions;
-use log::{error, trace, warn};
+
+use log::{warn};
 
 use std::collections::BTreeSet;
 
-use crate::gui::eapp::EguiApp;
+
 use crate::window::glfw_window::GlfwWindow;
 
 pub struct InputManager {

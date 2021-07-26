@@ -1,9 +1,9 @@
-use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver};
+use std::{rc::Rc, sync::mpsc::Receiver};
 
 use anyhow::Context as _;
 
 use glfw::{Context as _, Glfw, Window, WindowEvent};
-use glow::{Context, HasContext};
+use glow::{Context};
 
 pub struct GlfwWindow {
     pub gl: Rc<glow::Context>,

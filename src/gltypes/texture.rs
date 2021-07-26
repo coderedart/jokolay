@@ -2,7 +2,6 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use glow::{Context, HasContext, NativeTexture};
 use image::GenericImageView;
-use num_traits::Pow;
 
 use crate::gl_error;
 
@@ -173,18 +172,29 @@ impl TextureArray {
         height: u32,
     ) {
         unsafe {
-            self.gl.tex_sub_image_3d(glow::TEXTURE_2D_ARRAY, 0, x_offset, y_offset, z_offset, width as i32, height as i32, 1, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(pixels))
+            self.gl.tex_sub_image_3d(
+                glow::TEXTURE_2D_ARRAY,
+                0,
+                x_offset,
+                y_offset,
+                z_offset,
+                width as i32,
+                height as i32,
+                1,
+                glow::RGBA,
+                glow::UNSIGNED_BYTE,
+                glow::PixelUnpackData::Slice(pixels),
+            )
         }
     }
     pub fn add_image(&mut self, pixels: &[u8], width: u32, height: u32) -> (f32, f32, u32) {
-        if self.length == self.layers  {
+        if self.length == self.layers {
             let new_layers = self.layers + self.bump_size;
             let mut new_atex = TextureArray::new(self.gl.clone());
             log::info!("resizing tex array of width {}, height {} and length {} . srcid: {}, srclayers: {}, dstid: {}, dstlayers: {} ", self.width, self.height, self.length, self.id.0.get(), self.layers, new_atex.id.0.get(), new_layers);
             new_atex.bind();
             new_atex.reserve_storage(self.width, self.height, new_layers, self.bump_size);
             unsafe {
-                
                 self.gl.raw.CopyImageSubData(
                     self.id.0.get(),
                     glow::TEXTURE_2D_ARRAY,
@@ -212,7 +222,7 @@ impl TextureArray {
         }
         let x = width as f32 / self.width as f32;
         let y = height as f32 / self.height as f32;
-        let z = self.length ;
+        let z = self.length;
         self.length += 1;
         (x, y, z)
     }
@@ -239,7 +249,7 @@ impl Drop for TextureArray {
 
 pub struct TextureManager {
     pub array_tex: Vec<TextureArray>,
-    pub live_images: BTreeMap<String, (u32, f32, f32, u32)>
+    pub live_images: BTreeMap<String, (u32, f32, f32, u32)>,
 }
 impl TextureManager {
     pub const SMALLEST_TEXTURE_SIZE: usize = 32;
@@ -262,12 +272,12 @@ impl TextureManager {
         }
     }
     pub fn new(gl: Rc<Context>) -> Self {
-        let mut arr  = Vec::new();
+        let mut arr = Vec::new();
         for i in 0..Self::NUM_OF_ARRAYS {
             let dim = Self::SMALLEST_TEXTURE_SIZE * 2usize.pow(i as u32);
             let mut at = TextureArray::new(gl.clone());
             at.bind();
-            at.reserve_storage(dim as u32, dim as u32 , 1 as u32, 1);
+            at.reserve_storage(dim as u32, dim as u32, 1 as u32, 1);
             arr.push(at);
         }
 
@@ -278,8 +288,7 @@ impl TextureManager {
     }
     pub fn get_image(&mut self, img_path: &str) -> (u32, f32, f32, u32) {
         if !self.live_images.contains_key(img_path) {
-
-            self.live_images.insert(img_path.to_string(),  {
+            self.live_images.insert(img_path.to_string(), {
                 let img = image::open(format!("./res/tw/{}", img_path))
                     .map_err(|e| {
                         log::error!("couldn't open image: {}", &e);
@@ -291,12 +300,9 @@ impl TextureManager {
                 let slot = Self::get_slot(img.width(), img.height());
                 self.array_tex[slot].bind();
                 let (x, y, z) = self.array_tex[slot].add_image(pixels, img.width(), img.height());
-                (slot as u32, x, y, z)                
+                (slot as u32, x, y, z)
             });
-
         }
         *self.live_images.get(img_path).unwrap()
-
-      
     }
 }

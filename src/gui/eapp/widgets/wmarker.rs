@@ -1,14 +1,12 @@
-use std::{collections::BTreeMap, rc::Rc, sync::Arc};
+use std::rc::Rc;
 
 use egui::{CollapsingHeader, CtxRef, Window};
 use glm::make_vec3;
-use glow::HasContext;
+
 use jokolink::mlink::MumbleLink;
-use parking_lot::Mutex;
+
 
 use crate::{
-    gltypes::texture::Texture,
-    mlink::MumbleManager,
     tactical::{xmltypes::MarCat, MarkerManager},
 };
 
@@ -23,7 +21,6 @@ pub struct MarkersWindow {
 
 impl MarkersWindow {
     pub fn new(gl: Rc<glow::Context>) -> Self {
-      
         let marker_manager = MarkerManager::new(gl.clone(), "./res/tw");
 
         MarkersWindow {

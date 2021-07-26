@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use imgui::ImString;
+
 use serde::{Deserialize, Serialize};
 
 use super::xml_marker::{Behavior, POIS};

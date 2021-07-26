@@ -1,5 +1,5 @@
 use glow::Context;
-use std::{collections::BTreeMap, rc::Rc};
+use std::{rc::Rc};
 
 use self::{
     scene::MarkerScene,

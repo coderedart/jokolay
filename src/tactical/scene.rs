@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{rc::Rc};
 
 use glow::{Context, HasContext, NativeUniformLocation};
 
@@ -9,7 +9,7 @@ use crate::{
     gltypes::{
         buffer::{Buffer, VertexBufferLayout},
         shader::ShaderProgram,
-        texture::{Texture, TextureManager},
+        texture::{TextureManager},
         vertex_array::VertexArrayObject,
     },
 };
@@ -179,13 +179,18 @@ impl MarkerScene {
         gl_error!(self.gl);
     }
     pub fn update_marker_nodes(&mut self, markers: &Vec<Marker>) -> anyhow::Result<()> {
-        use image::GenericImageView;
+        
 
         let mut batched_nodes = vec![vec![]; TextureManager::NUM_OF_ARRAYS];
         for m in markers.iter() {
             let img_path = m.icon_file.clone().unwrap_or("tex.png".to_string());
             let (slot, t_x, t_y, layer) = self.tm.get_image(&img_path);
-            log::trace!("texture for current node {} slot {} layer {}", &img_path, slot, layer);
+            log::trace!(
+                "texture for current node {} slot {} layer {}",
+                &img_path,
+                slot,
+                layer
+            );
 
             let mut n = MarkerNode::from(m);
             n.tex_coords = [t_x, t_y];
@@ -209,7 +214,7 @@ impl MarkerScene {
         let nodes: Vec<MarkerNode> = batched_nodes.into_iter().flatten().collect();
         self.vb
             .update(bytemuck::cast_slice(&nodes), glow::STREAM_DRAW);
-        log::trace!("{:#?}",&self.tm.live_images);
+        log::trace!("{:#?}", &self.tm.live_images);
         Ok(())
     }
 

@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::BTreeMap, ffi::OsStr, fs::read_dir, sync::{Arc, atomic::AtomicBool}};
+use std::{
+    ffi::OsStr,
+    fs::read_dir,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 use anyhow::Context;
 
@@ -124,17 +128,15 @@ impl MarCat {
                 v.trails.append(&mut present_cat_trails);
                 v.children.append(&mut children);
             } else {
-                result.push(
-                    MarCat {
-                        xml_cat: c,
-                        markers: present_cat_markers,
-                        trails: present_cat_trails,
-                        children,
-                        enabled: false,
-                        id: *id,
-                        show_children: false,
-                    },
-                );
+                result.push(MarCat {
+                    xml_cat: c,
+                    markers: present_cat_markers,
+                    trails: present_cat_trails,
+                    children,
+                    enabled: false,
+                    id: *id,
+                    show_children: false,
+                });
                 *id += 1;
             }
         }
@@ -143,7 +145,10 @@ impl MarCat {
 }
 pub fn merge(original: &mut Vec<MarCat>, other: Vec<MarCat>) {
     for mut v in other {
-        if let Some(ori_v) = original.iter_mut().find(|c| c.xml_cat.name == v.xml_cat.name) {
+        if let Some(ori_v) = original
+            .iter_mut()
+            .find(|c| c.xml_cat.name == v.xml_cat.name)
+        {
             ori_v.markers.append(&mut v.markers);
             ori_v.trails.append(&mut v.trails);
             merge(&mut ori_v.children, v.children);
@@ -166,11 +171,14 @@ pub fn load_markers(location: &str) -> anyhow::Result<Vec<MarCat>> {
             match quick_xml::de::from_reader::<_, OverlayData>(marker_file_reader) {
                 Ok(od) => {
                     let mut new_cat_map = Vec::new();
-                    if let Some(new_cat) = MarCat::from_od(od, &mut id){
-                    new_cat_map.push(new_cat);
-                    merge(&mut mar_cats, new_cat_map);
+                    if let Some(new_cat) = MarCat::from_od(od, &mut id) {
+                        new_cat_map.push(new_cat);
+                        merge(&mut mar_cats, new_cat_map);
                     } else {
-                        log::warn!("failed to get Marcat from file {:?} due to no MarkerCategory tag", &entry.path());
+                        log::warn!(
+                            "failed to get Marcat from file {:?} due to no MarkerCategory tag",
+                            &entry.path()
+                        );
                     }
                 }
                 Err(e) => {
@@ -196,10 +204,8 @@ pub fn load_markers(location: &str) -> anyhow::Result<Vec<MarCat>> {
     Ok(mar_cats)
 }
 
-
 pub struct CatDisplay {
     pub template: XMLCategory,
     pub enabled: Arc<AtomicBool>,
     pub children: Vec<CatDisplay>,
-    
 }

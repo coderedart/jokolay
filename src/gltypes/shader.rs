@@ -1,7 +1,6 @@
 use glow::*;
 use std::rc::Rc;
 
-
 /// Struct to abstract away creation/binding of shader program.
 /// compiles shaders and attaches them to a new program. id is the program id.
 /// destroys the program when dropped, so keep it alive if you don't want that.
@@ -39,7 +38,7 @@ impl ShaderProgram {
             }
             gl.attach_shader(shader_program, vertex_shader);
             gl.attach_shader(shader_program, frag_shader);
-            let geometry_shader ;
+            let geometry_shader;
             geometry_shader = gl.create_shader(glow::GEOMETRY_SHADER).unwrap();
             if geometry_shader_source.is_some() {
                 gl.shader_source(geometry_shader, geometry_shader_source.unwrap());
@@ -50,7 +49,7 @@ impl ShaderProgram {
                     panic!("geometry shader compilation error: {}", &e);
                 }
                 gl.attach_shader(shader_program, geometry_shader);
-            } 
+            }
             gl.link_program(shader_program);
             if !gl.get_program_link_status(shader_program) {
                 let e = gl.get_program_info_log(shader_program);

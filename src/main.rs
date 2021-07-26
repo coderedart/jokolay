@@ -1,4 +1,4 @@
-use jokolay::{gui::eapp::EguiApp, JokolayApp};
+use jokolay::{JokolayApp};
 
 fn main() -> anyhow::Result<()> {
     jokolay::log_init(

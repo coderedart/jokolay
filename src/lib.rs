@@ -1,4 +1,4 @@
-use std::{cell::RefCell, path::PathBuf, rc::Rc, time::Instant};
+use std::path::PathBuf;
 
 use egui::{Pos2, RawInput, Rect};
 use glow::HasContext;
@@ -24,7 +24,7 @@ pub struct JokolayApp {
     shutdown_tx: tokio::sync::oneshot::Sender<u32>,
 }
 
-impl JokolayApp{
+impl JokolayApp {
     pub fn new() -> anyhow::Result<Self> {
         let (overlay_window, events, glfw) = GlfwWindow::create(true, true, false, true)?;
         let overlay_window = overlay_window;
