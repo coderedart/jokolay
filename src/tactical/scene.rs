@@ -1,4 +1,4 @@
-use std::{rc::Rc};
+use std::rc::Rc;
 
 use glow::{Context, HasContext, NativeUniformLocation};
 
@@ -9,12 +9,12 @@ use crate::{
     gltypes::{
         buffer::{Buffer, VertexBufferLayout},
         shader::ShaderProgram,
-        texture::{TextureManager},
+        texture::TextureManager,
         vertex_array::VertexArrayObject,
     },
 };
 
-use super::xmltypes::xml_marker::Marker;
+use super::xmltypes::xml_marker::POI;
 
 // use super::xmltypes::xml_marker::Marker;
 
@@ -35,8 +35,8 @@ impl Default for MarkerNode {
     }
 }
 
-impl From<&Marker> for MarkerNode {
-    fn from(m: &Marker) -> Self {
+impl From<&POI> for MarkerNode {
+    fn from(m: &POI) -> Self {
         let mut n = MarkerNode::default();
         n.position = [m.xpos, m.ypos, m.zpos];
         n
@@ -178,9 +178,7 @@ impl MarkerScene {
         }
         gl_error!(self.gl);
     }
-    pub fn update_marker_nodes(&mut self, markers: &Vec<Marker>) -> anyhow::Result<()> {
-        
-
+    pub fn update_marker_nodes(&mut self, markers: &Vec<POI>) -> anyhow::Result<()> {
         let mut batched_nodes = vec![vec![]; TextureManager::NUM_OF_ARRAYS];
         for m in markers.iter() {
             let img_path = m.icon_file.clone().unwrap_or("tex.png".to_string());

@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use egui::{Pos2, RawInput, Rect};
 use glow::HasContext;
@@ -71,14 +74,21 @@ impl JokolayApp {
             Pos2::new(width as f32, height as f32),
         ));
         input.pixels_per_point = Some(1.0);
+        //fps counter
+        let mut fps = 0;
+        let mut timer = Instant::now();
+        let mut average_egui = Duration::default();
         loop {
             if self.overlay_window.should_close() {
                 break;
             }
-
+            if timer.elapsed() > Duration::from_secs(1) {
+                dbg!(fps, average_egui);
+                fps = 0;
+                timer = Instant::now();
+            }
+            fps += 1;
             self.mumble_manager.update();
-            // let t = Instant::now();
-            // bench = (bench + t.elapsed())/2 ;
 
             self.input_manager
                 .process_events(&mut self.overlay_window, &mut input);
@@ -88,6 +98,7 @@ impl JokolayApp {
                 gl.clear_color(0.0, 0.0, 0.0, 0.0);
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             }
+            let et = Instant::now();
             self.app
                 .update(
                     &mut self.overlay_window,
@@ -95,7 +106,7 @@ impl JokolayApp {
                     &mut input,
                 )
                 .unwrap();
-
+            average_egui = (average_egui + et.elapsed()) / 2;
             self.overlay_window.redraw_request();
         }
         self.shutdown_tx.send(0).unwrap();

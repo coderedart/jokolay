@@ -1,30 +1,32 @@
-use std::path::PathBuf;
 
 
 use serde::{Deserialize, Serialize};
 
-use super::xml_marker::{Behavior, POIS};
+use super::xml_marker::{Behavior, POIs};
 
 /// Marker Category tag in xml files
+/// acts as a template for markers to inherit from when there's a common property to all the markers under that category/subcatagories.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-#[serde(default)]
 pub struct MarkerCategory {
+    /// name will be how we merge/check for consistencies when they are declared in multiple Marker Files and we try to merge them all into a Category Selection Tree.
     pub name: String,
+    /// this is what will be shown in the user facing menu when selecting to enable/disable this Category of markers to draw.
     #[serde(rename = "DisplayName")]
     pub display_name: String,
+    /// used to mark a category as just for displaying a heading and doesn't need to be "interactable" as it doesn't have any markers
     #[serde(rename = "IsSeparator")]
     pub is_separator: Option<u32>,
+    /// These are all the direct sub categories
     #[serde(rename = "MarkerCategory")]
     pub children: Option<Vec<MarkerCategory>>,
+    /// from here on, the rest of the attributes are for marker inheritance and are documented in the POI Struct
     #[serde(rename = "mapDisplaySize")]
     pub map_display_size: Option<u32>,
     #[serde(rename = "iconFile")]
     pub icon_file: Option<String>,
     #[serde(rename = "iconSize")]
     pub icon_size: Option<f32>,
-    // How opaque the displayed icon should be. The default is 1.0
     pub alpha: Option<f32>,
-    // it describes the way the marker will behave when a player presses 'F' over it.
     pub behavior: Option<Behavior>,
     #[serde(rename = "heightOffset")]
     pub height_offset: Option<f32>,
@@ -34,48 +36,35 @@ pub struct MarkerCategory {
     pub fade_far: Option<u32>,
     #[serde(rename = "minSize")]
     pub min_size: Option<u32>,
-    // Determines the maximum size of a marker on the screen, in pixels.
     #[serde(rename = "maxSize")]
     pub max_size: Option<u32>,
-    // For behavior 4 this tells how long the marker should be invisible after pressing 'F'. For behavior 5 this will tell how long a map cycle is.
     pub reset_length: Option<u32>,
-    // hex value. The color tint of the marker
-    pub color: Option<u32>,
-    // Determines if going near the marker triggers it
+    #[serde(default)]
+    #[serde(with = "super::xml_marker::color")]
+    pub color: Option<[u8; 4]>,
     pub auto_trigger: Option<bool>,
-    // Determines if a marker has a countdown timer display when triggered
     pub has_countdown: Option<bool>,
-    // Determines the range from where the marker is triggered
     pub trigger_range: Option<f32>,
-    // An ID for an achievement from the GW2 API. Markers with the corresponding achievement ID will be hidden if the ID is marked as "done" for the API key that's entered in TacO.
     pub achievement_id: Option<u32>,
-    // This is similar to achievementId, but works for partially completed achievements as well, if the achievement has "bits", they can be individually referenced with this.
     pub achievement_bit: Option<u32>,
-    // his can be a multiline string, it will show up on screen as a text when the player is inside of infoRange of the marker
     pub info: Option<String>,
-    // This determines how far away from the marker the info string will be visible
     pub info_range: Option<f32>,
     pub map_visibility: Option<bool>,
     pub mini_map_visibility: Option<bool>,
 }
 
 /// The root overlay tag in any valid xml file
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OverlayData {
     #[serde(rename = "MarkerCategory")]
     pub categories: Option<MarkerCategory>,
     #[serde(rename = "POIs")]
-    pub pois: Option<POIS>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MarkerFile {
-    pub od: OverlayData,
-    pub path: PathBuf,
+    pub pois: Option<POIs>,
 }
 
 impl MarkerCategory {
     pub fn inherit_if_none(&mut self, other: &MarkerCategory) {
+        self.name = other.name + "." + &self.name;
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;
         }

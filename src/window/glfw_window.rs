@@ -3,7 +3,7 @@ use std::{rc::Rc, sync::mpsc::Receiver};
 use anyhow::Context as _;
 
 use glfw::{Context as _, Glfw, Window, WindowEvent};
-use glow::{Context};
+use glow::{Context, HasContext};
 
 pub struct GlfwWindow {
     pub gl: Rc<glow::Context>,
@@ -34,7 +34,7 @@ impl GlfwWindow {
 
         glfw.window_hint(glfw::WindowHint::Decorated(decorated));
 
-        // glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
+        glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
 
         let (mut window, events) = glfw
             .create_window(800, 600, "Jokolay", glfw::WindowMode::Windowed)
@@ -93,8 +93,8 @@ impl GlfwWindow {
     }
 
     pub fn redraw_request(&mut self) {
-        self.window.swap_buffers();
-        // unsafe { self.gl.flush() };
+        // self.window.swap_buffers();
+        unsafe { self.gl.flush() };
     }
 
     pub fn should_close(&mut self) -> bool {

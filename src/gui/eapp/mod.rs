@@ -1,11 +1,11 @@
 pub mod scene;
 pub mod widgets;
 
-use std::{rc::Rc};
+use std::rc::Rc;
 
 use egui::{Color32, CtxRef, RawInput, Visuals};
 use glm::make_vec2;
-use glow::{Context};
+use glow::Context;
 use jokolink::mlink::MumbleLink;
 
 use scene::Painter;

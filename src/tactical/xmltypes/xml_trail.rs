@@ -19,19 +19,23 @@ The texture tag points to the texture that should scroll on the trail.
 The animSpeed tag is a float value that modifies the speed of the animation on a trail.
 There's also a trailScale tag that is a float value that modifies how stretched the texture will look on the trail.
 **/
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct Trail {
     #[serde(rename = "type")]
-    pub category: Option<String>,
-    pub map_id: Option<u32>,
-    pub guid: Option<String>,
-    pub trail_data: Option<String>,
+    pub category: String,
+    #[serde(rename = "GUID")]
+    pub guid: String,
+    #[serde(rename = "trailData")]
+    pub trail_data: String,
     pub texture: Option<String>,
+    #[serde(rename = "animSpeed")]
     pub anim_speed: Option<f32>,
+    #[serde(rename = "trailScale")]
     pub trail_scale: Option<f32>,
     pub color: Option<u32>,
     pub alpha: Option<f32>,
+    #[serde(rename = "fadeFar")]
     pub fade_near: Option<u32>,
+    #[serde(rename = "fadeFar")]
     pub fade_far: Option<u32>,
 }

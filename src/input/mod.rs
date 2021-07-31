@@ -1,20 +1,16 @@
-
-
-
 use std::sync::mpsc::Receiver;
 
 use copypasta::ClipboardProvider;
 use device_query::{DeviceState, Keycode};
-use egui::{Pos2};
+use egui::Pos2;
 use egui::{Event, Key, RawInput, Rect};
 
 use glfw::{Glfw, WindowEvent};
 use glow::HasContext;
 
-use log::{warn};
+use log::warn;
 
 use std::collections::BTreeSet;
-
 
 use crate::window::glfw_window::GlfwWindow;
 

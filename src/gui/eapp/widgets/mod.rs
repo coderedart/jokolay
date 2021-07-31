@@ -1,12 +1,9 @@
 pub mod wmarker;
 
-use std::{rc::Rc};
+use std::rc::Rc;
 
 use egui::{CtxRef, Window};
 use jokolink::mlink::MumbleLink;
-
-
-
 
 use self::wmarker::MarkersWindow;
 
