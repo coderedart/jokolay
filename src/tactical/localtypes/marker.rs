@@ -1,6 +1,12 @@
-use crate::tactical::xmltypes::{xml_category::MarkerCategory, xml_marker::Behavior};
-
-#[derive(Debug, Clone, Default)]
+use crate::tactical::{
+    localtypes::IMCategory,
+    xmltypes::{
+        xml_category::MarkerCategory,
+        xml_marker::{Behavior, POI},
+    },
+};
+use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MarkerTemplate {
     pub map_display_size: Option<u32>,
     pub icon_file: Option<String>,
@@ -155,6 +161,23 @@ impl MarkerTemplate {
         }
         if self.mini_map_visibility.is_none() {
             self.mini_map_visibility = other.mini_map_visibility;
+        }
+    }
+}
+
+impl POI {
+    pub fn register_category(&self, global_cats: &mut Vec<IMCategory>) {
+        let cat = global_cats
+            .iter_mut()
+            .find(|c| &c.full_name == &self.category);
+        if let Some(c) = cat {
+            c.poi_registry.push(self.guid);
+        } else {
+            log::error!(
+                "marker with guid: {:?} cannot find category: {:?} to register",
+                self.guid,
+                self.category
+            );
         }
     }
 }

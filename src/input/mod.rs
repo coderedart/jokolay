@@ -144,6 +144,7 @@ impl InputManager {
             keys_pressed: Default::default(),
         }
     }
+    /// a function to get the matching egui key event for a given glfw key. egui does not support all the keys provided here.
     pub fn glfw_to_egui_key(key: glfw::Key) -> Option<Key> {
         match key {
             glfw::Key::Space => Some(Key::Space),
@@ -200,6 +201,7 @@ impl InputManager {
             _ => None,
         }
     }
+    /// collect inputs using only device query. cannot get scroll, or window events.
     #[allow(dead_code)]
     fn query_input_events(
         &mut self,

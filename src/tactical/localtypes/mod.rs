@@ -1,9 +1,22 @@
 pub mod marker;
 
-use std::{collections::{BTreeMap, HashMap}, io::BufReader, path::PathBuf};
+use crate::tactical::{
+    localtypes::marker::MarkerTemplate,
+    xmltypes::{
+        xml_category::{MarkerCategory, OverlayData},
+        xml_marker::POI,
+        xml_trail::Trail,
+    },
+};
 use quick_xml::de::from_reader as xmlreader;
-use crate::tactical::{localtypes::marker::MarkerTemplate, xmltypes::{xml_category::{MarkerCategory, OverlayData}, xml_marker::POI, xml_trail::Trail}};
 use serde::{Deserialize, Serialize};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    ffi::OsStr,
+    fs::read_dir,
+    io::BufReader,
+    path::PathBuf,
+};
 use uuid::Uuid;
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
@@ -13,10 +26,40 @@ pub struct CatSelectionTree {
     pub id: usize,
     pub category_index: usize,
 }
+
+impl CatSelectionTree {
+    pub fn build_cat_selection_tree(
+        mc_index_tree: &Vec<MCIndexTree>,
+        cstree: &mut Vec<CatSelectionTree>,
+    ) {
+        for mci in mc_index_tree {
+            if let Some(existing_cat) = cstree.iter_mut().find(|c| c.category_index == mci.index) {
+                Self::build_cat_selection_tree(&mci.children, &mut existing_cat.children);
+            } else {
+                let mut children = vec![];
+                Self::build_cat_selection_tree(&mci.children, &mut children);
+                cstree.push(CatSelectionTree {
+                    enabled: true,
+                    children,
+                    id: fastrand::usize(..usize::MAX),
+                    category_index: mci.index,
+                })
+            }
+        }
+    }
+    pub fn get_active_cats_indices(&self, active_cats: &mut HashSet<usize>) {
+        if self.enabled {
+            active_cats.insert(self.category_index);
+            for cs in &self.children {
+                cs.get_active_cats_indices(active_cats);
+            }
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkerFile {
     pub path: PathBuf,
-    pub mc_index_tree: MCIndexTree,
+    pub mc_index_tree: Option<MCIndexTree>,
     pub poi_vec: Vec<Uuid>,
     pub trl_vec: Vec<Uuid>,
     pub changes: Option<Vec<MarkerEditAction>>,
@@ -24,163 +67,200 @@ pub struct MarkerFile {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MCIndexTree {
-    index: usize,
-    children: Vec<MCIndexTree>,
+    pub index: usize,
+    pub children: Vec<MCIndexTree>,
 }
 
-#[derive(Debug, Clone,  )]
+#[derive(Debug, Clone, Serialize, Default, Deserialize)]
 pub struct IMCategory {
-    full_name: String,
-    cat: MarkerCategory,
-    inherited_template: MarkerTemplate,
+    pub full_name: String,
+    pub cat: MarkerCategory,
+    pub inherited_template: MarkerTemplate,
+    pub poi_registry: Vec<Uuid>,
 }
+/// Zip Crate is getting a new API overhaul soon. so, until then just use normal forlders. The pack itself should be self-contained including the images/other file references relative to this.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkerPack {
+    /// The path to the folder where the marker xml files and other data live.
     pub path: PathBuf,
-    pub files: Vec<MarkerFile>,
-    pub cats: Vec<IMCategory>,
-    pub pois: BTreeMap<Uuid, POI>,
-    pub trails: BTreeMap<Uuid, Trail>,
+    /// the marker files collected so that we can later just turn them back into overlaydata if we have changes.
+    pub mfiles: Vec<MarkerFile>,
+    /// The categories all stored in a Vector and referenced by other markers/trails via the index into this vector
+    pub global_cats: Vec<IMCategory>,
+    /// all the POIs in the current pack.
+    pub global_pois: HashMap<Uuid, POI>,
+    /// All the trail `tags` in the current pack.
+    pub global_trails: HashMap<Uuid, Trail>,
+    /// All categories by their full inheritance path name will store their indices in this map to be used by markers to find the cat index
     pub names_to_id_map: HashMap<String, usize>,
-    pub cat_selection_tree: CatSelectionTree,
+    /// This is what we will show to the user in terms of enabling/disabling categories and using this to adjust the currently drawn objects
+    pub cat_selection_tree: Option<CatSelectionTree>,
 }
 
 impl MarkerPack {
-    /// call this function everytime you modify the MarkerPack to update the category list
-    pub fn new(zipfile_location: PathBuf) -> Self {
-        //open the zip file
-        let zipfile = std::fs::File::open(&zipfile_location).map_err(|e| {
-            log::error!("couldn't open folder to read the entries. folder: {:?}, error: {:?}", zipfile_location, &e);
-            e
-        }).unwrap();
-        let reader = BufReader::new(zipfile);
-        let archive = zip::ZipArchive::new(reader).map_err(|e| {
-            log::error!("couldn't open folder to read the entries. folder: {:?}, error: {:?}", zipfile_location, &e);
-            e
-        }).unwrap();
+    /// call this function to get a markerpack struct from a folder.
+    pub fn new(folder_location: PathBuf) -> Self {
         // our files in the markerpack directory
         let mut files: Vec<MarkerFile> = Vec::new();
-        let mut cats: Vec<IMCategory> = Vec::new();
-        let mut pois = BTreeMap::new();
-        let mut trails = BTreeMap::new();
-        for f in archive.file_names() {
-            
-            if f.ends_with("xml") {
-                let xml_file = archive.by_name(f).map_err(|e| {
-                    log::error!("couldn't open xml file: {:?} due to error: {:?}", f, &e);
+        let mut global_cats: Vec<IMCategory> = Vec::new();
+        let mut global_pois: HashMap<Uuid, POI> = HashMap::new();
+        let mut global_trails: HashMap<Uuid, Trail> = HashMap::new();
+        let mut name_id_map: HashMap<String, usize> = HashMap::new();
+        let mut cstree = vec![];
+        let entries = read_dir(&folder_location)
+            .map_err(|e| {
+                log::error!(
+                    "couldn't open folder to read the entries. folder: {:?}, error: {:?}",
+                    folder_location,
+                    &e
+                );
+                e
+            })
+            .unwrap();
+        for f in entries {
+            let entry = f
+                .map_err(|e| {
+                    log::error!("couldn't read entry. error: {:?}", &e);
                     e
-                }).unwrap();
-                let marker_file_reader = std::io::BufReader::new(xml_file);
+                })
+                .unwrap();
+
+            if entry.path().extension() == Some(OsStr::new("xml")) {
+                let xml_file = std::fs::File::open(&entry.path())
+                    .map_err(|e| {
+                        log::error!(
+                            "couldn't open xml file: {:?} due to error: {:?}",
+                            &entry.path(),
+                            &e
+                        );
+                        e
+                    })
+                    .unwrap();
+                let marker_file_reader = BufReader::new(xml_file);
 
                 let od: OverlayData = match xmlreader(marker_file_reader) {
-                    Ok(od) => {
-                       od
-                    }
+                    Ok(od) => od,
                     Err(e) => {
                         log::error!(
-                            "failed to deserialize file {} due to error {:?}\n",
-                            f,
+                            "failed to deserialize file {:?} due to error {:?}\n",
+                            &entry,
                             e
                         );
                         continue;
                     }
                 };
-                let mut mc_index_tree ;
+                let mut mc_index_tree = Vec::new();
                 if let Some(mctree) = od.categories {
-                    
+                    MCIndexTree::index_tree_from_mc_tree(
+                        vec![mctree],
+                        &mut mc_index_tree,
+                        &mut global_cats,
+                        MarkerTemplate::default(),
+                        "",
+                        &mut name_id_map,
+                    )
                 }
-
-
-            }
-        }
-        // the root category template
-        let mut template: Option<MarkerCategory> = None;
-        let enabled = Arc::new(AtomicBool::new(true));
-        // the children vector to fill the sub categories into
-        let mut children = Vec::new();
-        // for each file
-        for f in files.iter_mut() {
-            // if file has MarkerCategories
-            if let Some(ref mut mc) = f.od.categories {
-                // if root category already init, check that the present file has the same root category
-                if let Some(ref mut t) = template {
-                    assert_eq!(t.name, mc.name);
+                let mut uuid_poi_vec = Vec::new();
+                let mut uuid_trail_vec = Vec::new();
+                if let Some(p) = od.pois {
+                    if let Some(vp) = p.poi {
+                        uuid_poi_vec = POI::get_vec_uuid_pois(vp, &mut global_pois);
+                    }
+                    if let Some(vt) = p.trail {
+                        uuid_trail_vec = Trail::get_vec_uuid_trail(vt, &mut global_trails);
+                    }
+                }
+                CatSelectionTree::build_cat_selection_tree(&mc_index_tree, &mut cstree);
+                let mc_index_tree = if !mc_index_tree.is_empty() {
+                    Some(mc_index_tree.remove(0))
                 } else {
-                    // if this is the first time we got a category file, set the root category
-                    template = Some(mc.clone());
-                }
-                // build/merge/add the subcategories to the catdisplay tree IF it has children
-
-                if let Some(ref mut cc) = mc.children {
-                    MarkerCategory::register_category(cc, &mut children, &mut id);
-                }
+                    None
+                };
+                files.push(MarkerFile {
+                    path: entry.path(),
+                    mc_index_tree,
+                    poi_vec: uuid_poi_vec,
+                    trl_vec: uuid_trail_vec,
+                    changes: None,
+                });
             }
         }
+        global_pois.values().for_each(|p| {
+            p.register_category(&mut global_cats);
+        });
+        let cat_selection_tree = if cstree.is_empty() {
+            None
+        } else {
+            Some(cstree.remove(0))
+        };
         MarkerPack {
-            files,
-            cat_display: CatTree {
-                template: template.unwrap_or(MarkerCategory::default()),
-                enabled,
-                children,
-                id
-            },
+            path: folder_location,
+            mfiles: files,
+            global_cats,
+            global_pois,
+            global_trails,
+            names_to_id_map: name_id_map,
+            cat_selection_tree,
         }
     }
 
-    // pub fn get_present_map_markers_with_inherit(&self, mapid: u32) -> Vec<POI> {
-    //     let mut active_markers = vec![];
-    //     let mut enabled_cats = Vec::new();
-    //     {
-    //         let root_template = self.cat_display.template.clone();
-    //         CatTree::get_enabled_categories_with_inheritance(&self.cat_display.children, &mut enabled_cats, &root_template);
-    //     }
-    //     for pois in self.files.iter().map(|f| &f.od.pois) {
-    //         if let Some(ref pois) = pois {
-    //             if let Some(ref markers) = pois.poi {
-    //                 let cat_parse = Instant::now();
-    //                 for marker in markers.iter()
-    //                 .filter(|&m| m.map_id == mapid)
-    //                 .filter_map(|m| {
-    //                     if let Some(cat_template) = enabled_cats.iter().find(|&c| c.name == m.category) {
-    //                         let mut active_marker = m.clone();
-    //                         active_marker.inherit_if_none(cat_template);
-    //                         Some(active_marker)
-    //                     } else {
-    //                         None
-    //                     }
-    //                 }) {
-    //                     active_markers.push(marker);
-    //                 }
-    //                 dbg!(cat_parse.elapsed());
-
-    //             }
-    //         }
-    //     }
-
-    //     active_markers
-    // }
+    pub fn fill_muuid_cindex_map(&self, mapid: u32, active_markers: &mut HashSet<(Uuid, usize)>) {
+        let mut active_cats = HashSet::new();
+        if let Some(ref cstree) = self.cat_selection_tree {
+            cstree.get_active_cats_indices(&mut active_cats);
+        }
+        for c in active_cats {
+            for m in &self.global_cats[c].poi_registry {
+                if let Some(p) = self.global_pois.get(&m) {
+                    if p.map_id == mapid {
+                        active_markers.insert((*m, c));
+                    }
+                }
+            }
+        }
+    }
 }
 impl MCIndexTree {
-    pub fn index_tree_from_mc_tree(mctree: Vec<MarkerCategory>, index_tree: &mut Vec<MCIndexTree>, cats: &mut Vec<IMCategory>, parent_template: MarkerTemplate, prefix: &str, name_id_map: &mut BTreeMap<String, usize>){
-        for mc in mctree {
-            let name = prefix.to_string() + &mc.name;
+    pub fn index_tree_from_mc_tree(
+        mctree: Vec<MarkerCategory>,
+        index_tree: &mut Vec<MCIndexTree>,
+        cats: &mut Vec<IMCategory>,
+        parent_template: MarkerTemplate,
+        prefix: &str,
+        name_id_map: &mut HashMap<String, usize>,
+    ) {
+        for mut mc in mctree {
+            let name = if !prefix.is_empty() {
+                prefix.to_string() + "." + &mc.name
+            } else {
+                mc.name.clone()
+            };
+            let mc_children = mc.children.take();
             if !name_id_map.contains_key(&name) {
-                    let inherited_template = MarkerTemplate::default();
-                    inherited_template.inherit_from_marker_category(&mc);
-                    inherited_template.inherit_from_template(&parent_template);
-                    let index = cats.len();
-                    name_id_map.insert(name.clone(), index);
-                    cats.push(IMCategory {
-                        full_name: name,
-                        cat: mc,
-                        inherited_template, 
-                    });                
+                let mut inherited_template = MarkerTemplate::default();
+                inherited_template.inherit_from_marker_category(&mc);
+                inherited_template.inherit_from_template(&parent_template);
+                let index = cats.len();
+                name_id_map.insert(name.clone(), index);
+                cats.push(IMCategory {
+                    full_name: name.clone(),
+                    cat: mc,
+                    inherited_template,
+                    poi_registry: vec![],
+                });
             }
             let id: usize = name_id_map[&name];
-           let mut children = Vec::new();
-           if let Some(mc_children) = mc.children {
-               Self::index_tree_from_mc_tree(mc_children, &mut children, cats, cats[id].inherited_template.clone(), &cats[id].full_name, name_id_map);
-           }
+            let mut children = Vec::new();
+            if let Some(mc_children) = mc_children {
+                Self::index_tree_from_mc_tree(
+                    mc_children,
+                    &mut children,
+                    cats,
+                    cats[id].inherited_template.clone(),
+                    &name,
+                    name_id_map,
+                );
+            }
             index_tree.push(MCIndexTree {
                 index: id,
                 children,
@@ -188,49 +268,6 @@ impl MCIndexTree {
         }
     }
 }
-
-// impl CatTree {
-//     pub fn get_enabled_categories_with_inheritance(cats: &Vec<CatTree>, enabled_cats: &mut Vec<MarkerCategory>, parent_template: &MarkerCategory)  {
-//         for cat in cats {
-//             if cat.enabled.load(std::sync::atomic::Ordering::Relaxed) {
-//                 let mut c = cat.template.clone();
-//                 c.inherit_if_none(parent_template);
-//                 c.name = parent_template.name.clone() + "." + &c.name;
-//                 enabled_cats.push(c.clone());
-//                 Self::get_enabled_categories_with_inheritance(&cat.children, enabled_cats, &c);
-
-//             }
-//         }
-//     }
-// }
-// impl MarkerCategory {
-//     pub fn register_category(clients: &mut Vec<MarkerCategory>, register: &mut Vec<CatTree>, id: &mut u32) {
-//         for c in clients {
-//             if let Some(existing_registration) =
-//                 register.iter_mut().find(|r| r.template.name == c.name)
-//             {
-//                 // category already exists. good. maybe check if existing_category is equal to our new category
-//                 if let Some(ref mut cc) = c.children {
-//                     Self::register_category(cc, &mut existing_registration.children, id);
-//                 }
-//             } else {
-//                 let template = c.clone();
-//                 let enabled = Arc::new(AtomicBool::new(true));
-//                 let mut children = Vec::new();
-//                 if let Some(ref mut cc) = c.children {
-//                     Self::register_category(cc, &mut children, id);
-//                 }
-//                 register.push(CatTree {
-//                     template,
-//                     enabled,
-//                     children,
-//                     id: *id
-//                 });
-//                 *id += 1;
-//             }
-//         }
-//     }
-// }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum MarkerEditAction {
@@ -261,3 +298,13 @@ pub enum MarkerEditAction {
         deleted_item: POI,
     },
 }
+
+// /// represents a location in the tree where children are put in a vector
+// #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+// pub enum CatVecTree {
+//     /// the top lvl Root node when you just start making up a tree
+//     Root,
+//     /// A non-root node which starts at root and goes through the children by a series of indices using the vector
+//     /// the last index is the insert position in the vector pushing the rest by a place of one
+//     Node(Vec<usize>)
+// }

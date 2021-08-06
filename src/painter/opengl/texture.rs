@@ -1,5 +1,6 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
+use egui::{Color32, TextureId};
 use glow::{Context, HasContext, NativeTexture};
 use image::GenericImageView;
 
@@ -77,6 +78,7 @@ impl Drop for Texture {
 #[derive(Debug)]
 pub struct TextureArray {
     pub id: NativeTexture,
+    pub slot: u32,
     pub target: u32,
     pub width: u32,
     pub height: u32,
@@ -87,11 +89,12 @@ pub struct TextureArray {
 }
 
 impl TextureArray {
-    pub fn new(gl: Rc<Context>) -> Self {
+    pub fn new(gl: Rc<Context>, slot: u32) -> Self {
         let target = glow::TEXTURE_2D_ARRAY;
         unsafe {
             //create texture buffer id
             let id = gl.create_texture().unwrap();
+            gl.active_texture(glow::TEXTURE0 + slot);
             //initialize its state and set its type to target
             gl.bind_texture(target, Some(id));
             //if texture coordinates are outside of range 0.0-1.0, it will just start over from beginning and thus repeat itself
@@ -103,6 +106,7 @@ impl TextureArray {
 
             TextureArray {
                 gl,
+                slot,
                 id,
                 target,
                 width: 0,
@@ -190,7 +194,7 @@ impl TextureArray {
     pub fn add_image(&mut self, pixels: &[u8], width: u32, height: u32) -> (f32, f32, u32) {
         if self.length == self.layers {
             let new_layers = self.layers + self.bump_size;
-            let mut new_atex = TextureArray::new(self.gl.clone());
+            let mut new_atex = TextureArray::new(self.gl.clone(), self.slot);
             log::info!("resizing tex array of width {}, height {} and length {} . srcid: {}, srclayers: {}, dstid: {}, dstlayers: {} ", self.width, self.height, self.length, self.id.0.get(), self.layers, new_atex.id.0.get(), new_layers);
             new_atex.bind();
             new_atex.reserve_storage(self.width, self.height, new_layers, self.bump_size);
@@ -228,12 +232,14 @@ impl TextureArray {
     }
     pub fn bind(&self) {
         unsafe {
+            self.gl.active_texture(glow::TEXTURE0 + self.slot);
             self.gl.bind_texture(self.target, Some(self.id));
         }
     }
 
     pub fn unbind(&self) {
         unsafe {
+            self.gl.active_texture(glow::TEXTURE0 + self.slot);
             self.gl.bind_texture(self.target, None);
         }
     }
@@ -249,7 +255,8 @@ impl Drop for TextureArray {
 
 pub struct TextureManager {
     pub array_tex: Vec<TextureArray>,
-    pub live_images: BTreeMap<String, (u32, f32, f32, u32)>,
+    pub live_images: HashMap<String, (u32, f32, f32, u32)>,
+    egui_textures: HashMap<TextureId, String>,
 }
 impl TextureManager {
     pub const SMALLEST_TEXTURE_SIZE: usize = 32;
@@ -268,22 +275,41 @@ impl TextureManager {
             512 => 5,
             1024 => 6,
             2048 => 7,
-            _ => panic!("wrong sized dimension"),
+            _ => {
+                log::error!("texture image size too big or small");
+                panic!()
+            }
         }
     }
-    pub fn new(gl: Rc<Context>) -> Self {
+    pub fn new(gl: Rc<Context>, t: Arc<egui::Texture>) -> Self {
         let mut arr = Vec::new();
         for i in 0..Self::NUM_OF_ARRAYS {
             let dim = Self::SMALLEST_TEXTURE_SIZE * 2usize.pow(i as u32);
-            let mut at = TextureArray::new(gl.clone());
+            let mut at = TextureArray::new(gl.clone(), i as u32);
             at.bind();
             at.reserve_storage(dim as u32, dim as u32, 1 as u32, 1);
             arr.push(at);
         }
+        // upload the main egui font texture
+        let mut pixels = Vec::new();
+        for &alpha in &t.pixels {
+            let srgba = Color32::from_white_alpha(alpha);
+            pixels.push(srgba.r());
+            pixels.push(srgba.g());
+            pixels.push(srgba.b());
+            pixels.push(srgba.a());
+        }
+        let slot = Self::get_slot(t.width as u32, t.height as u32);
+        let (x, y, z) = arr[slot].add_image(&pixels, t.width as u32, t.height as u32);
+        let mut egui_textures = HashMap::new();
+        egui_textures.insert(egui::TextureId::Egui, "egui".to_string());
+        let mut live_images = HashMap::new();
+        live_images.insert("egui".to_string(), (slot as u32, x, y, z));
 
         TextureManager {
             array_tex: arr,
-            live_images: BTreeMap::new(),
+            live_images,
+            egui_textures,
         }
     }
     pub fn get_image(&mut self, img_path: &str) -> (u32, f32, f32, u32) {
@@ -304,5 +330,8 @@ impl TextureManager {
             });
         }
         *self.live_images.get(img_path).unwrap()
+    }
+    pub fn get_etex(&mut self, id: egui::TextureId) -> (u32, f32, f32, u32) {
+        self.get_image(&self.egui_textures.get(&id).unwrap().clone())
     }
 }

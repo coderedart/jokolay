@@ -1,27 +1,28 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{rc::Rc};
 
-use anyhow::Context as _;
-use egui::{ClippedMesh, Rect, TextureId};
+use egui::{ClippedMesh, Rect};
 use glm::Vec2;
 use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
-use crate::gltypes::{
-    buffer::Buffer, shader::ShaderProgram, texture::Texture, vertex_array::VertexArrayObject,
+use crate::painter::opengl::{self, texture::TextureManager};
+
+use super::opengl::{
+    buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject,
 };
 
-pub struct Painter {
+pub struct EguiGL {
     pub vao: VertexArrayObject,
     pub sp: ShaderProgram,
     pub vb: Buffer,
     pub ib: Buffer,
     pub u_sampler: NativeUniformLocation,
+    pub u_sampler_layer: NativeUniformLocation,
     pub u_screen_size: NativeUniformLocation,
-    pub texture_versions: HashMap<TextureId, Texture>,
     pub gl: Rc<glow::Context>,
 }
 
-impl Painter {
-    pub fn new(gl: Rc<Context>) -> Painter {
+impl EguiGL {
+    pub fn new(gl: Rc<Context>) -> EguiGL {
         let vao = VertexArrayObject::new(gl.clone());
         let vb = Buffer::new(gl.clone(), glow::ARRAY_BUFFER);
         let ib = Buffer::new(gl.clone(), glow::ELEMENT_ARRAY_BUFFER);
@@ -33,35 +34,37 @@ impl Painter {
         );
 
         let u_sampler;
+        let u_sampler_layer;
         let u_screen_size;
 
         unsafe {
-            u_sampler = gl.get_uniform_location(program.id, "u_sampler").unwrap();
+            u_sampler = gl.get_uniform_location(program.id, "sampler").unwrap();
+            u_sampler_layer = gl.get_uniform_location(program.id, "sampler_layer").unwrap();
             u_screen_size = gl.get_uniform_location(program.id, "screen_size").unwrap();
         }
 
-        let egui_scene_node = Painter {
+        let egui_gl = EguiGL {
             vao,
             vb,
             ib,
             sp: program,
             u_sampler,
+            u_sampler_layer,
             u_screen_size,
             gl: gl.clone(),
-            texture_versions: HashMap::new(),
         };
-        egui_scene_node.bind();
+        egui_gl.bind();
         let layout = VertexRgba::get_layout();
         layout.set_layout(gl.clone());
 
-        return egui_scene_node;
+        return egui_gl;
     }
 
     pub fn draw_meshes(
         &mut self,
-        meshes: &Vec<ClippedMesh>,
+        meshes: Vec<ClippedMesh>,
         screen_size: Vec2,
-        sampler: i32,
+        tm: &mut TextureManager
     ) -> anyhow::Result<()> {
         self.bind();
 
@@ -72,11 +75,12 @@ impl Painter {
             self.gl.blend_func(glow::ONE, glow::ONE_MINUS_SRC_ALPHA);
             self.gl.enable(glow::SCISSOR_TEST);
         }
-
+        unsafe {
+            self.gl
+                .uniform_2_f32_slice(Some(&self.u_screen_size), screen_size.as_slice());
+        }
         for clipped_mesh in meshes {
-            self.update_uniforms(screen_size, sampler);
-
-            self.draw_mesh(clipped_mesh, screen_size)?;
+            self.draw_mesh(clipped_mesh, screen_size, tm)?;
         }
         unsafe {
             self.gl.disable(glow::SCISSOR_TEST);
@@ -86,8 +90,9 @@ impl Painter {
     }
     pub fn draw_mesh(
         &mut self,
-        clipped_mesh: &ClippedMesh,
+        clipped_mesh: ClippedMesh,
         screen_size: Vec2,
+        tm: &mut TextureManager
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
@@ -98,13 +103,15 @@ impl Painter {
             Some((bytemuck::cast_slice(&vertices), glow::DYNAMIC_DRAW)),
             Some((bytemuck::cast_slice(indices), glow::DYNAMIC_DRAW)),
         );
+        let (slot, _, _, z) = tm.get_etex(mesh.texture_id);
         unsafe {
-            self.gl.active_texture(glow::TEXTURE0);
+            //sampler uniforms are i32
+            self.gl.uniform_1_i32(Some(&self.u_sampler), slot as i32);
+            self.gl.uniform_1_i32(Some(&self.u_sampler_layer), z as i32);
+
         }
-        self.texture_versions
-            .get(&mesh.texture_id)
-            .context("no such texture to bind in egui draw call")?
-            .bind();
+       
+            
         self.render(indices.len() as u32, 0);
         Ok(())
     }
@@ -136,7 +143,7 @@ impl Painter {
         }
     }
 }
-impl Painter {
+impl EguiGL {
     fn bind(&self) {
         self.vao.bind();
         self.vb.bind();
@@ -153,19 +160,7 @@ impl Painter {
         }
     }
 
-    fn update_uniforms(&self, screen_size: Vec2, sampler: i32) {
-        unsafe {
-            self.gl
-                .uniform_2_f32_slice(Some(&self.u_screen_size), screen_size.as_slice());
-            //sampler uniforms are i32
-            self.gl.uniform_1_i32(Some(&self.u_sampler), sampler);
-
-            let e = self.gl.get_error();
-            if e != glow::NO_ERROR {
-                println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
-            }
-        }
-    }
+   
 
     fn render(&self, count: u32, offset: u32) {
         unsafe {
@@ -183,7 +178,7 @@ impl Painter {
 
 use egui::{epaint::Vertex, Pos2};
 
-use crate::gltypes::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
+use opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
 #[derive(Debug, Clone, Copy)]
 pub struct VertexRgba {

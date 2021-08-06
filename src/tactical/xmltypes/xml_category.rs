@@ -64,7 +64,7 @@ pub struct OverlayData {
 
 impl MarkerCategory {
     pub fn inherit_if_none(&mut self, other: &MarkerCategory) {
-        self.name = other.name + "." + &self.name;
+        self.name = other.name.clone() + "." + &self.name;
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;
         }

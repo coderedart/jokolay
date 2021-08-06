@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::{BTreeMap, HashMap}, str::FromStr};
 
 use crate::tactical::localtypes::marker::MarkerTemplate;
 
@@ -246,6 +246,16 @@ impl POI {
             self.mini_map_visibility = other.mini_map_visibility;
         }
     }
+
+    pub fn get_vec_uuid_pois(pvec: Vec<POI>, all_pois: &mut HashMap<Uuid, POI>) -> Vec<Uuid> {
+        let mut uuid_vec = Vec::new();
+        for p in pvec {
+            let id = p.guid;
+            all_pois.entry(id).or_insert(p);
+            uuid_vec.push(id);
+        }
+        uuid_vec
+    }
 }
 pub mod color {
     use serde::{Deserializer, Serializer};
@@ -278,7 +288,7 @@ where
     if let Ok(base64_id) = base64::decode(&id) {
         Ok(Uuid::from_slice(&base64_id)
             .map_err(|e| {
-                log::error!("failed to parse uuid from decoded base64: {:?}", &e);
+                log::error!("failed to parse uuid from decoded base64 due to error: {:?}. string: {}", &e, &id);
                 e
             })
             .unwrap_or(Uuid::new_v4()))
@@ -286,8 +296,8 @@ where
         Ok(Uuid::from_str(&id)
             .map_err(|e| {
                 log::error!(
-                    "base64 decode failed and uuid parsing from string failed: {:?}",
-                    &e
+                    "base64 decode failed and uuid parsing from string failed. error: {:?}. string: {}",
+                    &e, &id
                 );
                 e
             })

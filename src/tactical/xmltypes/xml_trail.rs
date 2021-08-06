@@ -1,4 +1,7 @@
+use std::collections::{BTreeMap, HashMap};
+
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /**
 In order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
@@ -23,8 +26,9 @@ There's also a trailScale tag that is a float value that modifies how stretched 
 pub struct Trail {
     #[serde(rename = "type")]
     pub category: String,
+    #[serde(deserialize_with = "super::xml_marker::check_base64_uuid")]
     #[serde(rename = "GUID")]
-    pub guid: String,
+    pub guid: Uuid,
     #[serde(rename = "trailData")]
     pub trail_data: String,
     pub texture: Option<String>,
@@ -38,4 +42,15 @@ pub struct Trail {
     pub fade_near: Option<u32>,
     #[serde(rename = "fadeFar")]
     pub fade_far: Option<u32>,
+}
+impl Trail {
+    pub fn get_vec_uuid_trail(trails: Vec<Trail>, all_trails: &mut HashMap<Uuid, Trail>) -> Vec<Uuid> {
+        let mut result = Vec::new();
+        for t in trails {
+            let id = t.guid;
+            all_trails.entry(id).or_insert(t);
+            result.push(id);
+        }
+        result
+    }
 }
