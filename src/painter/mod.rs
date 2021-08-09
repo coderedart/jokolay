@@ -1,7 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use egui::ClippedMesh;
-use glm::{cross, make_vec3, normalize, vec4, Vec2};
+use glm::{cross, make_vec3, normalize, Vec2};
 use glow::{Context, HasContext};
 use jokolink::mlink::MumbleLink;
 

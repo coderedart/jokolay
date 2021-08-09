@@ -1,12 +1,12 @@
 use std::{collections::HashSet, path::PathBuf, rc::Rc};
 
-use egui::{Checkbox, CollapsingHeader, CtxRef, Response, Widget, Window};
+use egui::{CollapsingHeader, CtxRef, Response, Widget, Window};
 
 use jokolink::mlink::MumbleLink;
-use uuid::Uuid;
+
 
 use crate::tactical::localtypes::{
-    manager::MarkerManager, CatSelectionTree, IMCategory, MarkerPack,
+    manager::MarkerManager, CatSelectionTree, IMCategory,
 };
 
 impl MarkerManager {
