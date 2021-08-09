@@ -1,5 +1,5 @@
 pub mod marker;
-
+pub mod manager;
 use crate::tactical::{
     localtypes::marker::MarkerTemplate,
     xmltypes::{
@@ -11,7 +11,7 @@ use crate::tactical::{
 use quick_xml::de::from_reader as xmlreader;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     ffi::OsStr,
     fs::read_dir,
     io::BufReader,
@@ -19,6 +19,9 @@ use std::{
 };
 use uuid::Uuid;
 
+/// The struct represents a category selection of a particular marker pack and the category index/id are only valid for that marker pack.
+/// This is used to primarily remember which categories are enabled and also show as a category selection widget in egui for users to enable categories
+/// by using category_index, we keep the struct small and also allows for categories to be referenced globally. 
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct CatSelectionTree {
     pub enabled: bool,
@@ -28,6 +31,8 @@ pub struct CatSelectionTree {
 }
 
 impl CatSelectionTree {
+    /// builds a category selection tree recursively. the category index is the index of a category in the global ImCategory vector.
+    /// MCIndexTree is primarily just to organize the categories into a tree struct so that we can build cstree from it
     pub fn build_cat_selection_tree(
         mc_index_tree: &Vec<MCIndexTree>,
         cstree: &mut Vec<CatSelectionTree>,
@@ -47,6 +52,7 @@ impl CatSelectionTree {
             }
         }
     }
+    /// gets the indexes of active IMCats and then we can query the active markers from those cats to build up a list of markers to draw.
     pub fn get_active_cats_indices(&self, active_cats: &mut HashSet<usize>) {
         if self.enabled {
             active_cats.insert(self.category_index);
@@ -56,6 +62,10 @@ impl CatSelectionTree {
         }
     }
 }
+/// Marker File is the primary abstraction to use for editing markerpacks. they can only have one Active Marker File to edit.
+/// it is a abstract representation of the `OverlayData` struct which we deserialize from xml files. this helps us keep all the markers/cats in one place
+/// while also have this struct represent the OverlayData struct with just their Uuids/indexes. when we want to create/edit an existing marker file, this is 
+/// the primary struct to use as it will remember the path of the file and overwrite it with the changes when necessary. 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkerFile {
     pub path: PathBuf,
@@ -65,17 +75,25 @@ pub struct MarkerFile {
     pub changes: Option<Vec<MarkerEditAction>>,
 }
 
+/// A MarkerCategory Tree representation using only the indexes of the categories stored in the global cats of the pack. 
+/// useful to derive cat selection tree and also to write back to a markerfile/overlaydata exactly as it was before.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MCIndexTree {
     pub index: usize,
     pub children: Vec<MCIndexTree>,
 }
 
+/// The primary abstraction for marker category. 
 #[derive(Debug, Clone, Serialize, Default, Deserialize)]
 pub struct IMCategory {
+    /// The full inherited name to match against the `type` field of a POI 
     pub full_name: String,
+    /// The original Category to save back to a Marker File
     pub cat: MarkerCategory,
+    /// The template to inherit from for "effectively" inherity from all the parent categrories and this category.
+    /// using this we avoid writing the inherited fields to `cat` field itself and keep it clean to be written back to overlaydata.
     pub inherited_template: MarkerTemplate,
+    /// this field contains a list of all the POI Uuids which matched against this category's full_name. easier to keep track of markers belonging to a particular category.
     pub poi_registry: Vec<Uuid>,
 }
 /// Zip Crate is getting a new API overhaul soon. so, until then just use normal forlders. The pack itself should be self-contained including the images/other file references relative to this.
@@ -204,7 +222,7 @@ impl MarkerPack {
         }
     }
 
-    pub fn fill_muuid_cindex_map(&self, mapid: u32, active_markers: &mut HashSet<(Uuid, usize)>) {
+    pub fn fill_muuid_cindex_map(&self, mapid: u32, pack_index: usize, active_markers: &mut HashSet<(usize, usize, Uuid)>) {
         let mut active_cats = HashSet::new();
         if let Some(ref cstree) = self.cat_selection_tree {
             cstree.get_active_cats_indices(&mut active_cats);
@@ -213,7 +231,7 @@ impl MarkerPack {
             for m in &self.global_cats[c].poi_registry {
                 if let Some(p) = self.global_pois.get(&m) {
                     if p.map_id == mapid {
-                        active_markers.insert((*m, c));
+                        active_markers.insert((pack_index, c, *m));
                     }
                 }
             }

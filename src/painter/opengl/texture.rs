@@ -260,21 +260,22 @@ pub struct TextureManager {
 }
 impl TextureManager {
     pub const SMALLEST_TEXTURE_SIZE: usize = 32;
-    pub const NUM_OF_ARRAYS: usize = 8;
+    pub const NUM_OF_ARRAYS: usize = 7;
     pub const LARGEST_TEXTURE_SIZE: usize =
         Self::SMALLEST_TEXTURE_SIZE * 2usize.pow(Self::NUM_OF_ARRAYS as u32);
     fn get_slot(width: u32, height: u32) -> usize {
         let dimension = u32::max(width, height) as usize;
         assert!(dimension >= Self::SMALLEST_TEXTURE_SIZE);
         assert!(dimension <= Self::LARGEST_TEXTURE_SIZE);
-        match dimension.next_power_of_two() {
+        let dimension =  if dimension.is_power_of_two() {dimension} else {dimension.next_power_of_two()};
+        match dimension {
             32 => 0,
             64 => 1,
             128 => 2,
             256 => 3,
-            512 => 5,
-            1024 => 6,
-            2048 => 7,
+            512 => 4,
+            1024 => 5,
+            2048 => 6,
             _ => {
                 log::error!("texture image size too big or small");
                 panic!()
@@ -312,12 +313,14 @@ impl TextureManager {
             egui_textures,
         }
     }
+    /// uploads image into a texture slots and returns a tuple of (slot, x, y z). does not upload image if it already exists.
     pub fn get_image(&mut self, img_path: &str) -> (u32, f32, f32, u32) {
         if !self.live_images.contains_key(img_path) {
             self.live_images.insert(img_path.to_string(), {
-                let img = image::open(format!("./res/tw/{}", img_path))
+                
+                let img = image::open(img_path)
                     .map_err(|e| {
-                        log::error!("couldn't open image: {}", &e);
+                        log::error!("couldn't open image. error: {:?}.\npath: {:?}", &e, img_path);
                         e
                     })
                     .unwrap();

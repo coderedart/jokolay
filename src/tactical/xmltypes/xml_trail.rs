@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -44,7 +44,11 @@ pub struct Trail {
     pub fade_far: Option<u32>,
 }
 impl Trail {
-    pub fn get_vec_uuid_trail(trails: Vec<Trail>, all_trails: &mut HashMap<Uuid, Trail>) -> Vec<Uuid> {
+    /// turns a Vec<Trail> into Vec<Uuid> by inserting the trail into a `all_trails` hashmap to keep all trails in one place to avoid duplication. as well as maintain the order by using a Vec<Uuid>
+    pub fn get_vec_uuid_trail(
+        trails: Vec<Trail>,
+        all_trails: &mut HashMap<Uuid, Trail>,
+    ) -> Vec<Uuid> {
         let mut result = Vec::new();
         for t in trails {
             let id = t.guid;

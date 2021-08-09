@@ -13,8 +13,8 @@ pub struct GlfwWindow {
     pub passthrough: bool,
 }
 impl GlfwWindow {
-    pub const INITIAL_WINDOW_WIDTH: u32 = 800;
-    pub const INITIAL_WINDOW_HEIGHT: u32 = 600;
+    pub const INITIAL_WINDOW_WIDTH: u32 = 1920;
+    pub const INITIAL_WINDOW_HEIGHT: u32 = 1080;
     pub const GL_VERSION_MAJOR: u32 = 4;
     pub const GL_VERSION_MINOR: u32 = 6;
     pub const WINDOW_TITLE: &'static str = "Jokolay";
@@ -39,7 +39,7 @@ impl GlfwWindow {
 
         glfw.window_hint(glfw::WindowHint::Decorated(false));
 
-        glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
+        // glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
 
         let (mut window, events) = glfw
             .create_window(
@@ -105,8 +105,9 @@ impl GlfwWindow {
     // }
 
     pub fn redraw_request(&mut self) {
-        // self.window.swap_buffers();
-        unsafe { self.gl.flush() };
+        use glfw::Context;
+        self.window.swap_buffers();
+        // unsafe { self.gl.flush() };
     }
 
     pub fn should_close(&mut self) -> bool {

@@ -6,6 +6,7 @@ use crate::tactical::{
     },
 };
 use serde::{Deserialize, Serialize};
+/// the struct we use for inheritance from category/other markers. 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MarkerTemplate {
     pub map_display_size: Option<u32>,

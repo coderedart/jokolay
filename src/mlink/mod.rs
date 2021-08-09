@@ -1,7 +1,11 @@
 use jokolink::mlink::*;
 use log::error;
 
-use std::{fs::File, io::{Read, Seek, SeekFrom}, time::Instant};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    time::Instant,
+};
 
 /// This is used to update
 #[derive(Debug)]
@@ -13,8 +17,7 @@ pub struct MumbleManager {
     pub mumble_file: Option<File>,
     #[cfg(target_os = "windows")]
     pub cmlptr: Option<*const CMumbleLink>,
-    pub last_update: Instant
-
+    pub last_update: Instant,
 }
 
 impl MumbleManager {
@@ -42,9 +45,8 @@ impl MumbleManager {
             #[cfg(target_os = "linux")]
             mumble_file,
             last_update: Instant::now(),
-            #[cfg(target_os="windows")]
+            #[cfg(target_os = "windows")]
             cmlptr,
-  
         };
         Ok(manager)
     }
@@ -72,34 +74,33 @@ impl MumbleManager {
                 mfile.seek(SeekFrom::Start(0)).unwrap();
                 self.link.update_from_slice(&buffer).unwrap();
                 if self.last_update.elapsed() > std::time::Duration::from_secs(5) {
-
-                let mut win_buffer = [0u8; 16];
-                win_buffer.copy_from_slice(
-                    &buffer[USEFUL_C_MUMBLE_LINK_SIZE..USEFUL_C_MUMBLE_LINK_SIZE + 16],
-                );
-                self.window_dimensions = bytemuck::try_from_bytes::<WindowDimensions>(&win_buffer)
-                    .map_err(|e| {
-                        error!("{:?}", &e);
-                        e
-                    })
-                    .unwrap()
-                    .clone();
+                    let mut win_buffer = [0u8; 16];
+                    win_buffer.copy_from_slice(
+                        &buffer[USEFUL_C_MUMBLE_LINK_SIZE..USEFUL_C_MUMBLE_LINK_SIZE + 16],
+                    );
+                    self.window_dimensions =
+                        bytemuck::try_from_bytes::<WindowDimensions>(&win_buffer)
+                            .map_err(|e| {
+                                error!("{:?}", &e);
+                                e
+                            })
+                            .unwrap()
+                            .clone();
                 }
             }
         }
-        #[cfg(target_os="windows")]
+        #[cfg(target_os = "windows")]
         {
-            if let Some(link_ptr) =  self.cmlptr {
-                self.link.update(link_ptr);   
+            if let Some(link_ptr) = self.cmlptr {
+                self.link.update(link_ptr);
                 if self.last_update.elapsed() > std::time::Duration::from_secs(5) {
                     self.last_update = Instant::now();
                     self.window_dimensions = jokolink::win::get_win_pos_dim(link_ptr).map_err(|e| {
                         error!("could not get window dimensions of gw2 based on the mumblelink pid. error: {:?}", &e);
                         e
                     }).unwrap();
-                }             
+                }
             }
-            
         }
     }
 }

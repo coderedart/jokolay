@@ -1,5 +1,3 @@
-
-
 use serde::{Deserialize, Serialize};
 
 use super::xml_marker::{Behavior, POIs};
@@ -53,7 +51,7 @@ pub struct MarkerCategory {
     pub mini_map_visibility: Option<bool>,
 }
 
-/// The root overlay tag in any valid xml file
+/// The root overlay tag in any valid marker xml file. and use with serde directly for compatibility
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OverlayData {
     #[serde(rename = "MarkerCategory")]
@@ -130,41 +128,6 @@ impl MarkerCategory {
         }
     }
 
-    // pub fn build_categories(
-    //     mut prefix: String,
-    //     mut cat: MarkerCategory,
-    //     cat_map: &mut BTreeMap<String, MarkerCategory>,
-    // ) {
-    //     let previous_cat = cat_map.get(&prefix);
-    //     let template;
-    //     if previous_cat.is_some() {
-    //         template = previous_cat.unwrap().clone();
-    //         cat.inherit_if_none(&template);
-    //     }
-    //     if !prefix.is_empty() {
-    //         prefix.push('.');
-    //     }
-    //     prefix += &cat.name;
-
-    //     if cat.children.is_none() {
-    //         cat_map.insert(prefix, cat);
-    //     } else {
-    //         let children = cat.children;
-    //         cat.children = None;
-    //         cat_map.insert(prefix.clone(), cat);
-    //         if children.is_some() {
-    //             for mc in children.unwrap() {
-    //                 Self::build_categories(prefix.clone(), mc, cat_map);
-    //             }
-    //         }
-    //     }
-    // }
+   
 }
 
-// #[cfg(test)]
-// mod tests {
-//     #[test]
-//     fn mc_serde() {
-
-//     }
-// }

@@ -1,4 +1,4 @@
-use std::{collections::{BTreeMap, HashMap}, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use crate::tactical::localtypes::marker::MarkerTemplate;
 
@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use uuid::Uuid;
 /// Markers format in the xml files are described under the <POIs> tag under the root <OverlayData> tag. The <POI> tag describes a marker.
-/// everything is optional except xpos, ypos, zpos.
+/// everything is optional except xpos, ypos, zpos, mapId and Guid.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct POI {
     /// position of the marker in world space.
@@ -180,7 +180,6 @@ impl POI {
         }
     }
 
-
     pub fn inherit_template(&mut self, other: &MarkerTemplate) {
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;
@@ -246,7 +245,8 @@ impl POI {
             self.mini_map_visibility = other.mini_map_visibility;
         }
     }
-
+    /// inserts poi from `pvec` into `all_pois` and returns the Uuids of those inserted pois as a Vec to keep the order
+    /// This is to have all unique POI at one place and use an array of Uuid instead to refer to the contents
     pub fn get_vec_uuid_pois(pvec: Vec<POI>, all_pois: &mut HashMap<Uuid, POI>) -> Vec<Uuid> {
         let mut uuid_vec = Vec::new();
         for p in pvec {
@@ -257,6 +257,7 @@ impl POI {
         uuid_vec
     }
 }
+/// Serde functions for the hex based color strings in POI/MarkerCategory to reduce to a [u8; 4]
 pub mod color {
     use serde::{Deserializer, Serializer};
 
@@ -279,7 +280,7 @@ pub mod color {
         Ok(Some(result))
     }
 }
-
+/// serde function to convert taco's GUID which is base64 encoded, back to a Uuid for space efficient and easier working with Uuid Crate instead of using the slower strings comparision
 pub fn check_base64_uuid<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
 where
     D: Deserializer<'de>,
@@ -288,7 +289,11 @@ where
     if let Ok(base64_id) = base64::decode(&id) {
         Ok(Uuid::from_slice(&base64_id)
             .map_err(|e| {
-                log::error!("failed to parse uuid from decoded base64 due to error: {:?}. string: {}", &e, &id);
+                log::error!(
+                    "failed to parse uuid from decoded base64 due to error: {:?}. string: {}",
+                    &e,
+                    &id
+                );
                 e
             })
             .unwrap_or(Uuid::new_v4()))

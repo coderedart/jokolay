@@ -1,4 +1,4 @@
-use std::{rc::Rc};
+use std::rc::Rc;
 
 use egui::{ClippedMesh, Rect};
 use glm::Vec2;
@@ -6,9 +6,7 @@ use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
 use crate::painter::opengl::{self, texture::TextureManager};
 
-use super::opengl::{
-    buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject,
-};
+use super::opengl::{buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject};
 
 pub struct EguiGL {
     pub vao: VertexArrayObject,
@@ -39,7 +37,9 @@ impl EguiGL {
 
         unsafe {
             u_sampler = gl.get_uniform_location(program.id, "sampler").unwrap();
-            u_sampler_layer = gl.get_uniform_location(program.id, "sampler_layer").unwrap();
+            u_sampler_layer = gl
+                .get_uniform_location(program.id, "sampler_layer")
+                .unwrap();
             u_screen_size = gl.get_uniform_location(program.id, "screen_size").unwrap();
         }
 
@@ -64,7 +64,7 @@ impl EguiGL {
         &mut self,
         meshes: Vec<ClippedMesh>,
         screen_size: Vec2,
-        tm: &mut TextureManager
+        tm: &mut TextureManager,
     ) -> anyhow::Result<()> {
         self.bind();
 
@@ -92,7 +92,7 @@ impl EguiGL {
         &mut self,
         clipped_mesh: ClippedMesh,
         screen_size: Vec2,
-        tm: &mut TextureManager
+        tm: &mut TextureManager,
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
@@ -108,10 +108,8 @@ impl EguiGL {
             //sampler uniforms are i32
             self.gl.uniform_1_i32(Some(&self.u_sampler), slot as i32);
             self.gl.uniform_1_i32(Some(&self.u_sampler_layer), z as i32);
-
         }
-       
-            
+
         self.render(indices.len() as u32, 0);
         Ok(())
     }
@@ -159,8 +157,6 @@ impl EguiGL {
             self.ib.update(data, usage);
         }
     }
-
-   
 
     fn render(&self, count: u32, offset: u32) {
         unsafe {
@@ -222,47 +218,6 @@ unsafe impl bytemuck::Zeroable for VertexRgba {
 }
 unsafe impl bytemuck::Pod for VertexRgba {}
 
-const EGUI_FRAGMENT_SHADER_SRC: &str = r#"
-#version 450
+const EGUI_FRAGMENT_SHADER_SRC: &str = include_str!("shader.fs");
 
-uniform sampler2D u_sampler;
-
-in vec2 v_tc;
-in vec4 v_color;
-out vec4 f_color;
-
-void main() {
-  f_color =  v_color * texture(u_sampler, v_tc) ;
-}"#;
-
-const EGUI_VERTEX_SHADER_SRC: &str = r#"
-#version 450
-
-layout(location = 0) in vec2 pos;
-layout(location = 1) in vec2 tc;
-layout(location = 2) in vec4 color;
-
-out vec2 v_tc;
-out vec4 v_color;
-
-uniform vec2 screen_size;
-
-vec3 linear_from_srgb(vec3 srgb) {
-  bvec3 cutoff = lessThan(srgb, vec3(10.31475));
-  vec3 lower = srgb / vec3(3294.6);
-  vec3 higher = pow((srgb + vec3(14.025)) / vec3(269.025), vec3(2.4));
-  return mix(higher, lower, vec3(cutoff));
-}
-
-vec4 linear_from_srgba(vec4 srgba) {
-  return vec4(linear_from_srgb(srgba.rgb), srgba.a / 255.0);
-}
-
-void main() {
-
-    gl_Position = vec4(2.0 * pos.x / screen_size.x - 1.0, 1.0 - 2.0 * pos.y / screen_size.y, 0.0, 1.0);
-    v_tc = tc;
-    v_color = linear_from_srgba(color);
-
-}
-"#;
+const EGUI_VERTEX_SHADER_SRC: &str = include_str!("shader.vs");
