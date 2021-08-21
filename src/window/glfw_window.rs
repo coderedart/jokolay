@@ -3,7 +3,7 @@ use std::{rc::Rc, sync::mpsc::Receiver};
 use anyhow::Context as _;
 
 use glfw::{Glfw, Window, WindowEvent};
-use glow::{Context};
+use glow::Context;
 
 pub struct GlfwWindow {
     pub gl: Rc<glow::Context>,
@@ -38,6 +38,7 @@ impl GlfwWindow {
         glfw.window_hint(glfw::WindowHint::MousePassthrough(passthrough));
 
         glfw.window_hint(glfw::WindowHint::Decorated(false));
+        glfw.window_hint(glfw::WindowHint::Samples(Some(4)));
 
         // glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
 
@@ -76,13 +77,17 @@ impl GlfwWindow {
     }
 
     pub fn set_inner_size(&mut self, width: i32, height: i32) {
-        self.window_size = (width, height);
-        self.window.set_size(width, height);
+        if self.window_size.0 != width || self.window_size.1 != height {
+            self.window_size = (width, height);
+            self.window.set_size(width, height);
+        }
     }
 
     pub fn set_inner_position(&mut self, xpos: i32, ypos: i32) {
-        self.window_pos = (xpos, ypos);
-        self.window.set_pos(xpos, ypos);
+        if self.window_pos.0 != xpos || self.window_pos.1 != ypos {
+            self.window_pos = (xpos, ypos);
+            self.window.set_pos(xpos, ypos);
+        }
     }
 
     pub fn set_decorations(&mut self, decorated: bool) {
@@ -107,6 +112,7 @@ impl GlfwWindow {
     pub fn redraw_request(&mut self) {
         use glfw::Context;
         self.window.swap_buffers();
+        // use glow::HasContext;
         // unsafe { self.gl.flush() };
     }
 

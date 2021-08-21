@@ -5,9 +5,10 @@ use glm::vec2;
 use glow::HasContext;
 use log::LevelFilter;
 use tokio::{runtime::Handle, sync::oneshot::channel};
+use vfs::{PhysicalFS, VfsPath};
 use window::glfw_window::GlfwWindow;
 
-use crate::{input::InputManager, mlink::MumbleManager, painter::Painter, tactical::localtypes::manager::MarkerManager};
+use crate::{fm::FileManager, input::InputManager, mlink::MumbleManager, painter::Painter, tactical::localtypes::manager::MarkerManager};
 
 pub mod gui;
 pub mod input;
@@ -15,13 +16,14 @@ pub mod mlink;
 pub mod painter;
 pub mod tactical;
 pub mod window;
-
+pub mod fm;
 pub struct JokolayApp {
     pub ctx: CtxRef,
     pub input_manager: InputManager,
     pub handle: Handle,
     pub mumble_manager: MumbleManager,
     pub marker_manager: MarkerManager,
+    pub file_manager: FileManager,
     pub painter: Painter,
     pub overlay_window: GlfwWindow,
     state: EState,
@@ -45,9 +47,14 @@ impl JokolayApp {
             if e != glow::NO_ERROR {
                 println!("glerror {} at {} {} {}", e, file!(), line!(), column!());
             }
+            gl.enable(glow::MULTISAMPLE);
+            gl.enable(glow::BLEND);
+
         }
+        // we don't do much, but we can use this async handle to spawn tasks in future
         let (shutdown_tx, shutdown_rx) = channel::<u32>();
         let (handle_tx, handle_rx) = std::sync::mpsc::channel();
+
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -60,6 +67,7 @@ impl JokolayApp {
         let handle = handle_rx.recv().unwrap();
         let input_manager = InputManager::new(events, glfw);
         let mumble_manager = MumbleManager::new("MumbleLink").unwrap();
+        // start setting up egui initial state
         let mut ctx = CtxRef::default();
         let (width, height) = overlay_window.window_size;
 
@@ -70,7 +78,9 @@ impl JokolayApp {
         ));
         input.pixels_per_point = Some(1.0);
         let mut visuals = Visuals::dark();
+        
         visuals.window_shadow.extrusion = 0.0;
+        visuals.window_corner_radius = 0.0;
         ctx.set_visuals(visuals);
 
         ctx.begin_frame(input.take());
@@ -83,13 +93,15 @@ impl JokolayApp {
         let t = ctx.texture();
         let painter = Painter::new(gl.clone(), t);
         let _ = ctx.end_frame();
-        let marker_manager = MarkerManager::new(Path::new("./res"));
+        let file_manager = FileManager::new();
+        let marker_manager = MarkerManager::new(&file_manager);
         Ok(JokolayApp {
             overlay_window,
             ctx,
             input_manager,
             mumble_manager,
             marker_manager,
+            file_manager,
             painter,
             handle,
             state,
@@ -104,18 +116,23 @@ impl JokolayApp {
         let mut fps = 0;
         let mut timer = Instant::now();
         let mut average_egui = Duration::default();
+        let mut average_draw_call = Duration::default();
         loop {
+            // starting loop timer
+            let et = Instant::now();
+
             if self.overlay_window.should_close() {
                 break;
             }
             if timer.elapsed() > Duration::from_secs(1) {
-                dbg!(fps, average_egui);
+                dbg!(fps, average_egui, average_draw_call);
                 fps = 0;
                 timer = Instant::now();
             }
             fps += 1;
-            self.mumble_manager.update();
 
+            self.mumble_manager.update();
+            
             self.input_manager
                 .process_events(&mut self.overlay_window, &mut self.state.input);
             gl_error!(gl);
@@ -124,14 +141,19 @@ impl JokolayApp {
                 gl.clear_color(0.0, 0.0, 0.0, 0.0);
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             }
-            let et = Instant::now();
             let meshes = self.tick();
-            self.painter.draw_egui(meshes,vec2(self.overlay_window.window_size.0 as f32, self.overlay_window.window_size.1 as f32));
-            average_egui = (average_egui + et.elapsed()) / 2;
+            self.painter.draw_egui(meshes,vec2(self.overlay_window.window_size.0 as f32, self.overlay_window.window_size.1 as f32), &self.file_manager);
             if self.marker_manager.draw_markers {
-                self.painter.draw_markers(&mut self.marker_manager, self.mumble_manager.get_link());
+                self.painter.draw_markers(&mut self.marker_manager, self.mumble_manager.get_link(), &self.file_manager);
+                self.painter.draw_trails(&mut self.marker_manager, self.mumble_manager.get_link(), &self.file_manager);
+                
             }
+            // ending loop timer
+            average_egui = (average_egui + et.elapsed()) / 2;
+            // start draw call timer
+            let dt = Instant::now();
             self.overlay_window.redraw_request();
+            average_draw_call = (average_draw_call + dt.elapsed()) / 2;
         }
         self.shutdown_tx.send(0).unwrap();
         Ok(())

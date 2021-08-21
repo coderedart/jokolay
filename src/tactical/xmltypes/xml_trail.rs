@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::tactical::localtypes::trail::TrailData;
+
 /**
 In order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
 Trails are described by the <Trail> tag and uses the same category system as the markers.
@@ -23,14 +25,14 @@ The animSpeed tag is a float value that modifies the speed of the animation on a
 There's also a trailScale tag that is a float value that modifies how stretched the texture will look on the trail.
 **/
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub struct Trail {
+pub struct XMLTrail {
     #[serde(rename = "type")]
     pub category: String,
     #[serde(deserialize_with = "super::xml_marker::check_base64_uuid")]
     #[serde(rename = "GUID")]
     pub guid: Uuid,
     #[serde(rename = "trailData")]
-    pub trail_data: String,
+    pub trail_data_file: String,
     pub texture: Option<String>,
     #[serde(rename = "animSpeed")]
     pub anim_speed: Option<f32>,
@@ -42,19 +44,6 @@ pub struct Trail {
     pub fade_near: Option<u32>,
     #[serde(rename = "fadeFar")]
     pub fade_far: Option<u32>,
+  
 }
-impl Trail {
-    /// turns a Vec<Trail> into Vec<Uuid> by inserting the trail into a `all_trails` hashmap to keep all trails in one place to avoid duplication. as well as maintain the order by using a Vec<Uuid>
-    pub fn get_vec_uuid_trail(
-        trails: Vec<Trail>,
-        all_trails: &mut HashMap<Uuid, Trail>,
-    ) -> Vec<Uuid> {
-        let mut result = Vec::new();
-        for t in trails {
-            let id = t.guid;
-            all_trails.entry(id).or_insert(t);
-            result.push(id);
-        }
-        result
-    }
-}
+

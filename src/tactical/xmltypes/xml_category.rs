@@ -5,7 +5,7 @@ use super::xml_marker::{Behavior, POIs};
 /// Marker Category tag in xml files
 /// acts as a template for markers to inherit from when there's a common property to all the markers under that category/subcatagories.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub struct MarkerCategory {
+pub struct XMLMarkerCategory {
     /// name will be how we merge/check for consistencies when they are declared in multiple Marker Files and we try to merge them all into a Category Selection Tree.
     pub name: String,
     /// this is what will be shown in the user facing menu when selecting to enable/disable this Category of markers to draw.
@@ -16,7 +16,7 @@ pub struct MarkerCategory {
     pub is_separator: Option<u32>,
     /// These are all the direct sub categories
     #[serde(rename = "MarkerCategory")]
-    pub children: Option<Vec<MarkerCategory>>,
+    pub children: Option<Vec<XMLMarkerCategory>>,
     /// from here on, the rest of the attributes are for marker inheritance and are documented in the POI Struct
     #[serde(rename = "mapDisplaySize")]
     pub map_display_size: Option<u32>,
@@ -55,13 +55,13 @@ pub struct MarkerCategory {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OverlayData {
     #[serde(rename = "MarkerCategory")]
-    pub categories: Option<MarkerCategory>,
+    pub categories: Option<XMLMarkerCategory>,
     #[serde(rename = "POIs")]
     pub pois: Option<POIs>,
 }
 
-impl MarkerCategory {
-    pub fn inherit_if_none(&mut self, other: &MarkerCategory) {
+impl XMLMarkerCategory {
+    pub fn inherit_if_none(&mut self, other: &XMLMarkerCategory) {
         self.name = other.name.clone() + "." + &self.name;
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;

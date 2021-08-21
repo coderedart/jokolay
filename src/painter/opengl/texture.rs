@@ -1,10 +1,13 @@
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
+use crate::{
+    fm::{FileManager, VID},
+    gl_error,
+};
 use egui::{Color32, TextureId};
 use glow::{Context, HasContext, NativeTexture};
+use image::io::Reader;
 use image::GenericImageView;
-
-use crate::gl_error;
 
 #[derive(Debug)]
 pub struct Texture {
@@ -255,8 +258,7 @@ impl Drop for TextureArray {
 
 pub struct TextureManager {
     pub array_tex: Vec<TextureArray>,
-    pub live_images: HashMap<String, (u32, f32, f32, u32)>,
-    egui_textures: HashMap<TextureId, String>,
+    pub live_images: HashMap<VID, (u32, f32, f32, u32)>,
 }
 impl TextureManager {
     pub const SMALLEST_TEXTURE_SIZE: usize = 32;
@@ -267,7 +269,11 @@ impl TextureManager {
         let dimension = u32::max(width, height) as usize;
         assert!(dimension >= Self::SMALLEST_TEXTURE_SIZE);
         assert!(dimension <= Self::LARGEST_TEXTURE_SIZE);
-        let dimension =  if dimension.is_power_of_two() {dimension} else {dimension.next_power_of_two()};
+        let dimension = if dimension.is_power_of_two() {
+            dimension
+        } else {
+            dimension.next_power_of_two()
+        };
         match dimension {
             32 => 0,
             64 => 1,
@@ -282,6 +288,8 @@ impl TextureManager {
             }
         }
     }
+
+    /// creates a new texture manager and automatically uploads egui font texture with the argument and VID(0) which is "egui"
     pub fn new(gl: Rc<Context>, t: Arc<egui::Texture>) -> Self {
         let mut arr = Vec::new();
         for i in 0..Self::NUM_OF_ARRAYS {
@@ -302,39 +310,71 @@ impl TextureManager {
         }
         let slot = Self::get_slot(t.width as u32, t.height as u32);
         let (x, y, z) = arr[slot].add_image(&pixels, t.width as u32, t.height as u32);
-        let mut egui_textures = HashMap::new();
-        egui_textures.insert(egui::TextureId::Egui, "egui".to_string());
         let mut live_images = HashMap::new();
-        live_images.insert("egui".to_string(), (slot as u32, x, y, z));
+        live_images.insert(VID(0), (slot as u32, x, y, z));
 
         TextureManager {
             array_tex: arr,
             live_images,
-            egui_textures,
         }
     }
     /// uploads image into a texture slots and returns a tuple of (slot, x, y z). does not upload image if it already exists.
-    pub fn get_image(&mut self, img_path: &str) -> (u32, f32, f32, u32) {
-        if !self.live_images.contains_key(img_path) {
-            self.live_images.insert(img_path.to_string(), {
-                
-                let img = image::open(img_path)
+    pub fn get_image(&mut self, id: VID, fm: &FileManager) -> (u32, f32, f32, u32) {
+        // check if the uploaded textures already contains id
+        if !self.live_images.contains_key(&id) {
+            // upload the image texture
+            self.live_images.insert(id, {
+                // use vfspath to open the image file
+                let ifile = fm
+                    .paths
+                    .get(id.0)
+                    .unwrap()
+                    .open_file()
                     .map_err(|e| {
-                        log::error!("couldn't open image. error: {:?}.\npath: {:?}", &e, img_path);
+                        log::error!(
+                            "couldn't open image. error: {:?}.\npath: {:?}",
+                            &e,
+                            fm.paths.get(id.0)
+                        );
                         e
                     })
                     .unwrap();
+                // create a buf reader
+                let ireader = std::io::BufReader::new(ifile);
+                // create a image::reader and set its format as it cannot use file path to determine the format due to vfspath (i think)
+                let mut imgreader = image::io::Reader::new(ireader);
+                imgreader.set_format(image::ImageFormat::Png);
+                // get the image
+                let img = imgreader
+                    .decode()
+                    .map_err(|e| {
+                        log::error!(
+                            "image decode error; image path = {:?}; error: {:?}",
+                            fm.paths.get(id.0),
+                            &e
+                        );
+                        e
+                    })
+                    .unwrap();
+                    // flipv bcoz opengl reads images from bottom 
                 let img = img.flipv();
+                // get rgba bytes because png
                 let pixels = img.as_bytes();
+                // decide which unit the texture needs to be uploaded to
                 let slot = Self::get_slot(img.width(), img.height());
+                // texture arrays already have a predefined slot based on the image size, so this might be redundunt
                 self.array_tex[slot].bind();
+                // upload the image to array and get the layer at which we uploaded the texture. array might resize itself to fit
                 let (x, y, z) = self.array_tex[slot].add_image(pixels, img.width(), img.height());
                 (slot as u32, x, y, z)
             });
         }
-        *self.live_images.get(img_path).unwrap()
+        *self.live_images.get(&id).unwrap()
     }
-    pub fn get_etex(&mut self, id: egui::TextureId) -> (u32, f32, f32, u32) {
-        self.get_image(&self.egui_textures.get(&id).unwrap().clone())
+    pub fn get_etex(&mut self, id: egui::TextureId, fm: &FileManager) -> (u32, f32, f32, u32) {
+        match id {
+            TextureId::Egui => self.get_image(VID(0), fm),
+            TextureId::User(_) => todo!(),
+        }
     }
 }

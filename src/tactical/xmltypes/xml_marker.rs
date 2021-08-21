@@ -2,14 +2,14 @@ use std::{collections::HashMap, str::FromStr};
 
 use crate::tactical::localtypes::marker::MarkerTemplate;
 
-use super::{xml_category::MarkerCategory, xml_trail::Trail};
+use super::{xml_category::XMLMarkerCategory, xml_trail::XMLTrail};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use uuid::Uuid;
 /// Markers format in the xml files are described under the <POIs> tag under the root <OverlayData> tag. The <POI> tag describes a marker.
 /// everything is optional except xpos, ypos, zpos, mapId and Guid.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub struct POI {
+pub struct XMLPOI {
     /// position of the marker in world space.
     pub xpos: f32,
     pub ypos: f32,
@@ -108,13 +108,13 @@ pub enum Behavior {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct POIs {
     #[serde(rename = "POI")]
-    pub poi: Option<Vec<POI>>,
+    pub poi: Option<Vec<XMLPOI>>,
     #[serde(rename = "Trail")]
-    pub trail: Option<Vec<Trail>>,
+    pub trail: Option<Vec<XMLTrail>>,
 }
 
-impl POI {
-    pub fn inherit_if_none(&mut self, other: &MarkerCategory) {
+impl XMLPOI {
+    pub fn inherit_if_none(&mut self, other: &XMLMarkerCategory) {
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;
         }
@@ -180,82 +180,7 @@ impl POI {
         }
     }
 
-    pub fn inherit_template(&mut self, other: &MarkerTemplate) {
-        if self.map_display_size.is_none() {
-            self.map_display_size = other.map_display_size;
-        }
-        if self.icon_file.is_none() {
-            self.icon_file = other.icon_file.clone();
-        }
-        if self.icon_size.is_none() {
-            self.icon_size = other.icon_size;
-        }
-        if self.alpha.is_none() {
-            self.alpha = other.alpha;
-        }
-        if self.behavior.is_none() {
-            self.behavior = other.behavior;
-        }
-        if self.height_offset.is_none() {
-            self.height_offset = other.height_offset;
-        }
-        if self.fade_near.is_none() {
-            self.fade_near = other.fade_near;
-        }
-        if self.fade_far.is_none() {
-            self.fade_far = other.fade_far;
-        }
-        if self.min_size.is_none() {
-            self.min_size = other.min_size;
-        }
-        if self.max_size.is_none() {
-            self.max_size = other.max_size;
-        }
-        if self.reset_length.is_none() {
-            self.reset_length = other.max_size;
-        }
-        if self.color.is_none() {
-            self.color = other.color.clone();
-        }
-        if self.auto_trigger.is_none() {
-            self.auto_trigger = other.auto_trigger;
-        }
-        if self.has_countdown.is_none() {
-            self.has_countdown = other.has_countdown;
-        }
-        if self.trigger_range.is_none() {
-            self.trigger_range = other.trigger_range;
-        }
-        if self.achievement_id.is_none() {
-            self.achievement_id = other.achievement_id;
-        }
-        if self.achievement_bit.is_none() {
-            self.achievement_bit = other.achievement_bit;
-        }
-        if self.info.is_none() {
-            self.info = other.info.clone();
-        }
-        if self.info_range.is_none() {
-            self.info_range = other.info_range;
-        }
-        if self.map_visibility.is_none() {
-            self.map_visibility = other.map_visibility;
-        }
-        if self.mini_map_visibility.is_none() {
-            self.mini_map_visibility = other.mini_map_visibility;
-        }
-    }
-    /// inserts poi from `pvec` into `all_pois` and returns the Uuids of those inserted pois as a Vec to keep the order
-    /// This is to have all unique POI at one place and use an array of Uuid instead to refer to the contents
-    pub fn get_vec_uuid_pois(pvec: Vec<POI>, all_pois: &mut HashMap<Uuid, POI>) -> Vec<Uuid> {
-        let mut uuid_vec = Vec::new();
-        for p in pvec {
-            let id = p.guid;
-            all_pois.entry(id).or_insert(p);
-            uuid_vec.push(id);
-        }
-        uuid_vec
-    }
+    
 }
 /// Serde functions for the hex based color strings in POI/MarkerCategory to reduce to a [u8; 4]
 pub mod color {

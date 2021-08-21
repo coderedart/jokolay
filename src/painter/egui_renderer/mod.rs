@@ -4,7 +4,7 @@ use egui::{ClippedMesh, Rect};
 use glm::Vec2;
 use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
-use crate::painter::opengl::{self, texture::TextureManager};
+use crate::{fm::FileManager, painter::opengl::{self, texture::TextureManager}};
 
 use super::opengl::{buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject};
 
@@ -65,13 +65,13 @@ impl EguiGL {
         meshes: Vec<ClippedMesh>,
         screen_size: Vec2,
         tm: &mut TextureManager,
+        fm: &FileManager,
     ) -> anyhow::Result<()> {
         self.bind();
 
         unsafe {
             self.gl.enable(glow::FRAMEBUFFER_SRGB);
             self.gl.disable(glow::DEPTH_TEST);
-            self.gl.enable(glow::BLEND);
             self.gl.blend_func(glow::ONE, glow::ONE_MINUS_SRC_ALPHA);
             self.gl.enable(glow::SCISSOR_TEST);
         }
@@ -80,10 +80,12 @@ impl EguiGL {
                 .uniform_2_f32_slice(Some(&self.u_screen_size), screen_size.as_slice());
         }
         for clipped_mesh in meshes {
-            self.draw_mesh(clipped_mesh, screen_size, tm)?;
+            self.draw_mesh(clipped_mesh, screen_size, tm, fm)?;
         }
         unsafe {
             self.gl.disable(glow::SCISSOR_TEST);
+            self.gl.disable(glow::FRAMEBUFFER_SRGB);
+
         }
 
         Ok(())
@@ -93,6 +95,8 @@ impl EguiGL {
         clipped_mesh: ClippedMesh,
         screen_size: Vec2,
         tm: &mut TextureManager,
+        fm: &FileManager,
+
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
@@ -103,7 +107,7 @@ impl EguiGL {
             Some((bytemuck::cast_slice(&vertices), glow::DYNAMIC_DRAW)),
             Some((bytemuck::cast_slice(indices), glow::DYNAMIC_DRAW)),
         );
-        let (slot, _, _, z) = tm.get_etex(mesh.texture_id);
+        let (slot, _, _, z) = tm.get_etex(mesh.texture_id, fm);
         unsafe {
             //sampler uniforms are i32
             self.gl.uniform_1_i32(Some(&self.u_sampler), slot as i32);
