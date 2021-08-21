@@ -1,22 +1,19 @@
-
-
-use crate::{fm::{FileManager, VID}, tactical::{localtypes::{icon_file_to_vid, marker::MarkerTemplate}, xmltypes::{xml_category::{XMLMarkerCategory, OverlayData}, xml_marker::{Behavior, XMLPOI}, xml_trail::XMLTrail}}};
-use quick_xml::de::from_reader as xmlreader;
-use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    ffi::OsStr,
-    fs::read_dir,
-    io::BufReader,
-    path::PathBuf,
+use crate::{
+    fm::{FileManager, VID},
+    tactical::{
+        localtypes::{icon_file_to_vid, marker::MarkerTemplate},
+        xmltypes::xml_category::XMLMarkerCategory,
+    },
 };
-use uuid::Uuid;
 
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 /// The primary abstraction for marker category. Inherited Marker Category.
 #[derive(Debug, Clone, Serialize, Default, Deserialize)]
 pub struct IMCategory {
-    /// The full inherited name to match against the `type` field of a POI 
+    /// The full inherited name to match against the `type` field of a POI
     pub full_name: String,
     /// The original Category to save back to a Marker File
     pub cat: XMLMarkerCategory,
@@ -26,14 +23,12 @@ pub struct IMCategory {
     /// this field contains a list of all the POI Uuids which matched against this category's full_name. easier to keep track of markers belonging to a particular category.
     pub poi_registry: Vec<Uuid>,
     /// list of Trail tag guids
-    pub trail_registry: Vec<Uuid>
+    pub trail_registry: Vec<Uuid>,
 }
-
-
 
 /// The struct represents a category selection of a particular marker pack and the category index/id are only valid for that marker pack.
 /// This is used to primarily remember which categories are enabled and also show as a category selection widget in egui for users to enable categories
-/// by using category_index, we keep the struct small and also allows for categories to be referenced globally. 
+/// by using category_index, we keep the struct small and also allows for categories to be referenced globally.
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct CatSelectionTree {
     pub enabled: bool,
@@ -62,7 +57,9 @@ impl CatSelectionTree {
                 cstree.push(CatSelectionTree {
                     enabled: true,
                     children,
-                    state: Estate {id: fastrand::usize(..usize::MAX)},
+                    state: Estate {
+                        id: fastrand::usize(..usize::MAX),
+                    },
                     category_index: mci.index,
                 })
             }
@@ -79,7 +76,7 @@ impl CatSelectionTree {
     }
 }
 
-/// A MarkerCategory Tree representation using only the indexes of the categories stored in the global cats of the pack. 
+/// A MarkerCategory Tree representation using only the indexes of the categories stored in the global cats of the pack.
 /// useful to derive cat selection tree and also to write back to a markerfile/overlaydata exactly as it was before.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MCIndexTree {
@@ -87,11 +84,14 @@ pub struct MCIndexTree {
     pub children: Vec<MCIndexTree>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, PartialOrd, Eq, Ord, Hash,
+)]
 pub struct CategoryIndex(pub usize);
 
 impl MCIndexTree {
-    pub fn index_tree_from_mc_tree(pack_path: VID,
+    pub fn index_tree_from_mc_tree(
+        pack_path: VID,
         fm: &FileManager,
         mctree: Vec<XMLMarkerCategory>,
         index_tree: &mut Vec<MCIndexTree>,
@@ -123,7 +123,7 @@ impl MCIndexTree {
                     cat: mc,
                     inherited_template,
                     poi_registry: vec![],
-                    trail_registry: vec![]
+                    trail_registry: vec![],
                 });
             }
             let id: usize = name_id_map[&name];
@@ -147,6 +147,3 @@ impl MCIndexTree {
         }
     }
 }
-
-
-

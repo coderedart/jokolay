@@ -127,7 +127,4 @@ impl XMLMarkerCategory {
             self.mini_map_visibility = other.mini_map_visibility;
         }
     }
-
-   
 }
-

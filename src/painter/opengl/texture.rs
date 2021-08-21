@@ -6,7 +6,7 @@ use crate::{
 };
 use egui::{Color32, TextureId};
 use glow::{Context, HasContext, NativeTexture};
-use image::io::Reader;
+
 use image::GenericImageView;
 
 #[derive(Debug)]
@@ -356,7 +356,7 @@ impl TextureManager {
                         e
                     })
                     .unwrap();
-                    // flipv bcoz opengl reads images from bottom 
+                // flipv bcoz opengl reads images from bottom
                 let img = img.flipv();
                 // get rgba bytes because png
                 let pixels = img.as_bytes();

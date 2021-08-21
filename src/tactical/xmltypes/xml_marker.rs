@@ -1,6 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
-
-use crate::tactical::localtypes::marker::MarkerTemplate;
+use std::str::FromStr;
 
 use super::{xml_category::XMLMarkerCategory, xml_trail::XMLTrail};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -179,8 +177,6 @@ impl XMLPOI {
             self.mini_map_visibility = other.mini_map_visibility;
         }
     }
-
-    
 }
 /// Serde functions for the hex based color strings in POI/MarkerCategory to reduce to a [u8; 4]
 pub mod color {

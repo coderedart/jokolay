@@ -3,11 +3,10 @@ use std::collections::HashMap;
 use crate::{
     fm::{FileManager, VID},
     tactical::{
-        localtypes::{category::CategoryIndex,  IMCategory},
+        localtypes::{category::CategoryIndex, IMCategory},
         xmltypes::{
             xml_category::XMLMarkerCategory,
             xml_marker::{Behavior, XMLPOI},
-            xml_trail::XMLTrail,
         },
     },
 };
@@ -151,7 +150,11 @@ pub struct MarkerTemplate {
 }
 
 impl MarkerTemplate {
-    pub fn inherit_from_marker_category(&mut self, other: &XMLMarkerCategory, icon_file: Option<VID>) {
+    pub fn inherit_from_marker_category(
+        &mut self,
+        other: &XMLMarkerCategory,
+        icon_file: Option<VID>,
+    ) {
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;
         }
@@ -296,20 +299,23 @@ impl POI {
             );
         }
     }
-/// inserts poi from `pvec` into `all_pois` and returns the Uuids of those inserted pois as a Vec to keep the order
+    /// inserts poi from `pvec` into `all_pois` and returns the Uuids of those inserted pois as a Vec to keep the order
     /// This is to have all unique POI at one place and use an array of Uuid instead to refer to the contents
-    pub fn get_vec_uuid_pois(pvec: Vec<XMLPOI>, all_pois: &mut HashMap<Uuid, POI>, pack_path: VID, global_cats: &mut Vec<IMCategory>, fm: &FileManager ) -> Vec<Uuid>{
+    pub fn get_vec_uuid_pois(
+        pvec: Vec<XMLPOI>,
+        all_pois: &mut HashMap<Uuid, POI>,
+        pack_path: VID,
+        global_cats: &mut Vec<IMCategory>,
+        fm: &FileManager,
+    ) -> Vec<Uuid> {
         let mut uuid_vec = Vec::new();
         for xp in pvec {
             let id = xp.guid;
             if let Some(p) = POI::from_xmlpoi(pack_path, &xp, &global_cats, fm) {
                 all_pois.entry(id).or_insert(p);
                 uuid_vec.push(id);
-
-            } 
+            }
         }
         uuid_vec
-                            
     }
 }
-

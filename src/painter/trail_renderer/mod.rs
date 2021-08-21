@@ -2,7 +2,14 @@ use std::rc::Rc;
 
 use glow::NativeUniformLocation;
 
-use crate::painter::{marker_renderer::marker::MarkerVertex, opengl::{buffer::{Buffer, VertexBufferLayout, VertexBufferLayoutTrait}, shader::ShaderProgram, vertex_array::VertexArrayObject}};
+use crate::painter::{
+    marker_renderer::marker::MarkerVertex,
+    opengl::{
+        buffer::{Buffer, VertexBufferLayoutTrait},
+        shader::ShaderProgram,
+        vertex_array::VertexArrayObject,
+    },
+};
 // use super::xmltypes::xml_marker::Marker;
 pub mod trail;
 pub struct TrailGl {
@@ -29,7 +36,6 @@ impl TrailGl {
         let layout = MarkerVertex::get_layout();
         layout.set_layout(gl);
         trail_gl
-
     }
     pub fn bind(&self) {
         self.vao.bind();

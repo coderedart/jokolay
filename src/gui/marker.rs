@@ -1,23 +1,27 @@
-use std::{collections::HashSet, path::PathBuf, rc::Rc, str::FromStr};
-
 use egui::{CollapsingHeader, CtxRef, Response, Widget, Window};
 
 use jokolink::mlink::MumbleLink;
 
-
 use crate::tactical::localtypes::{
-    manager::MarkerManager, category::IMCategory, category::CatSelectionTree
+    category::CatSelectionTree, category::IMCategory, manager::MarkerManager,
 };
 
 impl MarkerManager {
     pub fn tick(&mut self, ctx: CtxRef, link: &MumbleLink) {
         if self.state.active_cats_changed {
-            for ( pack_index, pack) in self.packs.iter_mut().enumerate() {
-            self.active_markers.clear();
-            self.active_trails.clear();
-            pack
-                .update_active_markers(link.identity.map_id, pack_index,&mut self.active_markers);
-            pack.update_active_trails(link.identity.map_id, pack_index, &mut self.active_trails);
+            for (pack_index, pack) in self.packs.iter_mut().enumerate() {
+                self.active_markers.clear();
+                self.active_trails.clear();
+                pack.update_active_markers(
+                    link.identity.map_id,
+                    pack_index,
+                    &mut self.active_markers,
+                );
+                pack.update_active_trails(
+                    link.identity.map_id,
+                    pack_index,
+                    &mut self.active_trails,
+                );
             }
             self.state.active_cats_changed = false;
         }
@@ -25,17 +29,14 @@ impl MarkerManager {
             self.ui(ui);
         });
         if self.state.show_cat_selection_window {
-            
             Window::new("category selection")
                 .scroll(true)
                 .default_height(300.0)
                 .default_width(400.0)
                 .show(&ctx, |ui| {
-                    for ( pack_index, pack) in self.packs.iter_mut().enumerate() {
-            
+                    for (_pack_index, pack) in self.packs.iter_mut().enumerate() {
                         let mut active_cats_changed = self.state.active_cats_changed;
-                        CollapsingHeader::new(pack.path.0)
-                        .show(ui, |ui| {
+                        CollapsingHeader::new(pack.path.0).show(ui, |ui| {
                             // let mut changed = false;
                             if let Some(ref mut cstree) = pack.cat_selection_tree {
                                 cstree.build_cat_selection_ui(
@@ -44,16 +45,11 @@ impl MarkerManager {
                                     &pack.global_cats,
                                 );
                             }
-                            
                         });
                         self.state.active_cats_changed = active_cats_changed;
-                       
                     }
-                   
                 });
         }
-         
-       
     }
 }
 impl Widget for &mut MarkerManager {
@@ -65,13 +61,14 @@ impl Widget for &mut MarkerManager {
         }
 
         ui.checkbox(&mut self.draw_markers, "draw markers");
-        ui.checkbox(&mut self.state.show_cat_selection_window, "category selection Window")
+        ui.checkbox(
+            &mut self.state.show_cat_selection_window,
+            "category selection Window",
+        )
         // ui.checkbox(
         //     &mut self.show_active_current_map_markers_window,
         //     "show active markers",
         // )
-
-       
     }
 }
 

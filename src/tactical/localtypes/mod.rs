@@ -3,20 +3,17 @@ pub mod files;
 pub mod manager;
 pub mod marker;
 pub mod trail;
-use crate::{fm::{FileManager, VID}, tactical::{localtypes::{category::{CatSelectionTree, IMCategory, MCIndexTree}, files::{MarkerFile}, marker::{MarkerTemplate, POI}, trail::Trail}, xmltypes::{
-            xml_category::{OverlayData, XMLMarkerCategory},
-            xml_marker::XMLPOI,
-            xml_trail::XMLTrail,
-        }}};
-use quick_xml::de::from_reader as xmlreader;
-use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    ffi::OsStr,
-    fs::read_dir,
-    io::BufReader,
-    path::PathBuf,
+use crate::{
+    fm::{FileManager, VID},
+    tactical::localtypes::{
+        category::{CatSelectionTree, IMCategory},
+        files::MarkerFile,
+        marker::POI,
+        trail::Trail,
+    },
 };
+
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 use vfs::VfsPath;
 
@@ -158,17 +155,12 @@ impl MarkerPack {
 // }
 
 pub fn icon_file_to_vid(icon_path: &str, pack_path: VID, fm: &FileManager) -> Option<VID> {
-        let pack_path = fm.get_path(pack_path).unwrap();
-        let ipath = pack_path.join(icon_path).unwrap();
-        if let Some(v) = fm.get_vid(&ipath) {
-            Some(v)
-        } else {
-            log::error!(
-                "{:?}, {:?}",
-                ipath,
-                pack_path,
-            );
-            None
-        }
-
+    let pack_path = fm.get_path(pack_path).unwrap();
+    let ipath = pack_path.join(icon_path).unwrap();
+    if let Some(v) = fm.get_vid(&ipath) {
+        Some(v)
+    } else {
+        log::error!("{:?}, {:?}", ipath, pack_path,);
+        None
+    }
 }

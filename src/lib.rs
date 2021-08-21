@@ -1,22 +1,28 @@
-use std::{path::{Path, PathBuf}, time::{Duration, Instant}};
+use std::{
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use egui::{CtxRef, Pos2, RawInput, Rect, Visuals};
 use glm::vec2;
 use glow::HasContext;
 use log::LevelFilter;
 use tokio::{runtime::Handle, sync::oneshot::channel};
-use vfs::{PhysicalFS, VfsPath};
+
 use window::glfw_window::GlfwWindow;
 
-use crate::{fm::FileManager, input::InputManager, mlink::MumbleManager, painter::Painter, tactical::localtypes::manager::MarkerManager};
+use crate::{
+    fm::FileManager, input::InputManager, mlink::MumbleManager, painter::Painter,
+    tactical::localtypes::manager::MarkerManager,
+};
 
+pub mod fm;
 pub mod gui;
 pub mod input;
 pub mod mlink;
 pub mod painter;
 pub mod tactical;
 pub mod window;
-pub mod fm;
 pub struct JokolayApp {
     pub ctx: CtxRef,
     pub input_manager: InputManager,
@@ -49,7 +55,6 @@ impl JokolayApp {
             }
             gl.enable(glow::MULTISAMPLE);
             gl.enable(glow::BLEND);
-
         }
         // we don't do much, but we can use this async handle to spawn tasks in future
         let (shutdown_tx, shutdown_rx) = channel::<u32>();
@@ -78,7 +83,7 @@ impl JokolayApp {
         ));
         input.pixels_per_point = Some(1.0);
         let mut visuals = Visuals::dark();
-        
+
         visuals.window_shadow.extrusion = 0.0;
         visuals.window_corner_radius = 0.0;
         ctx.set_visuals(visuals);
@@ -132,7 +137,7 @@ impl JokolayApp {
             fps += 1;
 
             self.mumble_manager.update();
-            
+
             self.input_manager
                 .process_events(&mut self.overlay_window, &mut self.state.input);
             gl_error!(gl);
@@ -142,11 +147,25 @@ impl JokolayApp {
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             }
             let meshes = self.tick();
-            self.painter.draw_egui(meshes,vec2(self.overlay_window.window_size.0 as f32, self.overlay_window.window_size.1 as f32), &self.file_manager);
+            self.painter.draw_egui(
+                meshes,
+                vec2(
+                    self.overlay_window.window_size.0 as f32,
+                    self.overlay_window.window_size.1 as f32,
+                ),
+                &self.file_manager,
+            );
             if self.marker_manager.draw_markers {
-                self.painter.draw_markers(&mut self.marker_manager, self.mumble_manager.get_link(), &self.file_manager);
-                self.painter.draw_trails(&mut self.marker_manager, self.mumble_manager.get_link(), &self.file_manager);
-                
+                self.painter.draw_markers(
+                    &mut self.marker_manager,
+                    self.mumble_manager.get_link(),
+                    &self.file_manager,
+                );
+                self.painter.draw_trails(
+                    &mut self.marker_manager,
+                    self.mumble_manager.get_link(),
+                    &self.file_manager,
+                );
             }
             // ending loop timer
             average_egui = (average_egui + et.elapsed()) / 2;

@@ -1,9 +1,5 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::tactical::localtypes::trail::TrailData;
 
 /**
 In order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
@@ -44,6 +40,4 @@ pub struct XMLTrail {
     pub fade_near: Option<u32>,
     #[serde(rename = "fadeFar")]
     pub fade_far: Option<u32>,
-  
 }
-

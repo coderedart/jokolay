@@ -2,7 +2,14 @@ use std::rc::Rc;
 
 use glow::NativeUniformLocation;
 
-use crate::painter::{marker_renderer::marker::MarkerVertex, opengl::{buffer::{Buffer, VertexBufferLayoutTrait}, shader::ShaderProgram, vertex_array::VertexArrayObject}};
+use crate::painter::{
+    marker_renderer::marker::MarkerVertex,
+    opengl::{
+        buffer::{Buffer, VertexBufferLayoutTrait},
+        shader::ShaderProgram,
+        vertex_array::VertexArrayObject,
+    },
+};
 pub mod marker;
 // use super::xmltypes::xml_marker::Marker;
 pub struct MarkerGl {
@@ -29,7 +36,6 @@ impl MarkerGl {
         let layout = MarkerVertex::get_layout();
         layout.set_layout(gl);
         marker_gl
-
     }
     pub fn bind(&self) {
         self.vao.bind();
@@ -45,4 +51,3 @@ impl MarkerGl {
 }
 pub const VERTEX_SHADER_SRC: &str = include_str!("shader.vs");
 pub const FRAG_SHADER_SRC: &str = include_str!("shader.fs");
-

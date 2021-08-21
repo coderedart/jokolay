@@ -24,7 +24,8 @@ impl JokolayApp {
             });
         };
         if self.state.show_marker_manager {
-            self.marker_manager.tick(ctx.clone(), &self.mumble_manager.link);
+            self.marker_manager
+                .tick(ctx.clone(), &self.mumble_manager.link);
         };
         let (egui_output, shapes) = ctx.end_frame();
 
@@ -37,10 +38,7 @@ impl JokolayApp {
 impl Widget for &mut JokolayApp {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.checkbox(&mut self.state.show_mumble_window, "show Mumble Setup");
-        ui.checkbox(
-            &mut self.state.show_marker_manager,
-            "show Marker Manager",
-        )
+        ui.checkbox(&mut self.state.show_marker_manager, "show Marker Manager")
     }
 }
 

@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use vfs::{PhysicalFS, VfsPath};
-use serde::{Serialize, Deserialize};
 
 /// File Manger to keep all the file/directory paths stored in one global place.
 #[derive(Debug, Clone)]
@@ -9,16 +9,14 @@ pub struct FileManager {
     pub markers: VfsPath,
     pub egui: VfsPath,
     pub paths: Vec<VfsPath>,
-
-
 }
 /// use VID to refer to these paths globally into the paths field of File Manager
-#[derive(Debug, Clone, Copy, Serialize, Default, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Default, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord,
+)]
 pub struct VID(pub usize);
 
 impl FileManager {
-
-
     pub fn new() -> Self {
         let current_fs = PhysicalFS::new(std::env::current_dir().unwrap());
         let current_path = VfsPath::new(current_fs);
@@ -41,9 +39,8 @@ impl FileManager {
             assets: assets_path,
             markers: markers_path,
             egui: egui_path,
-            paths
+            paths,
         }
-
     }
     pub fn get_vid(&self, path: &VfsPath) -> Option<VID> {
         self.paths.iter().position(|p| *p == *path).map(|p| VID(p))

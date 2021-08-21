@@ -4,7 +4,10 @@ use egui::{ClippedMesh, Rect};
 use glm::Vec2;
 use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
-use crate::{fm::FileManager, painter::opengl::{self, texture::TextureManager}};
+use crate::{
+    fm::FileManager,
+    painter::opengl::{self, texture::TextureManager},
+};
 
 use super::opengl::{buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject};
 
@@ -85,7 +88,6 @@ impl EguiGL {
         unsafe {
             self.gl.disable(glow::SCISSOR_TEST);
             self.gl.disable(glow::FRAMEBUFFER_SRGB);
-
         }
 
         Ok(())
@@ -96,7 +98,6 @@ impl EguiGL {
         screen_size: Vec2,
         tm: &mut TextureManager,
         fm: &FileManager,
-
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;

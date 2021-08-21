@@ -1,6 +1,5 @@
 use crate::painter::opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
-
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MarkerVertex {
     pub vpos: [f32; 4],
@@ -20,7 +19,7 @@ impl VertexBufferLayoutTrait for MarkerVertex {
 
 unsafe impl bytemuck::Zeroable for MarkerVertex {
     fn zeroed() -> Self {
-    unsafe { core::mem::zeroed() }
-  }
+        unsafe { core::mem::zeroed() }
+    }
 }
 unsafe impl bytemuck::Pod for MarkerVertex {}
