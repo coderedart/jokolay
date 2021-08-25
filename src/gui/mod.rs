@@ -12,21 +12,31 @@ impl JokolayApp {
         } else {
             self.overlay_window.set_passthrough(true);
         }
+        self.mumble_manager.update();
+
+        self.input_manager
+            .process_events(&mut self.overlay_window, &mut self.state.input);
 
         self.ctx.begin_frame(self.state.input.take());
+
         let ctx = self.ctx.clone();
         Window::new("Jokolay").show(&ctx, |ui| {
             self.ui(ui);
         });
-        if self.state.show_mumble_window {
-            Window::new("Mumble Info").scroll(true).show(&ctx, |ui| {
-                ui.label(format!("{:#?}", self.mumble_manager.link));
+        let mut show_mumble = self.state.show_mumble_window;
+        Window::new("Mumble Info")
+            .open(&mut show_mumble)
+            .scroll(true)
+            .show(&ctx, |ui| {
+                ui.label(format!("{:#?}", &self.mumble_manager.link));
             });
-        };
-        if self.state.show_marker_manager {
-            self.marker_manager
-                .tick(ctx.clone(), &self.mumble_manager.link);
-        };
+        self.state.show_mumble_window = show_mumble;
+
+        self.marker_manager.tick(
+            ctx.clone(),
+            &self.mumble_manager.link,
+            &mut self.state.show_marker_manager,
+        );
         let (egui_output, shapes) = ctx.end_frame();
 
         if !egui_output.events.is_empty() {

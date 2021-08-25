@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use crate::tactical::xmltypes::xml_route::XMLRoute;
+
 use super::{xml_category::XMLMarkerCategory, xml_trail::XMLTrail};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -16,9 +18,10 @@ pub struct XMLPOI {
     #[serde(rename = "MapID")]
     pub map_id: u32,
     /// base64 encoded string of a UUID version 4 variant b, optional. This is a unique identifier for the marker used in tracking activation of markers through the activationdata.xml file. If this doesn't exist for a marker, one will be generated automatically and added on the next export.
+    #[serde(default)]
     #[serde(deserialize_with = "check_base64_uuid")]
     #[serde(rename = "GUID")]
-    pub guid: Uuid,
+    pub guid: Option<Uuid>,
     #[serde(rename = "mapDisplaySize")]
     pub map_display_size: Option<u32>,
     /// The icon to be displayed for the marker. If not given, this defaults to the image shown at the start of this article. This should point to a .png file. The overlay looks for the image files both starting from the root directory and the POIs directory for convenience. Make sure you don't use too high resolution (above 128x128) images because the texture atlas used for these is limited in size and it's a needless waste of resources to fill it quickly.
@@ -36,10 +39,10 @@ pub struct XMLPOI {
     pub height_offset: Option<f32>,
     /// Determines how far the marker will start to fade out. If below 0, the marker won't disappear at any distance. Default is -1. This value is in game units (inches).
     #[serde(rename = "fadeNear")]
-    pub fade_near: Option<u32>,
+    pub fade_near: Option<i32>,
     /// Determines how far the marker will completely disappear. If below 0, the marker won't disappear at any distance. Default is -1. FadeFar needs to be higher than fadeNear for sane results. This value is in game units (inches).
     #[serde(rename = "fadeFar")]
-    pub fade_far: Option<u32>,
+    pub fade_far: Option<i32>,
     /// Determines the minimum size of a marker on the screen, in pixels.
     #[serde(rename = "minSize")]
     pub min_size: Option<u32>,
@@ -105,10 +108,16 @@ pub enum Behavior {
 /// POIS tag under OverlayData which contains the array of tags POI/Trail
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct POIs {
-    #[serde(rename = "POI")]
-    pub poi: Option<Vec<XMLPOI>>,
-    #[serde(rename = "Trail")]
-    pub trail: Option<Vec<XMLTrail>>,
+    #[serde(rename = "$value")]
+    pub tags: Option<Vec<PoiOrTrail>>,
+   
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+pub enum PoiOrTrail {
+    POI(XMLPOI),
+    Trail(XMLTrail),
+    Route(XMLRoute)
 }
 
 impl XMLPOI {
@@ -202,7 +211,7 @@ pub mod color {
     }
 }
 /// serde function to convert taco's GUID which is base64 encoded, back to a Uuid for space efficient and easier working with Uuid Crate instead of using the slower strings comparision
-pub fn check_base64_uuid<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
+pub fn check_base64_uuid<'de, D>(deserializer: D) -> Result<Option<Uuid>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -217,7 +226,7 @@ where
                 );
                 e
             })
-            .unwrap_or(Uuid::new_v4()))
+            .ok())
     } else {
         Ok(Uuid::from_str(&id)
             .map_err(|e| {
@@ -227,6 +236,6 @@ where
                 );
                 e
             })
-            .unwrap_or(Uuid::new_v4()))
+            .ok())
     }
 }

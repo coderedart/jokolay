@@ -6,11 +6,12 @@ use crate::{
             marker::{MarkerTemplate, POI},
             trail::Trail,
         },
-        xmltypes::xml_category::OverlayData,
+        xmltypes::{xml_category::OverlayData, xml_marker::XMLPOI, xml_trail::XMLTrail},
     },
 };
+use quick_xml::de::Deserializer;
 use quick_xml::de::from_reader as xmlreader;
-
+// use serde_xml_rs::de::from_reader as xmlreader;
 use std::{collections::HashMap, io::BufReader};
 use uuid::Uuid;
 use vfs::VfsPath;
@@ -64,8 +65,8 @@ impl MarkerFile {
         fm: &FileManager,
         file_path: VfsPath,
         global_cats: &mut Vec<IMCategory>,
-        global_pois: &mut HashMap<Uuid, POI>,
-        global_trails: &mut HashMap<Uuid, Trail>,
+        global_pois: &mut HashMap<Uuid, XMLPOI>,
+        global_trails: &mut HashMap<Uuid, XMLTrail>,
         name_id_map: &mut HashMap<String, usize>,
         mfiles: &mut Vec<MarkerFile>,
         cstree: &mut Vec<CatSelectionTree>,
@@ -82,14 +83,15 @@ impl MarkerFile {
             })
             .unwrap();
         let marker_file_reader = BufReader::new(xml_file);
-
-        let od: OverlayData = match xmlreader(marker_file_reader) {
+        let  de = &mut Deserializer::from_reader(marker_file_reader);
+        let od: OverlayData = match serde_path_to_error::deserialize(de) {
             Ok(od) => od,
             Err(e) => {
                 log::error!(
-                    "failed to deserialize file {:?} due to error {:?}\n",
+                    "failed to deserialize file {:?} at {} due to error: {}\n",
                     file_path.as_str(),
-                    e
+                    e.path().to_string(),
+                    e.into_inner()
                 );
                 return;
             }
@@ -110,13 +112,52 @@ impl MarkerFile {
         }
         let mut uuid_poi_vec = Vec::new();
         let mut uuid_trail_vec = Vec::new();
-        if let Some(p) = od.pois {
-            if let Some(vp) = p.poi {
-                uuid_poi_vec = POI::get_vec_uuid_pois(vp, global_pois, pack_path, global_cats, fm);
+
+        if let Some(pois) = od.pois {
+            // seperate poi and trail tags
+            let mut poi_vec: Option<Vec<XMLPOI>> = None;
+            let mut trail_vec: Option<Vec<XMLTrail>> = None;
+            if let Some(tags) = pois.tags {
+                for tag in tags {
+                    match tag {
+                        crate::tactical::xmltypes::xml_marker::PoiOrTrail::POI(p) => {
+                            match poi_vec {
+                                Some(ref mut v) => v.push(p),
+                                None => poi_vec = Some(vec![p]),
+                            }
+                        }
+                        crate::tactical::xmltypes::xml_marker::PoiOrTrail::Trail(t) => {
+                            match trail_vec {
+                                Some(ref mut v) => v.push(t),
+                                None => trail_vec = Some(vec![t]),
+                            }
+                        }
+                        crate::tactical::xmltypes::xml_marker::PoiOrTrail::Route(_) => {},
+                        
+                    }
+                }
             }
-            if let Some(vt) = p.trail {
-                uuid_trail_vec =
-                    Trail::get_vec_uuid_trail(vt, global_trails, pack_path, global_cats, fm);
+            if let Some(vp) = poi_vec {
+                uuid_poi_vec = vp.into_iter().map(|mut p| {
+                    let id = p.guid.unwrap_or(Uuid::new_v4());
+                    p.guid = Some(id);
+                    if let Some(_) = global_pois.insert(id, p) {
+                        log::error!("two markers have the same guid: {} ", &id);
+                    }
+                    id
+                    
+                }).collect();
+            }
+            if let Some(vt) = trail_vec {
+                uuid_trail_vec = vt.into_iter().map(|mut t| {
+                    let id = t.guid.unwrap_or(Uuid::new_v4());
+                    t.guid = Some(id);
+                    if let Some(_) = global_trails.insert(id, t) {
+                        log::error!("two trails have the same guid: {} ", &id);
+                    }
+                    id
+                    
+                }).collect();
             }
         }
         CatSelectionTree::build_cat_selection_tree(&mc_index_tree, cstree);

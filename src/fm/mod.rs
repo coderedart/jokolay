@@ -26,9 +26,11 @@ impl FileManager {
         let markers_path = assets_path.join(MARKER_PACK_FOLDER).unwrap();
         assert!(markers_path.exists().unwrap());
         let egui_path = assets_path.join(EGUI_TEXTURE_PATH).unwrap();
+        let trail_path = assets_path.join(TRAIL_TEXTURE_PATH).unwrap();
         // assert!(egui_path.exists().unwrap());
         let mut paths = vec![];
         paths.push(egui_path.clone());
+        paths.push(trail_path);
         for f in assets_path.walk_dir().unwrap() {
             let f = f.unwrap();
             paths.push(f);
@@ -53,3 +55,4 @@ impl FileManager {
 const JOKO_ASSET_FOLDER: &str = "assets";
 const MARKER_PACK_FOLDER: &str = "packs";
 const EGUI_TEXTURE_PATH: &str = "egui";
+const TRAIL_TEXTURE_PATH: &str = "trail";

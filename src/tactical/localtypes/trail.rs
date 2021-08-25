@@ -57,7 +57,7 @@ pub struct Trail {
     pub texture: Option<VID>,
     pub anim_speed: Option<f32>,
     pub trail_scale: Option<f32>,
-    pub color: Option<u32>,
+    pub color: Option<[u8; 4]>,
     pub alpha: Option<f32>,
     pub fade_near: Option<u32>,
     pub fade_far: Option<u32>,
@@ -111,9 +111,9 @@ impl Trail {
             v
         } else {
             log::error!(
-                "{:?}, {:?}, {:?}, {:?}, {:?}",
-                tpath,
-                pack_path,
+                "cannot find trail data file. trail path: {}, pack_path: {}, trail_guid:{:?}, traildata tag: {}, trail category: {}",
+                tpath.as_str(),
+                pack_path.as_str(),
                 trail.guid,
                 &trail.trail_data_file,
                 &trail.category
@@ -123,7 +123,7 @@ impl Trail {
         let tdata = TrailData::parse_from_file(trail_data_file, fm).unwrap();
         Some(Trail {
             category,
-            guid: trail.guid,
+            guid: trail.guid.unwrap(),
             trail_data_file,
             texture: icon_vid,
             anim_speed: trail.anim_speed,
@@ -145,7 +145,7 @@ impl Trail {
     ) -> Vec<Uuid> {
         let mut result = Vec::new();
         for xt in trails {
-            let id = xt.guid;
+            let id = xt.guid.unwrap();
             if let Some(t) = Trail::from_xml_trail(pack_path, &xt, global_cats, fm) {
                 all_trails.entry(id).or_insert(t);
                 result.push(id);

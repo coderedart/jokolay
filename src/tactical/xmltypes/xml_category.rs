@@ -29,9 +29,9 @@ pub struct XMLMarkerCategory {
     #[serde(rename = "heightOffset")]
     pub height_offset: Option<f32>,
     #[serde(rename = "fadeNear")]
-    pub fade_near: Option<u32>,
+    pub fade_near: Option<i32>,
     #[serde(rename = "fadeFar")]
-    pub fade_far: Option<u32>,
+    pub fade_far: Option<i32>,
     #[serde(rename = "minSize")]
     pub min_size: Option<u32>,
     #[serde(rename = "maxSize")]

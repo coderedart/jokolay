@@ -8,43 +8,30 @@ edition = "2018"
 keywords = ["GuildWars2", "GW2", "Overlay"]
 
 [dependencies]
-bytemuck = "1.5.1"
-glow = {version = "0.10.0", git = "https://github.com/coderedart/glow.git"}
-jokoapi = "0.1.1"
+glfw = { version = "0.41.0", git = "https://github.com/coderedart/glfw-rs.git" }
+glow = { version = "0.10.0", git = "https://github.com/coderedart/glow.git" }
 jokolink = "0.2.0"
-num-derive = "0.3.3"
-num-traits = "0.2.14"
-serde = {version = "1.0.126", features = ["derive"]}
+vfs = "0.5.1"
+quick-xml = { version = "0.22.0", features = ["serialize"] }
+#serde-xml-rs = "0.5.0"
+serde = { version = "1.0.126", features = ["derive"] }
+serde_path_to_error = "0.1.4"
 serde_derive = "1.0.126"
 serde_repr = "0.1.7"
-quick-xml = { version = "0.22.0", features = ["serialize"]}
-#serde-xml-rs = "0.4.1"
-glm = {version="0.15.0", package="nalgebra-glm"}
-image = "0.23.14"
-anyhow = "1.0.41"
-egui = "0.13.0"
+hex = { version = "0.4.3", features = ["serde"] }
+base64 = "0.13.0"
+uuid = { version = "0.8", features = ["serde", "v4"] }
+num-derive = "0.3.3"
+num-traits = "0.2.14"
+bytemuck = "1.5.1"
+egui = "0.14.0"
+glm = { version = "0.15.0", package = "nalgebra-glm" }
+image = { version = "0.23.14", default-features = false, features = ["png"] }
 device_query = "0.2.8"
-copypasta = "0.7.1"
-parking_lot = "0.11.1"
+#copypasta = "0.7.1"
 log = "0.4.14"
 simplelog = "0.10.0"
-tokio = {version = "1.8.1", features = ["full"]}
-rayon = "1.5.1"
-hex = {version="0.4.3", features = ["serde"]}
-uuid = { version = "0.8", features = ["serde", "v4"] }
-base64 = "0.13.0"
 fastrand = "1.5.0"
-zip = "0.5.13"
-vfs = "0.5.1"
-#guillotiere = "0.6.1"
-#glfw = "0.41.0"
-
-[dependencies.glfw]
-version = "0.41.0"
-git = "https://github.com/coderedart/glfw-rs.git"
+anyhow = "1.0.41"
 
 #[patch.crates-io]
-#glfw = {git = "https://github.com/coderedart/glfw-rs.git" }
-
-#[target.'cfg(windows)'.dependencies]
-#jokolink = "0.1.23"

@@ -1,6 +1,6 @@
 use std::sync::mpsc::Receiver;
 
-use copypasta::ClipboardProvider;
+// use copypasta::ClipboardProvider;
 use device_query::{DeviceState, Keycode};
 use egui::Pos2;
 use egui::{Event, Key, RawInput, Rect};
@@ -21,7 +21,7 @@ pub struct InputManager {
     pub dq: DeviceState,
     pub mouse_buttons: [bool; 3],
     pub keys_pressed: BTreeSet<Key>,
-    pub clipboard: copypasta::ClipboardContext,
+    // pub clipboard: copypasta::ClipboardContext,
 }
 
 impl InputManager {
@@ -137,7 +137,7 @@ impl InputManager {
         Self {
             events,
             glfw,
-            clipboard: copypasta::ClipboardContext::new().unwrap(),
+            // clipboard: copypasta::ClipboardContext::new().unwrap(),
             global_mouse_position: Default::default(),
             dq: Default::default(),
             mouse_buttons: Default::default(),
@@ -231,9 +231,9 @@ impl InputManager {
             }
             // paste
             if keys.contains(&Keycode::V) {
-                events.push(Event::Text(
-                    input_state.clipboard.get_contents().unwrap_or_default(),
-                ));
+                // events.push(Event::Text(
+                //     input_state.clipboard.get_contents().unwrap_or_default(),
+                // ));
             }
         }
         if keys.contains(&Keycode::LShift) | keys.contains(&Keycode::RShift) {

@@ -5,11 +5,14 @@ pub mod marker;
 pub mod trail;
 use crate::{
     fm::{FileManager, VID},
-    tactical::localtypes::{
-        category::{CatSelectionTree, IMCategory},
-        files::MarkerFile,
-        marker::POI,
-        trail::Trail,
+    tactical::{
+        localtypes::{
+            category::{CatSelectionTree, IMCategory},
+            files::MarkerFile,
+            marker::POI,
+            trail::Trail,
+        },
+        xmltypes::{xml_marker::XMLPOI, xml_trail::XMLTrail},
     },
 };
 
@@ -48,6 +51,8 @@ impl MarkerPack {
         let mut cstree = vec![];
 
         let vid = fm.get_vid(&folder_location).unwrap();
+        let mut raw_global_pois: HashMap<Uuid, XMLPOI> = HashMap::new();
+        let mut raw_global_trails: HashMap<Uuid, XMLTrail> = HashMap::new();
         for f in folder_location
             .read_dir()
             .map_err(|e| {
@@ -69,8 +74,8 @@ impl MarkerPack {
                     fm,
                     entry,
                     &mut global_cats,
-                    &mut global_pois,
-                    &mut global_trails,
+                    &mut raw_global_pois,
+                    &mut raw_global_trails,
                     &mut name_id_map,
                     &mut mfiles,
                     &mut cstree,
@@ -79,9 +84,30 @@ impl MarkerPack {
         }
 
         // insert uuids of markers and trails into global_cats so we can keep track of which markers to draw based on enabled categories.
+        let raw_global_pois_vec: Vec<XMLPOI> =
+            raw_global_pois.into_iter().map(|(_, v)| v).collect();
+        POI::get_vec_uuid_pois(
+            raw_global_pois_vec,
+            &mut global_pois,
+            vid,
+            &mut global_cats,
+            fm,
+        );
+
         global_pois.values().for_each(|p| {
             p.register_category(&mut global_cats);
         });
+
+        let raw_global_trails_vec: Vec<XMLTrail> =
+            raw_global_trails.into_iter().map(|(_, v)| v).collect();
+        Trail::get_vec_uuid_trail(
+            raw_global_trails_vec,
+            &mut global_trails,
+            vid,
+            &mut global_cats,
+            fm,
+        );
+
         global_trails.values().for_each(|t| {
             t.register_category(&mut global_cats);
         });
@@ -139,6 +165,8 @@ impl MarkerPack {
                     if t.tdata.map_id == mapid {
                         active_trails.insert((pack_index, c.0, *id));
                     }
+                } else {
+                    log::error!("could not find trail with Uuid: {}", id);
                 }
             }
         }
@@ -160,7 +188,11 @@ pub fn icon_file_to_vid(icon_path: &str, pack_path: VID, fm: &FileManager) -> Op
     if let Some(v) = fm.get_vid(&ipath) {
         Some(v)
     } else {
-        log::error!("{:?}, {:?}", ipath, pack_path,);
+        log::error!(
+            "icon_file not found. icon path: {}, marker pack path: {}",
+            ipath.as_str(),
+            pack_path.as_str(),
+        );
         None
     }
 }

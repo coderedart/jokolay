@@ -9,6 +9,7 @@ pub struct GlfwWindow {
     pub gl: Rc<glow::Context>,
     pub window: Window,
     pub window_pos: (i32, i32),
+    /// size of viewport in pixels
     pub window_size: (i32, i32),
     pub passthrough: bool,
 }

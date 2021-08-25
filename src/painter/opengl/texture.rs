@@ -288,7 +288,7 @@ impl TextureManager {
             }
         }
     }
-
+    const trail_texture: &'static [u8] = include_bytes!("../../../assets/trail.png");
     /// creates a new texture manager and automatically uploads egui font texture with the argument and VID(0) which is "egui"
     pub fn new(gl: Rc<Context>, t: Arc<egui::Texture>) -> Self {
         let mut arr = Vec::new();
@@ -312,6 +312,15 @@ impl TextureManager {
         let (x, y, z) = arr[slot].add_image(&pixels, t.width as u32, t.height as u32);
         let mut live_images = HashMap::new();
         live_images.insert(VID(0), (slot as u32, x, y, z));
+
+        // upload trail texture
+        let tt = image::load_from_memory(Self::trail_texture).unwrap();
+        
+        let tt = tt.flipv();
+        let slot = Self::get_slot(tt.width(), tt.height());
+        arr[slot].bind();
+        let (x, y, z) = arr[slot].add_image(tt.as_bytes(), tt.width(), tt.height());
+        live_images.insert(VID(1), (slot as u32, x, y, z));
 
         TextureManager {
             array_tex: arr,

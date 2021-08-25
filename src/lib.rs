@@ -7,8 +7,8 @@ use egui::{CtxRef, Pos2, RawInput, Rect, Visuals};
 use glm::vec2;
 use glow::HasContext;
 use log::LevelFilter;
-use tokio::{runtime::Handle, sync::oneshot::channel};
 
+use uuid::Uuid;
 use window::glfw_window::GlfwWindow;
 
 use crate::{
@@ -26,14 +26,12 @@ pub mod window;
 pub struct JokolayApp {
     pub ctx: CtxRef,
     pub input_manager: InputManager,
-    pub handle: Handle,
     pub mumble_manager: MumbleManager,
     pub marker_manager: MarkerManager,
     pub file_manager: FileManager,
     pub painter: Painter,
     pub overlay_window: GlfwWindow,
     state: EState,
-    shutdown_tx: tokio::sync::oneshot::Sender<u32>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -56,20 +54,7 @@ impl JokolayApp {
             gl.enable(glow::MULTISAMPLE);
             gl.enable(glow::BLEND);
         }
-        // we don't do much, but we can use this async handle to spawn tasks in future
-        let (shutdown_tx, shutdown_rx) = channel::<u32>();
-        let (handle_tx, handle_rx) = std::sync::mpsc::channel();
-
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-
-            let hndl = rt.handle();
-            handle_tx.send(hndl.clone()).unwrap();
-            rt.block_on(async {
-                shutdown_rx.await.unwrap();
-            })
-        });
-        let handle = handle_rx.recv().unwrap();
+  
         let input_manager = InputManager::new(events, glfw);
         let mumble_manager = MumbleManager::new("MumbleLink").unwrap();
         // start setting up egui initial state
@@ -108,9 +93,7 @@ impl JokolayApp {
             marker_manager,
             file_manager,
             painter,
-            handle,
             state,
-            shutdown_tx,
         })
     }
 
@@ -136,10 +119,7 @@ impl JokolayApp {
             }
             fps += 1;
 
-            self.mumble_manager.update();
-
-            self.input_manager
-                .process_events(&mut self.overlay_window, &mut self.state.input);
+            
             gl_error!(gl);
             unsafe {
                 gl.disable(glow::SCISSOR_TEST);
@@ -147,6 +127,24 @@ impl JokolayApp {
                 gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
             }
             let meshes = self.tick();
+            // ending loop timer
+            average_egui = (average_egui + et.elapsed()) / 2;
+            // start draw call timer
+            let dt = Instant::now();
+            
+            if self.marker_manager.draw_markers {
+                self.painter.draw_markers(
+                    &mut self.marker_manager,
+                    self.mumble_manager.get_link(),
+                    &self.file_manager,
+                    &self.overlay_window
+                );
+                self.painter.draw_trails(
+                    &mut self.marker_manager,
+                    self.mumble_manager.get_link(),
+                    &self.file_manager,
+                );
+            }
             self.painter.draw_egui(
                 meshes,
                 vec2(
@@ -155,26 +153,10 @@ impl JokolayApp {
                 ),
                 &self.file_manager,
             );
-            if self.marker_manager.draw_markers {
-                self.painter.draw_markers(
-                    &mut self.marker_manager,
-                    self.mumble_manager.get_link(),
-                    &self.file_manager,
-                );
-                self.painter.draw_trails(
-                    &mut self.marker_manager,
-                    self.mumble_manager.get_link(),
-                    &self.file_manager,
-                );
-            }
-            // ending loop timer
-            average_egui = (average_egui + et.elapsed()) / 2;
-            // start draw call timer
-            let dt = Instant::now();
-            self.overlay_window.redraw_request();
             average_draw_call = (average_draw_call + dt.elapsed()) / 2;
+
+            self.overlay_window.redraw_request();
         }
-        self.shutdown_tx.send(0).unwrap();
         Ok(())
     }
 }
@@ -187,11 +169,12 @@ pub fn log_init(
 ) -> anyhow::Result<()> {
     use simplelog::*;
     use std::fs::File;
+    let config = ConfigBuilder::new().set_location_level(LevelFilter::Error).build();
 
     CombinedLogger::init(vec![
         TermLogger::new(
             term_filter,
-            Config::default(),
+            config,
             TerminalMode::Mixed,
             ColorChoice::Auto,
         ),

@@ -10,6 +10,7 @@ use crate::{
         },
     },
 };
+use glm::Vec3;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -33,9 +34,9 @@ pub struct POI {
     /// it describes the way the marker will behave when a player presses 'F' over it.
     pub behavior: Option<Behavior>,
     /// Determines how far the marker will start to fade out. If below 0, the marker won't disappear at any distance. Default is -1. This value is in game units (inches).
-    pub fade_near: Option<u32>,
+    pub fade_near: Option<i32>,
     /// Determines how far the marker will completely disappear. If below 0, the marker won't disappear at any distance. Default is -1. FadeFar needs to be higher than fadeNear for sane results. This value is in game units (inches).
-    pub fade_far: Option<u32>,
+    pub fade_far: Option<i32>,
     /// Determines the minimum size of a marker on the screen, in pixels.
     pub min_size: Option<u32>,
     /// Determines the maximum size of a marker on the screen, in pixels.
@@ -69,20 +70,25 @@ impl POI {
         global_cats: &Vec<IMCategory>,
         fm: &FileManager,
     ) -> Option<POI> {
-        let pos = [poi.xpos, poi.ypos, poi.zpos];
+        let pos = [
+            poi.xpos,
+            poi.ypos + poi.height_offset.unwrap_or(Self::HEIGHT_OFFSET),
+            poi.zpos,
+        ];
         let category = global_cats
             .iter()
-            .position(|c| c.full_name == poi.category)?;
+            .position(|c| c.full_name == poi.category)
+            .or_else(|| {log::error!("while creating POI from XMLPOI, could not find category: {}, on poi with guid: {:?}", poi.category, poi.guid); None})?;
         let category = CategoryIndex(category);
         let icon_path = poi.icon_file.clone();
         let icon_vid = if let Some(ipath) = icon_path {
-            let pack_path = fm.get_path(pack_path).unwrap();
-            let ipath = pack_path.join(&ipath).unwrap();
-            if let Some(v) = fm.get_vid(&ipath) {
-                Some(v)
-            } else {
+            let icon_vfs_path = fm.get_path(pack_path).map(|ip| ip.join(&ipath).map_err(|e| {
+                log::error!("iconPath could not be parsed. base_path: {:?}. path: {}. poi_guid: {:?}. error: {:?} ", &ip, &ipath, poi.guid, &e);
+                e
+            }))?.ok()?;
+            let v = fm.get_vid(&icon_vfs_path).or_else(|| {
                 log::error!(
-                    "{:?}, {:?}, {:?}, {:?}, {:?}",
+                    "while creating POI from XMLPOI, could not find iconfile path: {:?}, {:?}, {:?}, {:?}, {:?}",
                     ipath,
                     pack_path,
                     poi.guid,
@@ -90,7 +96,8 @@ impl POI {
                     &poi.category
                 );
                 None
-            }
+            })?;
+            Some(v)
         } else {
             None
         };
@@ -98,7 +105,7 @@ impl POI {
         Some(POI {
             pos,
             map_id: poi.map_id,
-            guid: poi.guid,
+            guid: poi.guid.unwrap(),
             map_display_size: poi.map_display_size,
             icon_file: icon_vid,
             icon_size: poi.icon_size,
@@ -122,6 +129,40 @@ impl POI {
             category,
         })
     }
+
+    /// calculates the alpha based on its own, inherited from cat template and finally default values of attributes alpha, fade_near and fade_far
+    /// Note: fade_near and fade_far are in inches.
+    pub fn calculate_alpha(&self, cat: &IMCategory, distance: f32) -> f32 {
+        let fade_near = self
+            .fade_near
+            .unwrap_or_else(|| cat.inherited_template.fade_near.unwrap_or(Self::FADE_NEAR));
+        let fade_far = self
+            .fade_far
+            .unwrap_or_else(|| cat.inherited_template.fade_far.unwrap_or(Self::FADE_FAR));
+        let alpha = self
+            .alpha
+            .unwrap_or_else(|| cat.inherited_template.alpha.unwrap_or(Self::ALPHA));
+        if fade_near < 0 || fade_far < 0 {
+            return alpha;
+        }
+        // convert fade_near and fade_far to metres
+        let fade_near = fade_near as f32 / 39.3701;
+        let fade_far = fade_far as f32 / 39.3701;
+        if distance < fade_near {
+            return alpha;
+        }
+        if distance > fade_far {
+            return 0.0;
+        }
+        let fade = 1.0 - (distance - fade_near) / (fade_far - fade_near);
+        // mix the alphas from fade and original alpha value
+        return fade * alpha;
+    }
+    const FADE_NEAR: i32 = -1;
+    const FADE_FAR: i32 = -1;
+    const ICON_SIZE: f32 = 1.0;
+    const ALPHA: f32 = 1.0;
+    const HEIGHT_OFFSET: f32 = 1.5;
 }
 /// the struct we use for inheritance from category/other markers.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -132,8 +173,8 @@ pub struct MarkerTemplate {
     pub alpha: Option<f32>,
     pub behavior: Option<Behavior>,
     pub height_offset: Option<f32>,
-    pub fade_near: Option<u32>,
-    pub fade_far: Option<u32>,
+    pub fade_near: Option<i32>,
+    pub fade_far: Option<i32>,
     pub min_size: Option<u32>,
     pub max_size: Option<u32>,
     pub reset_length: Option<u32>,
@@ -310,7 +351,7 @@ impl POI {
     ) -> Vec<Uuid> {
         let mut uuid_vec = Vec::new();
         for xp in pvec {
-            let id = xp.guid;
+            let id = xp.guid.unwrap();
             if let Some(p) = POI::from_xmlpoi(pack_path, &xp, &global_cats, fm) {
                 all_pois.entry(id).or_insert(p);
                 uuid_vec.push(id);

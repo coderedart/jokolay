@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
 /**
 In order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
 Trails are described by the <Trail> tag and uses the same category system as the markers.
@@ -24,9 +23,10 @@ There's also a trailScale tag that is a float value that modifies how stretched 
 pub struct XMLTrail {
     #[serde(rename = "type")]
     pub category: String,
+    #[serde(default)]
     #[serde(deserialize_with = "super::xml_marker::check_base64_uuid")]
     #[serde(rename = "GUID")]
-    pub guid: Uuid,
+    pub guid: Option<Uuid>,
     #[serde(rename = "trailData")]
     pub trail_data_file: String,
     pub texture: Option<String>,
@@ -34,7 +34,10 @@ pub struct XMLTrail {
     pub anim_speed: Option<f32>,
     #[serde(rename = "trailScale")]
     pub trail_scale: Option<f32>,
-    pub color: Option<u32>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(with = "super::xml_marker::color")]
+    pub color: Option<[u8; 4]>,
     pub alpha: Option<f32>,
     #[serde(rename = "fadeFar")]
     pub fade_near: Option<u32>,
