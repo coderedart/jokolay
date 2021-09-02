@@ -1,16 +1,13 @@
-use crate::{
-    fm::{FileManager, VID},
-    tactical::{
+use crate::{core::fm::{FileManager, RID}, tactical::{
         localtypes::{
             category::{CatSelectionTree, IMCategory, MCIndexTree},
             marker::{MarkerTemplate, POI},
             trail::Trail,
         },
         xmltypes::{xml_category::OverlayData, xml_marker::XMLPOI, xml_trail::XMLTrail},
-    },
-};
+    }};
 use quick_xml::de::Deserializer;
-use quick_xml::de::from_reader as xmlreader;
+// use quick_xml::de::from_reader as xmlreader;
 // use serde_xml_rs::de::from_reader as xmlreader;
 use std::{collections::HashMap, io::BufReader};
 use uuid::Uuid;
@@ -22,7 +19,7 @@ use vfs::VfsPath;
 /// the primary struct to use as it will remember the path of the file and overwrite it with the changes when necessary.
 #[derive(Debug, Clone)]
 pub struct MarkerFile {
-    pub path: VID,
+    pub path: RID,
     pub mc_index_tree: Option<MCIndexTree>,
     pub poi_vec: Vec<Uuid>,
     pub trl_vec: Vec<Uuid>,
@@ -61,7 +58,7 @@ pub struct MarkerFile {
 
 impl MarkerFile {
     pub fn parse_marker_file(
-        pack_path: VID,
+        pack_path: RID,
         fm: &FileManager,
         file_path: VfsPath,
         global_cats: &mut Vec<IMCategory>,

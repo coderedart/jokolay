@@ -1,10 +1,7 @@
-use crate::{
-    fm::{FileManager, VID},
-    tactical::{
+use crate::{core::fm::{FileManager, RID}, tactical::{
         localtypes::{icon_file_to_vid, marker::MarkerTemplate},
         xmltypes::xml_category::XMLMarkerCategory,
-    },
-};
+    }};
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -91,7 +88,7 @@ pub struct CategoryIndex(pub usize);
 
 impl MCIndexTree {
     pub fn index_tree_from_mc_tree(
-        pack_path: VID,
+        pack_path: RID,
         fm: &FileManager,
         mctree: Vec<XMLMarkerCategory>,
         index_tree: &mut Vec<MCIndexTree>,

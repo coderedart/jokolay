@@ -8,8 +8,10 @@ edition = "2018"
 keywords = ["GuildWars2", "GW2", "Overlay"]
 
 [dependencies]
-glfw = { version = "0.41.0", git = "https://github.com/coderedart/glfw-rs.git" }
-glow = { version = "0.10.0", git = "https://github.com/coderedart/glow.git" }
+#glfw = { version = "0.41.0", git = "https://github.com/coderedart/glfw-rs.git" }
+#glow = { version = "0.10.0", git = "https://github.com/coderedart/glow.git" }
+glfw = {version =  "*", path = "../glfw-rs"}
+glow = {version =  "*", path = "../glow"}
 jokolink = "0.2.0"
 vfs = "0.5.1"
 quick-xml = { version = "0.22.0", features = ["serialize"] }
@@ -33,5 +35,14 @@ log = "0.4.14"
 simplelog = "0.10.0"
 fastrand = "1.5.0"
 anyhow = "1.0.41"
+rayon = "1.5.1"
+bus = "2.2.3"
+guillotiere = "0.6.2"
 
+[target.'cfg(target_os = "unix")'.dependencies]
+x11rb = {version =  "0.8.1", features = ["all-extensions"]}
+raw-window-handle = "0.3.3"
 #[patch.crates-io]
+
+[profile.release]
+incremental = true

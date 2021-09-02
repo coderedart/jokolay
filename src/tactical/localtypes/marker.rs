@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 
-use crate::{
-    fm::{FileManager, VID},
-    tactical::{
+use crate::{core::fm::{FileManager, RID}, tactical::{
         localtypes::{category::CategoryIndex, IMCategory},
         xmltypes::{
             xml_category::XMLMarkerCategory,
             xml_marker::{Behavior, XMLPOI},
         },
-    },
-};
+    }};
 use glm::Vec3;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -26,7 +23,7 @@ pub struct POI {
     /// size on minimap/map
     pub map_display_size: Option<u32>,
     /// index of icon_file to use as texture for this marker
-    pub icon_file: Option<VID>,
+    pub icon_file: Option<RID>,
     /// The size of the icon in the game world. Default is 1.0 if this is not defined. Note that the "screen edges herd icons" option will limit the size of the displayed images for technical reasons.
     pub icon_size: Option<f32>,
     /// How opaque the displayed icon should be. The default is 1.0
@@ -65,7 +62,7 @@ pub struct POI {
 }
 impl POI {
     pub fn from_xmlpoi(
-        pack_path: VID,
+        pack_path: RID,
         poi: &XMLPOI,
         global_cats: &Vec<IMCategory>,
         fm: &FileManager,
@@ -168,7 +165,7 @@ impl POI {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MarkerTemplate {
     pub map_display_size: Option<u32>,
-    pub icon_file: Option<VID>,
+    pub icon_file: Option<RID>,
     pub icon_size: Option<f32>,
     pub alpha: Option<f32>,
     pub behavior: Option<Behavior>,
@@ -194,7 +191,7 @@ impl MarkerTemplate {
     pub fn inherit_from_marker_category(
         &mut self,
         other: &XMLMarkerCategory,
-        icon_file: Option<VID>,
+        icon_file: Option<RID>,
     ) {
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;
@@ -345,7 +342,7 @@ impl POI {
     pub fn get_vec_uuid_pois(
         pvec: Vec<XMLPOI>,
         all_pois: &mut HashMap<Uuid, POI>,
-        pack_path: VID,
+        pack_path: RID,
         global_cats: &mut Vec<IMCategory>,
         fm: &FileManager,
     ) -> Vec<Uuid> {

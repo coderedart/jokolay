@@ -2,12 +2,12 @@ use std::collections::HashSet;
 
 use uuid::Uuid;
 
-use crate::{fm::{FileManager, VID}, tactical::localtypes::{MarkerPack, category::CategoryIndex}};
+use crate::{core::fm::{FileManager, RID}, tactical::localtypes::{MarkerPack, category::CategoryIndex}};
 
 /// Manages all the marker packs including loading and storing them.
 pub struct MarkerManager {
     /// folder which contains all the marker packs as direct subdirectories.
-    pub path: VID,
+    pub path: RID,
     /// the MarkerPacks which were created from the subfolders of the location
     pub packs: Vec<MarkerPack>,
     /// whether we should draw the markers. useful to control the rendering of the markers

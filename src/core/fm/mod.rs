@@ -7,14 +7,18 @@ pub struct FileManager {
     pub root: VfsPath,
     pub assets: VfsPath,
     pub markers: VfsPath,
-    pub egui: VfsPath,
     pub paths: Vec<VfsPath>,
 }
 /// use VID to refer to these paths globally into the paths field of File Manager
 #[derive(
-    Debug, Clone, Copy, Serialize, Default, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord,
+    Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord,
 )]
-pub struct VID(pub usize);
+pub enum RID{
+    EguiTexture,
+    MarkerTexture,
+    TrailTexture,
+    VID(usize)
+}
 
 impl FileManager {
     pub fn new() -> Self {
@@ -25,12 +29,9 @@ impl FileManager {
         assert!(assets_path.exists().unwrap());
         let markers_path = assets_path.join(MARKER_PACK_FOLDER).unwrap();
         assert!(markers_path.exists().unwrap());
-        let egui_path = assets_path.join(EGUI_TEXTURE_PATH).unwrap();
-        let trail_path = assets_path.join(TRAIL_TEXTURE_PATH).unwrap();
-        // assert!(egui_path.exists().unwrap());
+  
         let mut paths = vec![];
-        paths.push(egui_path.clone());
-        paths.push(trail_path);
+
         for f in assets_path.walk_dir().unwrap() {
             let f = f.unwrap();
             paths.push(f);
@@ -40,19 +41,20 @@ impl FileManager {
             root: current_path,
             assets: assets_path,
             markers: markers_path,
-            egui: egui_path,
             paths,
         }
     }
-    pub fn get_vid(&self, path: &VfsPath) -> Option<VID> {
-        self.paths.iter().position(|p| *p == *path).map(|p| VID(p))
+    pub fn get_vid(&self, path: &VfsPath) -> Option<RID> {
+        self.paths.iter().position(|p| *p == *path).map(|p| RID::VID(p))
     }
-    pub fn get_path(&self, path_id: VID) -> Option<VfsPath> {
-        self.paths.get(path_id.0).cloned()
+    pub fn get_path(&self, vid: RID) -> Option<&VfsPath> {
+        match vid {
+            RID::VID(id) => self.paths.get(id),
+            _ => unimplemented!()
+        }
+        
     }
 }
 
 const JOKO_ASSET_FOLDER: &str = "assets";
 const MARKER_PACK_FOLDER: &str = "packs";
-const EGUI_TEXTURE_PATH: &str = "egui";
-const TRAIL_TEXTURE_PATH: &str = "trail";

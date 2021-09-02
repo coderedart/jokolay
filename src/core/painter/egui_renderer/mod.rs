@@ -1,15 +1,13 @@
 use std::rc::Rc;
 
-use egui::{ClippedMesh, Rect};
+use egui::{ClippedMesh, CtxRef, Rect};
 use glm::Vec2;
 use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
-use crate::{
-    fm::FileManager,
-    painter::opengl::{self, texture::TextureManager},
-};
 
-use super::opengl::{buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject};
+use crate::core::fm::FileManager;
+
+use super::opengl::{buffer::Buffer, shader::ShaderProgram, texture::TextureManager, vertex_array::VertexArrayObject};
 
 pub struct EguiGL {
     pub vao: VertexArrayObject,
@@ -24,7 +22,8 @@ pub struct EguiGL {
 
 impl EguiGL {
     pub fn new(gl: Rc<Context>) -> EguiGL {
-        let vao = VertexArrayObject::new(gl.clone());
+        let layout = VertexRgba::get_layout();
+        let vao = VertexArrayObject::new(gl.clone(), layout);
         let vb = Buffer::new(gl.clone(), glow::ARRAY_BUFFER);
         let ib = Buffer::new(gl.clone(), glow::ELEMENT_ARRAY_BUFFER);
         let program = ShaderProgram::new(
@@ -57,8 +56,6 @@ impl EguiGL {
             gl: gl.clone(),
         };
         egui_gl.bind();
-        let layout = VertexRgba::get_layout();
-        layout.set_layout(gl.clone());
 
         return egui_gl;
     }
@@ -69,6 +66,7 @@ impl EguiGL {
         screen_size: Vec2,
         tm: &mut TextureManager,
         fm: &FileManager,
+        ctx: CtxRef
     ) -> anyhow::Result<()> {
         self.bind();
 
@@ -83,7 +81,7 @@ impl EguiGL {
                 .uniform_2_f32_slice(Some(&self.u_screen_size), screen_size.as_slice());
         }
         for clipped_mesh in meshes {
-            self.draw_mesh(clipped_mesh, screen_size, tm, fm)?;
+            self.draw_mesh(clipped_mesh, screen_size, tm, fm, ctx.clone())?;
         }
         unsafe {
             self.gl.disable(glow::SCISSOR_TEST);
@@ -98,6 +96,7 @@ impl EguiGL {
         screen_size: Vec2,
         tm: &mut TextureManager,
         fm: &FileManager,
+        ctx: CtxRef
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
@@ -108,7 +107,7 @@ impl EguiGL {
             Some((bytemuck::cast_slice(&vertices), glow::DYNAMIC_DRAW)),
             Some((bytemuck::cast_slice(indices), glow::DYNAMIC_DRAW)),
         );
-        let (slot, _, _, z) = tm.get_etex(mesh.texture_id, fm);
+        let (slot, _, _, z) = tm.get_etex(mesh.texture_id, fm, ctx);
         unsafe {
             //sampler uniforms are i32
             self.gl.uniform_1_i32(Some(&self.u_sampler), slot as i32);
@@ -179,7 +178,7 @@ impl EguiGL {
 
 use egui::{epaint::Vertex, Pos2};
 
-use opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
+use crate::core::painter::opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
 #[derive(Debug, Clone, Copy)]
 pub struct VertexRgba {

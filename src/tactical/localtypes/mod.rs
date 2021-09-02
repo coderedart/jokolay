@@ -3,9 +3,7 @@ pub mod files;
 pub mod manager;
 pub mod marker;
 pub mod trail;
-use crate::{
-    fm::{FileManager, VID},
-    tactical::{
+use crate::{core::fm::{FileManager, RID}, tactical::{
         localtypes::{
             category::{CatSelectionTree, IMCategory},
             files::MarkerFile,
@@ -13,8 +11,7 @@ use crate::{
             trail::Trail,
         },
         xmltypes::{xml_marker::XMLPOI, xml_trail::XMLTrail},
-    },
-};
+    }};
 
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -24,7 +21,7 @@ use vfs::VfsPath;
 #[derive(Debug, Clone)]
 pub struct MarkerPack {
     /// The path to the folder where the marker xml files and other data live.
-    pub path: VID,
+    pub path: RID,
     /// the marker files collected so that we can later just turn them back into overlaydata if we have changes.
     pub mfiles: Vec<MarkerFile>,
     /// The categories all stored in a Vector and referenced by other markers/trails via the index into this vector
@@ -182,7 +179,7 @@ impl MarkerPack {
 //     Node(Vec<usize>)
 // }
 
-pub fn icon_file_to_vid(icon_path: &str, pack_path: VID, fm: &FileManager) -> Option<VID> {
+pub fn icon_file_to_vid(icon_path: &str, pack_path: RID, fm: &FileManager) -> Option<RID> {
     let pack_path = fm.get_path(pack_path).unwrap();
     let ipath = pack_path.join(icon_path).unwrap();
     if let Some(v) = fm.get_vid(&ipath) {

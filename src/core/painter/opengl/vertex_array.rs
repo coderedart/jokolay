@@ -2,15 +2,19 @@ use std::rc::Rc;
 
 use glow::{HasContext, NativeVertexArray};
 
+use super::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
+
 pub struct VertexArrayObject {
     pub id: NativeVertexArray,
     pub gl: Rc<glow::Context>,
 }
 
 impl VertexArrayObject {
-    pub fn new(gl: Rc<glow::Context>) -> VertexArrayObject {
+    pub fn new(gl: Rc<glow::Context>, layout: VertexBufferLayout) -> VertexArrayObject {
         unsafe {
             let id = gl.create_vertex_array().unwrap();
+
+            layout.set_layout(gl.clone(), id);
             VertexArrayObject { id, gl }
         }
     }

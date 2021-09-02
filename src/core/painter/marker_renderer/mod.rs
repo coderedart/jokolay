@@ -1,18 +1,17 @@
 use std::rc::Rc;
 
+use egui::CtxRef;
 use glm::{Vec3, cross, make_vec3, make_vec4, normalize};
 use glow::{HasContext, NativeUniformLocation};
 use jokolink::mlink::MumbleLink;
 
-use crate::{fm::{FileManager, VID}, painter::{
-        marker_renderer::marker::{MarkerVertex, Quad},
-        opengl::{
-            buffer::{Buffer, VertexBufferLayoutTrait},
-            shader::ShaderProgram,
-            texture::TextureManager,
-            vertex_array::VertexArrayObject,
-        },
-    }, tactical::localtypes::manager::MarkerManager, window::glfw_window::GlfwWindow};
+use crate::{core::{fm::{FileManager, RID}, painter::marker_renderer::marker::Quad, window::glfw_window::OverlayWindowConfig}, tactical::localtypes::manager::MarkerManager};
+
+use self::marker::MarkerVertex;
+
+use super::opengl::{buffer::{Buffer, VertexBufferLayoutTrait}, shader::ShaderProgram, texture::TextureManager, vertex_array::VertexArrayObject};
+
+
 pub mod marker;
 // use super::xmltypes::xml_marker::Marker;
 pub struct MarkerGl {
@@ -27,7 +26,8 @@ pub struct MarkerGl {
 }
 impl MarkerGl {
     pub fn new(gl: Rc<glow::Context>) -> Self {
-        let vao = VertexArrayObject::new(gl.clone());
+        let layout = MarkerVertex::get_layout();
+        let vao = VertexArrayObject::new(gl.clone(), layout);
         let vb = Buffer::new(gl.clone(), glow::ARRAY_BUFFER);
         let sp = ShaderProgram::new(gl.clone(), VERTEX_SHADER_SRC, FRAG_SHADER_SRC, None);
         let u_sampler = sp.get_uniform_id("sampler").unwrap();
@@ -41,8 +41,6 @@ impl MarkerGl {
             gl: gl.clone(),
         };
         marker_gl.bind();
-        let layout = MarkerVertex::get_layout();
-        layout.set_layout(gl);
         marker_gl
     }
     pub fn draw_markers(
@@ -51,7 +49,8 @@ impl MarkerGl {
         mm: &mut MarkerManager,
         link: &MumbleLink,
         fm: &FileManager,
-        window: &GlfwWindow
+        wc: OverlayWindowConfig,
+        ctx: CtxRef
     ) {
         unsafe {
             // self.gl.enable(glow::DEPTH_TEST);
@@ -63,7 +62,7 @@ impl MarkerGl {
         let camera_position = glm::Vec3::from(link.f_camera_position);
         let camera_dvec = camera_position + glm::Vec3::from(link.f_camera_front);
         let view = glm::look_at_lh(&camera_position, &camera_dvec, &glm::vec3(0.0, 1.0, 0.0));
-        let projection = glm::perspective_fov_lh(link.identity.fov, window.window_size.0 as f32, window.window_size.1 as f32, self.znear, self.zfar);
+        let projection = glm::perspective_fov_lh(link.identity.fov, wc.framebuffer_width as f32, wc.framebuffer_height as f32, self.znear, self.zfar);
         let vp = projection * view;
         for (pi, ci, mid) in mm.active_markers.iter() {
             let pack = mm.packs.get(*pi).unwrap();
@@ -73,16 +72,16 @@ impl MarkerGl {
 
             let &vid = &marker
                 .icon_file
-                .unwrap_or_else(|| cat.inherited_template.icon_file.unwrap_or(VID(0)));
+                .unwrap_or_else(|| cat.inherited_template.icon_file.unwrap_or(RID::MarkerTexture));
             
-            let tc = tm.get_image(vid, fm);
+            let tc = tm.get_image(vid, fm, ctx);
             if let Some(q) = Quad::new(
                 marker,
                 cat,
                 link,
                 view,
                 projection,
-                window,
+                wc,
                 tc,
                 self.znear,
                 self.zfar

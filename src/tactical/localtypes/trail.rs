@@ -1,10 +1,7 @@
-use crate::{
-    fm::{FileManager, VID},
-    tactical::{
+use crate::{core::fm::{FileManager, RID}, tactical::{
         localtypes::category::{CategoryIndex, IMCategory},
         xmltypes::xml_trail::XMLTrail,
-    },
-};
+    }};
 use std::{collections::HashMap, io::Read};
 use uuid::Uuid;
 
@@ -16,7 +13,7 @@ pub struct TrailData {
     pub nodes: Vec<[f32; 3]>,
 }
 impl TrailData {
-    pub fn parse_from_file(path: VID, fm: &FileManager) -> Option<TrailData> {
+    pub fn parse_from_file(path: RID, fm: &FileManager) -> Option<TrailData> {
         let tfile = fm
             .get_path(path)
             .unwrap()
@@ -53,8 +50,8 @@ impl TrailData {
 pub struct Trail {
     pub category: CategoryIndex,
     pub guid: Uuid,
-    pub trail_data_file: VID,
-    pub texture: Option<VID>,
+    pub trail_data_file: RID,
+    pub texture: Option<RID>,
     pub anim_speed: Option<f32>,
     pub trail_scale: Option<f32>,
     pub color: Option<[u8; 4]>,
@@ -66,7 +63,7 @@ pub struct Trail {
 
 impl Trail {
     pub fn from_xml_trail(
-        pack_path: VID,
+        pack_path: RID,
         trail: &XMLTrail,
         global_cats: &Vec<IMCategory>,
         fm: &FileManager,
@@ -139,7 +136,7 @@ impl Trail {
     pub fn get_vec_uuid_trail(
         trails: Vec<XMLTrail>,
         all_trails: &mut HashMap<Uuid, Trail>,
-        pack_path: VID,
+        pack_path: RID,
         global_cats: &mut Vec<IMCategory>,
         fm: &FileManager,
     ) -> Vec<Uuid> {

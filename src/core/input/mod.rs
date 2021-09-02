@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
 // use copypasta::ClipboardProvider;
@@ -12,7 +13,8 @@ use log::warn;
 
 use std::collections::BTreeSet;
 
-use crate::window::glfw_window::GlfwWindow;
+use super::window::glfw_window::OverlayWindow;
+
 
 pub struct InputManager {
     pub events: Receiver<(f64, WindowEvent)>,
@@ -25,10 +27,11 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn process_events(&mut self, overlay_window: &mut GlfwWindow, input: &mut RawInput) {
+    pub fn process_events(&mut self, overlay_window: &mut OverlayWindow, gl: Rc<glow::Context>, input: &mut RawInput) {
         self.glfw.poll_events();
 
-        let (xpos, ypos) = overlay_window.window_pos;
+        let xpos = overlay_window.config.window_pos_x;
+        let ypos = overlay_window.config.window_pos_y;
         let mouse = self.dq.query_pointer();
         if self.global_mouse_position != mouse.coords {
             self.global_mouse_position = mouse.coords;
@@ -47,16 +50,18 @@ impl InputManager {
                     // make sure the viewport matches the new window dimensions; note that width and
                     // height will be significantly larger than specified on retina displays.
                     unsafe {
-                        overlay_window.gl.viewport(0, 0, width, height);
+                        gl.viewport(0, 0, width, height);
                     }
-                    overlay_window.window_size = (width, height);
+                    overlay_window.config.framebuffer_width = width as u32;
+                    overlay_window.config.framebuffer_height = height as u32;
                     input.screen_rect = Some(Rect::from_two_pos(
                         Pos2::default(),
                         Pos2::new(width as f32, height as f32),
                     ));
                 }
                 WindowEvent::Pos(x, y) => {
-                    overlay_window.window_pos = (x, y);
+                    overlay_window.config.window_pos_x = x;
+                    overlay_window.config.window_pos_y = y;
                 }
                 WindowEvent::Close => {
                     overlay_window.window.set_should_close(true);
@@ -134,12 +139,13 @@ impl InputManager {
     }
 
     pub fn new(events: Receiver<(f64, WindowEvent)>, glfw: Glfw) -> Self {
+        let dq = device_query::DeviceState::new();
         Self {
             events,
             glfw,
             // clipboard: copypasta::ClipboardContext::new().unwrap(),
             global_mouse_position: Default::default(),
-            dq: Default::default(),
+            dq,
             mouse_buttons: Default::default(),
             keys_pressed: Default::default(),
         }

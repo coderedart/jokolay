@@ -1,7 +1,8 @@
 use glm::{Mat4, Vec3, Vec4, cross, make_vec3, make_vec4, normalize};
 use jokolink::mlink::MumbleLink;
 
-use crate::{painter::opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait}, tactical::localtypes::{category::IMCategory, marker::POI}, window::glfw_window::GlfwWindow};
+use crate::{core::{painter::opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait}, window::glfw_window::OverlayWindowConfig}, tactical::localtypes::{category::IMCategory, marker::POI}};
+
 
 /// Marker Vertex contains the vertex position in clip space, tex coords.
 /// we send vertices in vec4 (clip space) so that opengl can do perspective division, remove the triangles outside clipped space and finally do perspective interpolation for textures
@@ -13,7 +14,7 @@ pub struct MarkerVertex {
 }
 
 impl VertexBufferLayoutTrait for MarkerVertex {
-    fn get_layout() -> crate::painter::opengl::buffer::VertexBufferLayout {
+    fn get_layout() -> VertexBufferLayout {
         let mut layout = VertexBufferLayout::default();
         layout.push_f32(4, false);
         layout.push_f32(3, false);
@@ -156,10 +157,10 @@ unsafe impl bytemuck::Pod for Quad {}
 //     }
 // }
 impl Quad {
-    pub fn new(marker: &POI,cat: &IMCategory, link: &MumbleLink, view: Mat4,proj: Mat4, window: &GlfwWindow,  tex_coords: (u32, f32, f32, u32), znear: f32, zfar: f32) -> Option<Quad>  {
+    pub fn new(marker: &POI,cat: &IMCategory, link: &MumbleLink, view: Mat4,proj: Mat4, wc: OverlayWindowConfig,  tex_coords: (usize, f32, f32, f32), znear: f32, zfar: f32) -> Option<Quad>  {
         let x = tex_coords.1;
         let y = tex_coords.2;
-        let z = tex_coords.3 as f32;
+        let z = tex_coords.3 ;
         // billboard size in pixels
         let size: u32 = match tex_coords.0 {
             0 => 32 ,
@@ -175,8 +176,8 @@ impl Quad {
             }
         };
         
-        let width = window.window_size.0 as f32;
-        let height = window.window_size.1 as f32;
+        let width = wc.framebuffer_width as f32;
+        let height = wc.framebuffer_height as f32;
 
         let viewport = make_vec4(&[0.0, 0.0,  width as f32, height as f32]);
         let pos: Vec3 = marker.pos.into();

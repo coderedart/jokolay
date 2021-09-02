@@ -1,6 +1,7 @@
 use glow::*;
 use std::{convert::TryInto, rc::Rc};
 
+/// This struct wraps the gpu buffer. can be used for array or element bindings
 pub struct Buffer {
     pub id: glow::NativeBuffer,
     pub target: u32,
@@ -10,15 +11,14 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(gl: Rc<glow::Context>, target: u32) -> Buffer {
         unsafe {
-            let id = gl.create_buffer().expect("failed to create buffer");
+            let id = gl.create_buffers().expect("failed to create buffer");
 
             Buffer { id, target, gl }
         }
     }
     pub fn update(&self, data: &[u8], usage: u32) {
         unsafe {
-            self.bind();
-            self.gl.buffer_data_u8_slice(self.target, data, usage)
+            self.gl.named_buffer_data_u8_slice(self.id, data, usage)
         }
     }
     pub fn bind(&self) {
@@ -40,19 +40,21 @@ impl Drop for Buffer {
         }
     }
 }
-
+/// The vertex array attribute expressed as the attribute type, count and normalized. 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct VertexBufferLayoutElement {
     pub etype: u32,
     pub count: i32,
     pub normalized: bool,
 }
+/// This is used to set the vertex array attribute format/layout by implementing the Layout trait on any struct we would like to send to a gpu buffer
 #[derive(Debug, Default, Clone)]
 pub struct VertexBufferLayout {
     layout_of_elements: Vec<VertexBufferLayoutElement>,
 }
-// we will avoid u16 types for now to keep alignment simple. u8 is for rgba egui until they use bytemuck
+/// we will avoid u16 types for now to keep alignment simple. u8 is for rgba egui until they use bytemuck
 impl VertexBufferLayout {
+    /// add a vao attribute that contains floats of count number. count must be equal to or less than 4. until we think of using vertices as matrices 
     pub fn push_f32(&mut self, count: i32, normalized: bool) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::FLOAT,
@@ -67,6 +69,7 @@ impl VertexBufferLayout {
     //         normalized: false,
     //     });
     // }
+    /// The attribute made up of u8, will be expressed as a float in the shader. the gpu will auto convert it.  count must not be more than 4.
     pub fn push_u8(&mut self, count: i32, normalized: bool) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::UNSIGNED_BYTE,
@@ -74,6 +77,7 @@ impl VertexBufferLayout {
             normalized,
         });
     }
+    /// adds a vao attribute of type u32 with count number. count must not be more than 4.
     pub fn push_u32(&mut self, count: i32, normalized: bool) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::UNSIGNED_INT,
@@ -82,7 +86,8 @@ impl VertexBufferLayout {
         });
     }
 
-    pub fn set_layout(&self, gl: Rc<glow::Context>) {
+    /// this will take in a vao, and make sure to set buffer layout based on what we pushed on to it previously. uses dsa, so should not bind.
+    pub fn set_layout(&self, gl: Rc<glow::Context>, vao: NativeVertexArray)  {
         let mut stride: i32 = 0;
         for element in self.layout_of_elements.iter() {
             match element.etype {
@@ -102,43 +107,52 @@ impl VertexBufferLayout {
         }
         let stride = stride;
         let mut offset = 0;
+   
+
         for (index, element) in self.layout_of_elements.iter().enumerate() {
+            let index = index as u32;
+
             unsafe {
+                //enabled the vertex array attribute
+                gl.enable_vertex_attrib_array(index as u32);
+                // set the source for that vertex attribute data from the buffer bound at binding index 0 of the vao
+                gl.vertex_array_attrib_binding_f32(vao, index, 0);
+                // set the attribute format according to the element type
                 match element.etype {
                     FLOAT => {
-                        gl.vertex_attrib_pointer_f32(
-                            index.try_into().unwrap(),
+                        gl.vertex_array_attrib_format_f32(
+                            vao,
+                            index ,
                             element.count,
                             FLOAT,
                             element.normalized,
-                            stride,
                             offset,
                         );
-                        offset += 4 * element.count as i32;
+                        offset += 4 * element.count as u32;
                     }
                     UNSIGNED_INT => {
-                        gl.vertex_attrib_pointer_i32(
-                            index.try_into().unwrap(),
+                        gl.vertex_array_attrib_format_i32(
+                            vao,
+                            index ,
                             element.count,
                             UNSIGNED_INT,
-                            stride,
                             offset,
                         );
-                        offset += 4 * element.count as i32;
+                        offset += 4 * element.count as u32;
                     }
                     UNSIGNED_BYTE => {
-                        gl.vertex_attrib_pointer_f32(
-                            index.try_into().unwrap(),
+                        gl.vertex_array_attrib_format_f32(
+                            vao,
+                            index ,
                             element.count,
                             UNSIGNED_BYTE,
                             element.normalized,
-                            stride,
                             offset,
                         );
-                        offset += 1 * element.count as i32;
+                        offset += 1 * element.count as u32;
                     }
                     // UNSIGNED_SHORT => {
-                    //     gl.vertex_attrib_pointer_i32(
+                    //     gl.vertex_array_attrib_format_f32(
                     //         index.try_into().unwrap(),
                     //         element.count,
                     //         UNSIGNED_SHORT,
@@ -151,12 +165,12 @@ impl VertexBufferLayout {
                         panic!("vertexBufferElement's etype is not right");
                     }
                 }
-                gl.enable_vertex_attrib_array(index.try_into().unwrap());
             }
         }
     }
 }
 
+/// implement the trait for objects like vertices that you plan to send to gpu. 
 pub trait VertexBufferLayoutTrait {
     fn get_layout() -> VertexBufferLayout;
 }

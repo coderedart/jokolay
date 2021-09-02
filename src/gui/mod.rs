@@ -6,7 +6,7 @@ use crate::JokolayApp;
 
 impl JokolayApp {
     pub fn tick(&mut self) -> Vec<ClippedMesh> {
-        let (_width, _height) = self.overlay_window.window_size;
+        
         if self.ctx.wants_pointer_input() || self.ctx.wants_keyboard_input() {
             self.overlay_window.set_passthrough(false);
         } else {
@@ -15,7 +15,7 @@ impl JokolayApp {
         self.mumble_manager.update();
 
         self.input_manager
-            .process_events(&mut self.overlay_window, &mut self.state.input);
+            .process_events(&mut self.overlay_window, self.painter.egui_gl.gl.clone(), &mut self.state.input);
 
         self.ctx.begin_frame(self.state.input.take());
 
