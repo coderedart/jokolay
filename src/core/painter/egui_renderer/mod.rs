@@ -4,17 +4,26 @@ use egui::{ClippedMesh, CtxRef, Rect};
 use glm::Vec2;
 use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
+use crate::{
+    core::fm::{FileManager, RID},
+    gl_error,
+};
 
-use crate::core::fm::FileManager;
-
-use super::opengl::{buffer::Buffer, shader::ShaderProgram, texture::TextureManager, vertex_array::VertexArrayObject};
+use super::opengl::{
+    buffer::Buffer, shader::ShaderProgram, texture::TextureManager, vertex_array::VertexArrayObject,
+};
 
 pub struct EguiGL {
+    pub version: Option<u64>,
     pub vao: VertexArrayObject,
     pub sp: ShaderProgram,
     pub vb: Buffer,
     pub ib: Buffer,
     pub u_sampler: NativeUniformLocation,
+    pub u_tcx_offset: NativeUniformLocation,
+    pub u_tcy_offset: NativeUniformLocation,
+    pub u_tcx_scale: NativeUniformLocation,
+    pub u_tcy_scale: NativeUniformLocation,
     pub u_sampler_layer: NativeUniformLocation,
     pub u_screen_size: NativeUniformLocation,
     pub gl: Rc<glow::Context>,
@@ -22,40 +31,63 @@ pub struct EguiGL {
 
 impl EguiGL {
     pub fn new(gl: Rc<Context>) -> EguiGL {
+        gl_error!(gl);
+
         let layout = VertexRgba::get_layout();
         let vao = VertexArrayObject::new(gl.clone(), layout);
+        gl_error!(gl);
+
         let vb = Buffer::new(gl.clone(), glow::ARRAY_BUFFER);
+        gl_error!(gl);
+
         let ib = Buffer::new(gl.clone(), glow::ELEMENT_ARRAY_BUFFER);
+        gl_error!(gl);
+
         let program = ShaderProgram::new(
             gl.clone(),
             EGUI_VERTEX_SHADER_SRC,
             EGUI_FRAGMENT_SHADER_SRC,
             None,
         );
+        gl_error!(gl);
 
         let u_sampler;
         let u_sampler_layer;
         let u_screen_size;
-
+        let u_tcx_offset;
+        let u_tcy_offset;
+        let u_tcx_scale;
+        let u_tcy_scale;
         unsafe {
             u_sampler = gl.get_uniform_location(program.id, "sampler").unwrap();
             u_sampler_layer = gl
                 .get_uniform_location(program.id, "sampler_layer")
                 .unwrap();
             u_screen_size = gl.get_uniform_location(program.id, "screen_size").unwrap();
+            u_tcx_offset = gl.get_uniform_location(program.id, "tc_x_offset").unwrap();
+            u_tcy_offset = gl.get_uniform_location(program.id, "tc_y_offset").unwrap();
+            u_tcx_scale = gl.get_uniform_location(program.id, "tc_x_scale").unwrap();
+            u_tcy_scale = gl.get_uniform_location(program.id, "tc_y_scale").unwrap();
         }
+        gl_error!(gl);
 
         let egui_gl = EguiGL {
+            version: None,
             vao,
             vb,
             ib,
             sp: program,
             u_sampler,
+            u_tcx_offset,
+            u_tcy_offset,
+            u_tcx_scale,
+            u_tcy_scale,
             u_sampler_layer,
             u_screen_size,
             gl: gl.clone(),
         };
         egui_gl.bind();
+        gl_error!(gl);
 
         return egui_gl;
     }
@@ -66,7 +98,7 @@ impl EguiGL {
         screen_size: Vec2,
         tm: &mut TextureManager,
         fm: &FileManager,
-        ctx: CtxRef
+        ctx: CtxRef,
     ) -> anyhow::Result<()> {
         self.bind();
 
@@ -80,8 +112,14 @@ impl EguiGL {
             self.gl
                 .uniform_2_f32_slice(Some(&self.u_screen_size), screen_size.as_slice());
         }
+
+        let t = ctx.texture();
+        if Some(t.version) != self.version {
+            self.version = Some(t.version);
+            tm.update_etex(ctx.texture());
+        }
         for clipped_mesh in meshes {
-            self.draw_mesh(clipped_mesh, screen_size, tm, fm, ctx.clone())?;
+            self.draw_mesh(clipped_mesh, screen_size, tm, fm)?;
         }
         unsafe {
             self.gl.disable(glow::SCISSOR_TEST);
@@ -96,22 +134,52 @@ impl EguiGL {
         screen_size: Vec2,
         tm: &mut TextureManager,
         fm: &FileManager,
-        ctx: CtxRef
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
         let vertices: Vec<VertexRgba> = mesh.vertices.iter().map(|v| VertexRgba::from(v)).collect();
         let indices = &mesh.indices;
+        // update the vertices and indexes into the buffer
+        self.vb
+            .update(bytemuck::cast_slice(&vertices), glow::STREAM_DRAW);
 
-        self.update_buffers(
-            Some((bytemuck::cast_slice(&vertices), glow::DYNAMIC_DRAW)),
-            Some((bytemuck::cast_slice(indices), glow::DYNAMIC_DRAW)),
-        );
-        let (slot, _, _, z) = tm.get_etex(mesh.texture_id, fm, ctx);
+        self.ib
+            .update(bytemuck::cast_slice(&indices), glow::STREAM_DRAW);
+        let tid = match mesh.texture_id {
+            egui::TextureId::Egui => RID::EguiTexture,
+            egui::TextureId::User(i) => RID::VID(i as usize),
+        };
+        let (layer, allocation) = tm.get_tc(tid, fm);
+        let x_offset = allocation.rectangle.min.x as f32;
+        let y_offset = allocation.rectangle.min.y as f32;
+        let total_width = TextureManager::WIDTH as f32;
+        let total_height = TextureManager::HEIGHT as f32;
+        let tc_width = (allocation.rectangle.max.x as f32 - x_offset) as f32;
+        let tc_height = (allocation.rectangle.max.y as f32 - y_offset) as f32;
+        let tcx_offset = x_offset / total_width;
+        let tcy_offset = y_offset / total_height;
+        let tcx_scale = tc_width / total_width;
+        let tcy_scale = tc_height / total_height;
+        // update the scaling/offsets of texture in the texture array of atlasses
         unsafe {
             //sampler uniforms are i32
-            self.gl.uniform_1_i32(Some(&self.u_sampler), slot as i32);
-            self.gl.uniform_1_i32(Some(&self.u_sampler_layer), z as i32);
+            self.gl.uniform_1_i32(Some(&self.u_sampler), 0 as i32);
+            self.gl
+                .uniform_1_i32(Some(&self.u_sampler_layer), layer as i32);
+            self.gl.uniform_1_f32(Some(&self.u_tcx_offset), tcx_offset);
+            self.gl.uniform_1_f32(Some(&self.u_tcy_offset), tcy_offset);
+            self.gl.uniform_1_f32(Some(&self.u_tcx_scale), tcx_scale);
+            self.gl.uniform_1_f32(Some(&self.u_tcy_scale), tcy_scale);
+            // set the buffers as the vertex array binding points
+            self.gl.vertex_array_vertex_buffer(
+                self.vao.id,
+                0,
+                Some(self.vb.id),
+                0,
+                std::mem::size_of::<VertexRgba>() as i32,
+            );
+            self.gl
+                .vertex_array_element_buffer(self.vao.id, Some(self.ib.id));
         }
 
         self.render(indices.len() as u32, 0);
@@ -151,15 +219,6 @@ impl EguiGL {
         self.vb.bind();
         self.ib.bind();
         self.sp.bind();
-    }
-
-    fn update_buffers(&self, vb: Option<(&[u8], u32)>, ib: Option<(&[u8], u32)>) {
-        if let Some((data, usage)) = vb {
-            self.vb.update(data, usage);
-        }
-        if let Some((data, usage)) = ib {
-            self.ib.update(data, usage);
-        }
     }
 
     fn render(&self, count: u32, offset: u32) {

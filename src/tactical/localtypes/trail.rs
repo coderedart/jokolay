@@ -1,7 +1,10 @@
-use crate::{core::fm::{FileManager, RID}, tactical::{
+use crate::{
+    core::fm::{FileManager, RID},
+    tactical::{
         localtypes::category::{CategoryIndex, IMCategory},
         xmltypes::xml_trail::XMLTrail,
-    }};
+    },
+};
 use std::{collections::HashMap, io::Read};
 use uuid::Uuid;
 

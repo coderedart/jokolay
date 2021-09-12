@@ -1,11 +1,14 @@
-use crate::{core::fm::{FileManager, RID}, tactical::{
+use crate::{
+    core::fm::{FileManager, RID},
+    tactical::{
         localtypes::{
             category::{CatSelectionTree, IMCategory, MCIndexTree},
             marker::{MarkerTemplate, POI},
             trail::Trail,
         },
         xmltypes::{xml_category::OverlayData, xml_marker::XMLPOI, xml_trail::XMLTrail},
-    }};
+    },
+};
 use quick_xml::de::Deserializer;
 // use quick_xml::de::from_reader as xmlreader;
 // use serde_xml_rs::de::from_reader as xmlreader;
@@ -80,7 +83,7 @@ impl MarkerFile {
             })
             .unwrap();
         let marker_file_reader = BufReader::new(xml_file);
-        let  de = &mut Deserializer::from_reader(marker_file_reader);
+        let de = &mut Deserializer::from_reader(marker_file_reader);
         let od: OverlayData = match serde_path_to_error::deserialize(de) {
             Ok(od) => od,
             Err(e) => {
@@ -129,32 +132,35 @@ impl MarkerFile {
                                 None => trail_vec = Some(vec![t]),
                             }
                         }
-                        crate::tactical::xmltypes::xml_marker::PoiOrTrail::Route(_) => {},
-                        
+                        crate::tactical::xmltypes::xml_marker::PoiOrTrail::Route(_) => {}
                     }
                 }
             }
             if let Some(vp) = poi_vec {
-                uuid_poi_vec = vp.into_iter().map(|mut p| {
-                    let id = p.guid.unwrap_or(Uuid::new_v4());
-                    p.guid = Some(id);
-                    if let Some(_) = global_pois.insert(id, p) {
-                        log::error!("two markers have the same guid: {} ", &id);
-                    }
-                    id
-                    
-                }).collect();
+                uuid_poi_vec = vp
+                    .into_iter()
+                    .map(|mut p| {
+                        let id = p.guid.unwrap_or(Uuid::new_v4());
+                        p.guid = Some(id);
+                        if let Some(_) = global_pois.insert(id, p) {
+                            log::error!("two markers have the same guid: {} ", &id);
+                        }
+                        id
+                    })
+                    .collect();
             }
             if let Some(vt) = trail_vec {
-                uuid_trail_vec = vt.into_iter().map(|mut t| {
-                    let id = t.guid.unwrap_or(Uuid::new_v4());
-                    t.guid = Some(id);
-                    if let Some(_) = global_trails.insert(id, t) {
-                        log::error!("two trails have the same guid: {} ", &id);
-                    }
-                    id
-                    
-                }).collect();
+                uuid_trail_vec = vt
+                    .into_iter()
+                    .map(|mut t| {
+                        let id = t.guid.unwrap_or(Uuid::new_v4());
+                        t.guid = Some(id);
+                        if let Some(_) = global_trails.insert(id, t) {
+                            log::error!("two trails have the same guid: {} ", &id);
+                        }
+                        id
+                    })
+                    .collect();
             }
         }
         CatSelectionTree::build_cat_selection_tree(&mc_index_tree, cstree);

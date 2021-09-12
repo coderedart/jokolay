@@ -1,6 +1,8 @@
 use glow::*;
 use std::{convert::TryInto, rc::Rc};
 
+use crate::gl_error;
+
 /// This struct wraps the gpu buffer. can be used for array or element bindings
 pub struct Buffer {
     pub id: glow::NativeBuffer,
@@ -17,9 +19,7 @@ impl Buffer {
         }
     }
     pub fn update(&self, data: &[u8], usage: u32) {
-        unsafe {
-            self.gl.named_buffer_data_u8_slice(self.id, data, usage)
-        }
+        unsafe { self.gl.named_buffer_data_u8_slice(self.id, data, usage) }
     }
     pub fn bind(&self) {
         unsafe {
@@ -40,7 +40,7 @@ impl Drop for Buffer {
         }
     }
 }
-/// The vertex array attribute expressed as the attribute type, count and normalized. 
+/// The vertex array attribute expressed as the attribute type, count and normalized.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct VertexBufferLayoutElement {
     pub etype: u32,
@@ -54,7 +54,7 @@ pub struct VertexBufferLayout {
 }
 /// we will avoid u16 types for now to keep alignment simple. u8 is for rgba egui until they use bytemuck
 impl VertexBufferLayout {
-    /// add a vao attribute that contains floats of count number. count must be equal to or less than 4. until we think of using vertices as matrices 
+    /// add a vao attribute that contains floats of count number. count must be equal to or less than 4. until we think of using vertices as matrices
     pub fn push_f32(&mut self, count: i32, normalized: bool) {
         &self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::FLOAT,
@@ -87,7 +87,7 @@ impl VertexBufferLayout {
     }
 
     /// this will take in a vao, and make sure to set buffer layout based on what we pushed on to it previously. uses dsa, so should not bind.
-    pub fn set_layout(&self, gl: Rc<glow::Context>, vao: NativeVertexArray)  {
+    pub fn set_layout(&self, gl: Rc<glow::Context>, vao: NativeVertexArray) {
         let mut stride: i32 = 0;
         for element in self.layout_of_elements.iter() {
             match element.etype {
@@ -107,7 +107,6 @@ impl VertexBufferLayout {
         }
         let stride = stride;
         let mut offset = 0;
-   
 
         for (index, element) in self.layout_of_elements.iter().enumerate() {
             let index = index as u32;
@@ -115,40 +114,50 @@ impl VertexBufferLayout {
             unsafe {
                 //enabled the vertex array attribute
                 gl.enable_vertex_attrib_array(index as u32);
+                gl_error!(gl);
+
                 // set the source for that vertex attribute data from the buffer bound at binding index 0 of the vao
                 gl.vertex_array_attrib_binding_f32(vao, index, 0);
+                gl_error!(gl);
+
                 // set the attribute format according to the element type
                 match element.etype {
                     FLOAT => {
                         gl.vertex_array_attrib_format_f32(
                             vao,
-                            index ,
+                            index,
                             element.count,
                             FLOAT,
                             element.normalized,
                             offset,
                         );
+                        gl_error!(gl);
+
                         offset += 4 * element.count as u32;
                     }
                     UNSIGNED_INT => {
                         gl.vertex_array_attrib_format_i32(
                             vao,
-                            index ,
+                            index,
                             element.count,
                             UNSIGNED_INT,
                             offset,
                         );
+                        gl_error!(gl);
+
                         offset += 4 * element.count as u32;
                     }
                     UNSIGNED_BYTE => {
                         gl.vertex_array_attrib_format_f32(
                             vao,
-                            index ,
+                            index,
                             element.count,
                             UNSIGNED_BYTE,
                             element.normalized,
                             offset,
                         );
+                        gl_error!(gl);
+
                         offset += 1 * element.count as u32;
                     }
                     // UNSIGNED_SHORT => {
@@ -170,7 +179,7 @@ impl VertexBufferLayout {
     }
 }
 
-/// implement the trait for objects like vertices that you plan to send to gpu. 
+/// implement the trait for objects like vertices that you plan to send to gpu.
 pub trait VertexBufferLayoutTrait {
     fn get_layout() -> VertexBufferLayout;
 }

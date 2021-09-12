@@ -58,7 +58,7 @@ impl MarkerGl {
             self.gl
                 .blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
         }
-        let mut billboards: Vec<Vec<Quad>> = vec![Vec::new(); TextureManager::NUM_OF_ARRAYS];
+        let mut billboards: Vec<Quad> = Vec::new();
         let camera_position = glm::Vec3::from(link.f_camera_position);
         let camera_dvec = camera_position + glm::Vec3::from(link.f_camera_front);
         let view = glm::look_at_lh(&camera_position, &camera_dvec, &glm::vec3(0.0, 1.0, 0.0));

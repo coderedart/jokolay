@@ -1,7 +1,10 @@
-use crate::{core::fm::{FileManager, RID}, tactical::{
+use crate::{
+    core::fm::{FileManager, RID},
+    tactical::{
         localtypes::{icon_file_to_vid, marker::MarkerTemplate},
         xmltypes::xml_category::XMLMarkerCategory,
-    }};
+    },
+};
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};

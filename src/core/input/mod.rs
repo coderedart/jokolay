@@ -15,7 +15,6 @@ use std::collections::BTreeSet;
 
 use super::window::glfw_window::OverlayWindow;
 
-
 pub struct InputManager {
     pub events: Receiver<(f64, WindowEvent)>,
     pub glfw: Glfw,
@@ -27,7 +26,12 @@ pub struct InputManager {
 }
 
 impl InputManager {
-    pub fn process_events(&mut self, overlay_window: &mut OverlayWindow, gl: Rc<glow::Context>, input: &mut RawInput) {
+    pub fn process_events(
+        &mut self,
+        overlay_window: &mut OverlayWindow,
+        gl: Rc<glow::Context>,
+        input: &mut RawInput,
+    ) {
         self.glfw.poll_events();
 
         let xpos = overlay_window.config.window_pos_x;

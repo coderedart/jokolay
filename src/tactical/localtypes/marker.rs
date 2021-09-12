@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
-use crate::{core::fm::{FileManager, RID}, tactical::{
+use crate::{
+    core::fm::{FileManager, RID},
+    tactical::{
         localtypes::{category::CategoryIndex, IMCategory},
         xmltypes::{
             xml_category::XMLMarkerCategory,
             xml_marker::{Behavior, XMLPOI},
         },
-    }};
+    },
+};
 use glm::Vec3;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

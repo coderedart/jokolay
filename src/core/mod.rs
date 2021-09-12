@@ -1,15 +1,19 @@
 use egui::{CtxRef, Pos2, RawInput, Rect, Visuals};
 
-use self::{fm::FileManager, input::InputManager, mlink::MumbleManager, painter::Renderer, window::glfw_window::{OverlayWindow, OverlayWindowConfig}};
+use self::{
+    fm::FileManager,
+    input::InputManager,
+    mlink::MumbleManager,
+    painter::Renderer,
+    window::glfw_window::{OverlayWindow, OverlayWindowConfig},
+};
 
 pub mod fm;
 pub mod input;
+pub mod mlink;
 pub mod painter;
 pub mod window;
-pub mod mlink;
 
-
-#[derive(Debug)]
 pub struct JokoCore {
     pub im: InputManager,
     pub mbm: MumbleManager,
@@ -18,14 +22,12 @@ pub struct JokoCore {
     pub ow: OverlayWindow,
 }
 
-
-
 impl JokoCore {
     pub fn new() -> (Self, CtxRef) {
-        let (ow, events, glfw, gl) = OverlayWindow::create(OverlayWindowConfig::default())?;
+        let mut config = OverlayWindowConfig::default();
+        config.transparency = true;
+        let (ow, events, glfw, gl) = OverlayWindow::create(config).unwrap();
 
-       
-  
         let im = InputManager::new(events, glfw);
         let mbm = MumbleManager::new("MumbleLink").unwrap();
         // start setting up egui initial state
@@ -51,12 +53,15 @@ impl JokoCore {
         let rr = Renderer::new(gl.clone(), t);
         let _ = ctx.end_frame();
         let fm = FileManager::new();
-        (Self {
-            im,
-            mbm,
-            fm,
-            rr,
-            ow,
-        }, ctx)
+        (
+            Self {
+                im,
+                mbm,
+                fm,
+                rr,
+                ow,
+            },
+            ctx,
+        )
     }
 }

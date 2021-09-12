@@ -2,7 +2,10 @@ use std::collections::HashSet;
 
 use uuid::Uuid;
 
-use crate::{core::fm::{FileManager, RID}, tactical::localtypes::{MarkerPack, category::CategoryIndex}};
+use crate::{
+    core::fm::{FileManager, RID},
+    tactical::localtypes::{category::CategoryIndex, MarkerPack},
+};
 
 /// Manages all the marker packs including loading and storing them.
 pub struct MarkerManager {
@@ -37,7 +40,6 @@ pub struct Editor {
     pub selected_pack: usize,
     pub selected_category: CategoryIndex,
     pub selected_marker: Uuid,
-
 }
 
 #[derive(Debug)]
@@ -92,12 +94,11 @@ impl MarkerManager {
                 show_cat_selection_window: false,
                 show_editor_window: false,
                 info_window: true,
-                editor: Editor{
+                editor: Editor {
                     selected_pack: 0,
                     selected_category: CategoryIndex(0),
-                    selected_marker: Uuid::nil(),             
-
-                }
+                    selected_marker: Uuid::nil(),
+                },
             },
         }
     }

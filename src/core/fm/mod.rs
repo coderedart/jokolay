@@ -9,15 +9,13 @@ pub struct FileManager {
     pub markers: VfsPath,
     pub paths: Vec<VfsPath>,
 }
-/// use VID to refer to these paths globally into the paths field of File Manager
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord,
-)]
-pub enum RID{
+/// use VID to refer to these paths globally into the paths Vector field of File Manager
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RID {
     EguiTexture,
     MarkerTexture,
     TrailTexture,
-    VID(usize)
+    VID(usize),
 }
 
 impl FileManager {
@@ -29,7 +27,7 @@ impl FileManager {
         assert!(assets_path.exists().unwrap());
         let markers_path = assets_path.join(MARKER_PACK_FOLDER).unwrap();
         assert!(markers_path.exists().unwrap());
-  
+
         let mut paths = vec![];
 
         for f in assets_path.walk_dir().unwrap() {
@@ -45,14 +43,16 @@ impl FileManager {
         }
     }
     pub fn get_vid(&self, path: &VfsPath) -> Option<RID> {
-        self.paths.iter().position(|p| *p == *path).map(|p| RID::VID(p))
+        self.paths
+            .iter()
+            .position(|p| *p == *path)
+            .map(|p| RID::VID(p))
     }
     pub fn get_path(&self, vid: RID) -> Option<&VfsPath> {
         match vid {
             RID::VID(id) => self.paths.get(id),
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
-        
     }
 }
 

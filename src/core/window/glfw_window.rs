@@ -5,13 +5,13 @@ use anyhow::Context as _;
 use glfw::{Glfw, Window, WindowEvent};
 use glow::{Context, HasContext};
 use serde::{Deserialize, Serialize};
-use x11rb::{
-    connection::Connection,
-    properties::WmHints,
-    protocol::xproto::{get_atom_name, get_property, intern_atom, Atom, AtomEnum},
-};
+// use x11rb::{
+//     connection::Connection,
+//     properties::WmHints,
+//     protocol::xproto::{get_atom_name, get_property, intern_atom, Atom, AtomEnum},
+// };
 
-use crate::{gl_error, core::mlink::MumbleManager};
+use crate::{core::mlink::MumbleManager, gl_error};
 
 /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -130,8 +130,7 @@ impl OverlayWindow {
         let gl = unsafe {
             glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _)
         };
-        
-        
+
         let passthrough = window.is_mouse_passthrough();
         config.passthrough = passthrough;
         let (x, y) = window.get_pos();

@@ -1,26 +1,28 @@
 pub mod marker;
 
-use egui::{ClippedMesh, Widget, Window};
+use egui::{ClippedMesh, RawInput, Widget, Window};
 
 use crate::JokolayApp;
 
 impl JokolayApp {
     pub fn tick(&mut self) -> Vec<ClippedMesh> {
-        
         if self.ctx.wants_pointer_input() || self.ctx.wants_keyboard_input() {
-            self.overlay_window.set_passthrough(false);
+            self.core.ow.set_passthrough(false);
         } else {
-            self.overlay_window.set_passthrough(true);
+            self.core.ow.set_passthrough(true);
         }
-        self.mumble_manager.update();
+        self.core.mbm.update();
+        let mut input = RawInput::default();
+        self.core.im.process_events(
+            &mut self.core.ow,
+            self.core.rr.egui_gl.gl.clone(),
+            &mut input,
+        );
 
-        self.input_manager
-            .process_events(&mut self.overlay_window, self.painter.egui_gl.gl.clone(), &mut self.state.input);
-
-        self.ctx.begin_frame(self.state.input.take());
+        self.ctx.begin_frame(input.take());
 
         let ctx = self.ctx.clone();
-        Window::new("Jokolay").show(&ctx, |ui| {
+        Window::new("J").show(&ctx, |ui| {
             self.ui(ui);
         });
         let mut show_mumble = self.state.show_mumble_window;
@@ -28,15 +30,15 @@ impl JokolayApp {
             .open(&mut show_mumble)
             .scroll(true)
             .show(&ctx, |ui| {
-                ui.label(format!("{:#?}", &self.mumble_manager.link));
+                ui.label(format!("{:#?}", &self.core.mbm.link));
             });
         self.state.show_mumble_window = show_mumble;
 
-        self.marker_manager.tick(
-            ctx.clone(),
-            &self.mumble_manager.link,
-            &mut self.state.show_marker_manager,
-        );
+        // self.marker_manager.tick(
+        //     ctx.clone(),
+        //     &self.mumble_manager.link,
+        //     &mut self.state.show_marker_manager,
+        // );
         let (egui_output, shapes) = ctx.end_frame();
 
         if !egui_output.events.is_empty() {

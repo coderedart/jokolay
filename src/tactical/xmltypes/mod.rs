@@ -1,7 +1,7 @@
 pub mod xml_category;
 pub mod xml_marker;
-pub mod xml_trail;
 pub mod xml_route;
+pub mod xml_trail;
 
 pub const MARKER_SCHEMA_XSD: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">

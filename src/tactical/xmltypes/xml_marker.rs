@@ -110,14 +110,13 @@ pub enum Behavior {
 pub struct POIs {
     #[serde(rename = "$value")]
     pub tags: Option<Vec<PoiOrTrail>>,
-   
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum PoiOrTrail {
     POI(XMLPOI),
     Trail(XMLTrail),
-    Route(XMLRoute)
+    Route(XMLRoute),
 }
 
 impl XMLPOI {

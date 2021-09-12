@@ -1,4 +1,4 @@
-use crate::core::{JokoCore, input::InputManager, mlink::MumbleManager};
+use crate::core::{input::InputManager, mlink::MumbleManager, JokoCore};
 use std::{
     path::PathBuf,
     time::{Duration, Instant},
@@ -11,7 +11,6 @@ use log::LevelFilter;
 
 use tactical::localtypes::manager::MarkerManager;
 use uuid::Uuid;
-
 
 pub mod core;
 pub mod gui;
@@ -30,9 +29,8 @@ pub struct EState {
 }
 impl JokolayApp {
     pub fn new() -> Self {
-  
         let (mut core, ctx) = JokoCore::new();
-       
+
         let mm = MarkerManager::new(&core.fm);
         JokolayApp {
             state: Default::default(),
@@ -43,8 +41,20 @@ impl JokolayApp {
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
-
-       Ok(())
+        while !self.core.ow.should_close() {
+            let t = self.tick();
+            self.core.rr.draw_egui(
+                t,
+                vec2(
+                    self.core.ow.config.framebuffer_width as f32,
+                    self.core.ow.config.framebuffer_height as f32,
+                ),
+                &self.core.fm,
+                self.ctx.clone(),
+            );
+            self.core.ow.swap_buffers();
+        }
+        Ok(())
     }
 }
 /// initializes global logging backend that is used by log macros
@@ -56,15 +66,12 @@ pub fn log_init(
 ) -> anyhow::Result<()> {
     use simplelog::*;
     use std::fs::File;
-    let config = ConfigBuilder::new().set_location_level(LevelFilter::Error).build();
+    let config = ConfigBuilder::new()
+        .set_location_level(LevelFilter::Error)
+        .build();
 
     CombinedLogger::init(vec![
-        TermLogger::new(
-            term_filter,
-            config,
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
-        ),
+        TermLogger::new(term_filter, config, TerminalMode::Mixed, ColorChoice::Auto),
         WriteLogger::new(file_filter, Config::default(), File::create(file_path)?),
     ])?;
     Ok(())

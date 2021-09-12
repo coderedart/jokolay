@@ -3,7 +3,9 @@ pub mod files;
 pub mod manager;
 pub mod marker;
 pub mod trail;
-use crate::{core::fm::{FileManager, RID}, tactical::{
+use crate::{
+    core::fm::{FileManager, RID},
+    tactical::{
         localtypes::{
             category::{CatSelectionTree, IMCategory},
             files::MarkerFile,
@@ -11,7 +13,8 @@ use crate::{core::fm::{FileManager, RID}, tactical::{
             trail::Trail,
         },
         xmltypes::{xml_marker::XMLPOI, xml_trail::XMLTrail},
-    }};
+    },
+};
 
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;

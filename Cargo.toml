@@ -40,7 +40,7 @@ bus = "2.2.3"
 guillotiere = "0.6.2"
 
 [target.'cfg(target_os = "unix")'.dependencies]
-x11rb = {version =  "0.8.1", features = ["all-extensions"]}
+x11rb = {version =  "0.9.0", features = ["all-extensions"]}
 raw-window-handle = "0.3.3"
 #[patch.crates-io]
 

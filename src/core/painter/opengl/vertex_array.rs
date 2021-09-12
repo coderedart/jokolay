@@ -2,6 +2,8 @@ use std::rc::Rc;
 
 use glow::{HasContext, NativeVertexArray};
 
+use crate::gl_error;
+
 use super::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
 pub struct VertexArrayObject {
@@ -13,8 +15,11 @@ impl VertexArrayObject {
     pub fn new(gl: Rc<glow::Context>, layout: VertexBufferLayout) -> VertexArrayObject {
         unsafe {
             let id = gl.create_vertex_array().unwrap();
-
+            gl_error!(gl);
+            gl.bind_vertex_array(Some(id));
             layout.set_layout(gl.clone(), id);
+            gl_error!(gl);
+            gl.bind_vertex_array(None);
             VertexArrayObject { id, gl }
         }
     }
