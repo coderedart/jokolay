@@ -1,25 +1,19 @@
 pub mod marker;
 
-use egui::{ClippedMesh, RawInput, Widget, Window};
+use egui::{ClippedMesh, Widget, Window};
 
 use crate::JokolayApp;
 
 impl JokolayApp {
     pub fn tick(&mut self) -> Vec<ClippedMesh> {
-        if self.ctx.wants_pointer_input() || self.ctx.wants_keyboard_input() {
-            self.core.ow.set_passthrough(false);
-        } else {
-            self.core.ow.set_passthrough(true);
-        }
-        self.core.mbm.update();
-        let mut input = RawInput::default();
-        self.core.im.process_events(
-            &mut self.core.ow,
-            self.core.rr.egui_gl.gl.clone(),
-            &mut input,
-        );
+        self.core.tick(&self.ctx);
 
-        self.ctx.begin_frame(input.take());
+        let input = self
+            .core
+            .im
+            .process_events(&mut self.core.ow, self.core.rr.egui_gl.gl.clone());
+
+        self.ctx.begin_frame(input);
 
         let ctx = self.ctx.clone();
         Window::new("J").show(&ctx, |ui| {

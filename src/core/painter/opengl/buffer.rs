@@ -56,7 +56,7 @@ pub struct VertexBufferLayout {
 impl VertexBufferLayout {
     /// add a vao attribute that contains floats of count number. count must be equal to or less than 4. until we think of using vertices as matrices
     pub fn push_f32(&mut self, count: i32, normalized: bool) {
-        &self.layout_of_elements.push(VertexBufferLayoutElement {
+        self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::FLOAT,
             count,
             normalized,
@@ -71,7 +71,7 @@ impl VertexBufferLayout {
     // }
     /// The attribute made up of u8, will be expressed as a float in the shader. the gpu will auto convert it.  count must not be more than 4.
     pub fn push_u8(&mut self, count: i32, normalized: bool) {
-        &self.layout_of_elements.push(VertexBufferLayoutElement {
+        self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::UNSIGNED_BYTE,
             count,
             normalized,
@@ -79,7 +79,7 @@ impl VertexBufferLayout {
     }
     /// adds a vao attribute of type u32 with count number. count must not be more than 4.
     pub fn push_u32(&mut self, count: i32, normalized: bool) {
-        &self.layout_of_elements.push(VertexBufferLayoutElement {
+        self.layout_of_elements.push(VertexBufferLayoutElement {
             etype: glow::UNSIGNED_INT,
             count,
             normalized,

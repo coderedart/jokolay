@@ -30,10 +30,18 @@ impl InputManager {
         &mut self,
         overlay_window: &mut OverlayWindow,
         gl: Rc<glow::Context>,
-        input: &mut RawInput,
-    ) {
+    ) -> RawInput {
         self.glfw.poll_events();
-
+        let mut input = RawInput::default();
+        input.screen_rect = Some(Rect::from_two_pos(
+            Pos2::default(),
+            Pos2::new(
+                overlay_window.config.framebuffer_width as f32,
+                overlay_window.config.framebuffer_height as f32,
+            ),
+        ));
+        input.time = Some(self.glfw.get_time());
+        input.pixels_per_point = Some(overlay_window.window.get_content_scale().0);
         let xpos = overlay_window.config.window_pos_x;
         let ypos = overlay_window.config.window_pos_y;
         let mouse = self.dq.query_pointer();
@@ -58,10 +66,6 @@ impl InputManager {
                     }
                     overlay_window.config.framebuffer_width = width as u32;
                     overlay_window.config.framebuffer_height = height as u32;
-                    input.screen_rect = Some(Rect::from_two_pos(
-                        Pos2::default(),
-                        Pos2::new(width as f32, height as f32),
-                    ));
                 }
                 WindowEvent::Pos(x, y) => {
                     overlay_window.config.window_pos_x = x;
@@ -140,6 +144,7 @@ impl InputManager {
                 _ => {}
             }
         }
+        input
     }
 
     pub fn new(events: Receiver<(f64, WindowEvent)>, glfw: Glfw) -> Self {

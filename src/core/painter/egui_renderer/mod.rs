@@ -31,17 +31,12 @@ pub struct EguiGL {
 
 impl EguiGL {
     pub fn new(gl: Rc<Context>) -> EguiGL {
-        gl_error!(gl);
-
         let layout = VertexRgba::get_layout();
         let vao = VertexArrayObject::new(gl.clone(), layout);
-        gl_error!(gl);
 
         let vb = Buffer::new(gl.clone(), glow::ARRAY_BUFFER);
-        gl_error!(gl);
 
         let ib = Buffer::new(gl.clone(), glow::ELEMENT_ARRAY_BUFFER);
-        gl_error!(gl);
 
         let program = ShaderProgram::new(
             gl.clone(),
@@ -49,7 +44,6 @@ impl EguiGL {
             EGUI_FRAGMENT_SHADER_SRC,
             None,
         );
-        gl_error!(gl);
 
         let u_sampler;
         let u_sampler_layer;
@@ -68,8 +62,8 @@ impl EguiGL {
             u_tcy_offset = gl.get_uniform_location(program.id, "tc_y_offset").unwrap();
             u_tcx_scale = gl.get_uniform_location(program.id, "tc_x_scale").unwrap();
             u_tcy_scale = gl.get_uniform_location(program.id, "tc_y_scale").unwrap();
+            gl_error!(gl);
         }
-        gl_error!(gl);
 
         let egui_gl = EguiGL {
             version: None,
@@ -87,7 +81,9 @@ impl EguiGL {
             gl: gl.clone(),
         };
         egui_gl.bind();
-        gl_error!(gl);
+        unsafe {
+            gl_error!(gl);
+        }
 
         return egui_gl;
     }

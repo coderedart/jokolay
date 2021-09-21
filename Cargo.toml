@@ -38,11 +38,14 @@ anyhow = "1.0.41"
 rayon = "1.5.1"
 bus = "2.2.3"
 guillotiere = "0.6.2"
-
-[target.'cfg(target_os = "unix")'.dependencies]
-x11rb = {version =  "0.9.0", features = ["all-extensions"]}
 raw-window-handle = "0.3.3"
-#[patch.crates-io]
+serde_json = "1.0.68"
+psutil = "3.2.1"
+
+
+
+[target.'cfg(unix)'.dependencies]
+x11rb = {version =  "0.9.0", features = ["all-extensions"]}
 
 [profile.release]
 incremental = true

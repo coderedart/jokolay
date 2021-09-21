@@ -41,7 +41,7 @@ pub struct MarkerPack {
 
 impl MarkerPack {
     /// call this function to get a markerpack struct from a folder.
-    pub fn new(folder_location: VfsPath, fm: &FileManager) -> Self {
+    pub fn new(folder_location: VfsPath, fm: &mut FileManager) -> Self {
         // our files in the markerpack directory
         let mut mfiles: Vec<MarkerFile> = Vec::new();
         let mut global_cats: Vec<IMCategory> = Vec::new();
@@ -49,11 +49,12 @@ impl MarkerPack {
         let mut global_trails: HashMap<Uuid, Trail> = HashMap::new();
         let mut name_id_map: HashMap<String, usize> = HashMap::new();
         let mut cstree = vec![];
-
         let vid = fm.get_vid(&folder_location).unwrap();
         let mut raw_global_pois: HashMap<Uuid, XMLPOI> = HashMap::new();
         let mut raw_global_trails: HashMap<Uuid, XMLTrail> = HashMap::new();
-        for f in folder_location
+
+        let mut xml_files = vec![];
+        for entry in folder_location
             .read_dir()
             .map_err(|e| {
                 log::error!(
@@ -65,21 +66,53 @@ impl MarkerPack {
             })
             .unwrap()
         {
-            let entry = f;
-            let ext = entry.extension();
-            // for each xml file in this folder
-            if ext == Some("xml".to_string()) {
-                MarkerFile::parse_marker_file(
-                    vid,
-                    fm,
-                    entry,
-                    &mut global_cats,
-                    &mut raw_global_pois,
-                    &mut raw_global_trails,
-                    &mut name_id_map,
-                    &mut mfiles,
-                    &mut cstree,
-                );
+            match entry.metadata().unwrap().file_type {
+                vfs::VfsFileType::File => {
+                    if entry.filename().starts_with(".") {
+                        continue;
+                    }
+                    if let Some(ext) = entry.extension() {
+                        match ext.as_str() {
+                            "xml" => {
+                                let index = fm.paths.len();
+                                fm.paths.push(entry);
+                                xml_files.push(index);
+                            },
+                            "png" => {
+                                fm.paths.push(entry);
+                            },
+                            "trl" => {
+                                fm.paths.push(entry);
+                            },
+                            _ => log::warn!("file with extension that is not png, trl or xml found in pack folder {} with filename: {}", entry.as_str(), folder_location.as_str())
+                        }
+                    }
+                },
+                vfs::VfsFileType::Directory => {
+
+                }
+            }
+        }
+        for xml_file_index in xml_files
+        {
+            let entry = fm.get_path(RID::VID(xml_file_index)).unwrap();
+            if let Some(ext) = entry.extension() {
+                // for each xml file in this folder
+                if ext == "xml" {
+                    MarkerFile::parse_marker_file(
+                        vid,
+                        fm,
+                        entry.clone(),
+                        &mut global_cats,
+                        &mut raw_global_pois,
+                        &mut raw_global_trails,
+                        &mut name_id_map,
+                        &mut mfiles,
+                        &mut cstree,
+                    );
+                } else if ext == "png" {
+                    fm.paths.push(entry.clone());
+                }
             }
         }
 

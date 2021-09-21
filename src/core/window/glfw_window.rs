@@ -1,17 +1,19 @@
-use std::{rc::Rc, sync::mpsc::Receiver};
+use std::{
+    convert::TryInto,
+    rc::Rc,
+    sync::mpsc::Receiver,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 
+use egui::CtxRef;
 use glfw::{Glfw, Window, WindowEvent};
 use glow::{Context, HasContext};
 use serde::{Deserialize, Serialize};
-// use x11rb::{
-//     connection::Connection,
-//     properties::WmHints,
-//     protocol::xproto::{get_atom_name, get_property, intern_atom, Atom, AtomEnum},
-// };
 
-use crate::{core::mlink::MumbleManager, gl_error};
+
+use crate::{core::{mlink::MumbleSource, window::linux::LinuxPlatformData}, gl_error};
 
 /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -39,9 +41,9 @@ impl OverlayWindowConfig {
     pub const WINDOW_POS_X: i32 = 0;
     pub const WINDOW_POS_Y: i32 = 0;
     pub const PASSTHROUGH: bool = false;
-    pub const ALWAYS_ON_TOP: bool = false;
-    pub const TRANSPARENCY: bool = false;
-    pub const DECORATED: bool = true;
+    pub const ALWAYS_ON_TOP: bool = true;
+    pub const TRANSPARENCY: bool = true;
+    pub const DECORATED: bool = false;
 }
 impl Default for OverlayWindowConfig {
     fn default() -> Self {
@@ -64,6 +66,9 @@ impl Default for OverlayWindowConfig {
 pub struct OverlayWindow {
     pub window: Window,
     pub config: OverlayWindowConfig,
+    pub gw2_last_checked: Instant,
+    #[cfg(target_os = "linux")]
+    pub platform_data: LinuxPlatformData
 }
 impl OverlayWindow {
     /// default OpenGL minimum major version
@@ -100,12 +105,14 @@ impl OverlayWindow {
     }
     pub fn create(
         mut config: OverlayWindowConfig,
+        mumble_src: &mut MumbleSource,
     ) -> anyhow::Result<(
         OverlayWindow,
         Receiver<(f64, WindowEvent)>,
         Glfw,
         Rc<Context>,
     )> {
+        let gw2_last_checked = Instant::now();
         let mut glfw =
             glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw window")?;
 
@@ -130,7 +137,10 @@ impl OverlayWindow {
         let gl = unsafe {
             glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _)
         };
-
+        let gl = Rc::new(gl);
+        unsafe {
+            gl_error!(gl);
+        }
         let passthrough = window.is_mouse_passthrough();
         config.passthrough = passthrough;
         let (x, y) = window.get_pos();
@@ -140,7 +150,20 @@ impl OverlayWindow {
         config.framebuffer_height = height as u32;
         config.framebuffer_width = width as u32;
         log::trace!("window created. config is: {:?}", config);
-        Ok((OverlayWindow { window, config }, events, glfw, Rc::new(gl)))
+        #[cfg(target_os="linux")]
+        let platform_data = LinuxPlatformData::new(&window, mumble_src);
+        
+        Ok((
+            OverlayWindow {
+                window,
+                config,
+                gw2_last_checked,
+                platform_data,
+            },
+            events,
+            glfw,
+            gl,
+        ))
     }
 
     pub fn set_framebuffer_size(&mut self, width: u32, height: u32) {
@@ -160,23 +183,65 @@ impl OverlayWindow {
     }
 
     pub fn set_decorations(&mut self, decorated: bool) {
-        self.window.set_decorated(decorated);
+        if self.config.decorated != decorated {
+            self.config.decorated = decorated;
+            self.window.set_decorated(decorated);
+        }
     }
     pub fn set_passthrough(&mut self, passthrough: bool) {
-        if passthrough == self.config.passthrough {
-            return;
+        if passthrough != self.config.passthrough {
+            self.config.passthrough = passthrough;
+            self.window.set_mouse_passthrough(passthrough);
         }
-        self.config.passthrough = passthrough;
-        self.window.set_mouse_passthrough(passthrough);
     }
 
-    // pub fn get_inner_size(&mut self) -> (i32, i32) {
-    //     self.window.get_framebuffer_size()
-    // }
+    pub fn get_live_inner_size(&mut self) -> (i32, i32) {
+        let (width, height) = self.window.get_framebuffer_size();
+        if width as u32 != self.config.framebuffer_width {
+            log::error!(
+                "framebuffer width mismatch with live data. config_width: {}, live_width: {}",
+                self.config.framebuffer_width,
+                width
+            );
+            self.config.framebuffer_width = width as u32;
+        }
+        if height as u32 != self.config.framebuffer_height {
+            log::error!(
+                "framebuffer height mismatch with live data. config.height: {}, live_height: {}",
+                self.config.framebuffer_height,
+                height
+            );
+            self.config.framebuffer_height = height as u32;
+        }
+        (width, height)
+    }
 
-    // pub fn get_inner_position(&mut self) -> (i32, i32) {
-    //     self.window.get_pos()
-    // }
+    pub fn get_live_inner_position(&mut self) -> (i32, i32) {
+        let (x, y) = self.window.get_pos();
+        if x != self.config.window_pos_x {
+            log::error!(
+                "framebuffer width mismatch with live data. config_width: {}, live_width: {}",
+                self.config.window_pos_x,
+                x
+            );
+            self.config.window_pos_x = x;
+        }
+        if y != self.config.window_pos_y {
+            log::error!(
+                "framebuffer height mismatch with live data. config.height: {}, live_height: {}",
+                self.config.window_pos_y,
+                y
+            );
+            self.config.window_pos_y = y;
+        }
+        (x, y)
+    }
+
+    pub fn get_live_windim(&mut self) -> WindowDimensions {
+        self.get_live_inner_position();
+        self.get_live_inner_size();
+        self.config.into()
+    }
 
     pub fn swap_buffers(&mut self) {
         use glfw::Context;
@@ -188,12 +253,53 @@ impl OverlayWindow {
     pub fn should_close(&mut self) -> bool {
         self.window.should_close()
     }
-    pub fn attach_to_gw2window(&mut self, mm: &mut MumbleManager) {
-        let window_dimensions = mm.get_window_dimensions();
-        self.set_inner_position(window_dimensions.x, window_dimensions.y);
-        self.set_framebuffer_size(
-            window_dimensions.width as u32,
-            window_dimensions.height as u32,
-        );
+    pub fn attach_to_gw2window(&mut self, new_windim: WindowDimensions) {
+        self.set_inner_position(new_windim.x, new_windim.y);
+        self.set_framebuffer_size(new_windim.width as u32, new_windim.height as u32);
+    }
+
+    pub fn tick(&mut self, ctx: &CtxRef) {
+        if self.gw2_last_checked.elapsed() > Duration::from_secs(2) {
+            self.gw2_last_checked = Instant::now();
+            if self.is_gw2_alive() {
+                let gw2_windim = self.get_gw2_windim();
+                let ow_windim: WindowDimensions = self.get_live_windim();
+                if gw2_windim != ow_windim {
+                    log::info!(
+                        "resizing to match gw2. old dimensions: {:#?}, new dimensions: {:#?}",
+                        ow_windim,
+                        gw2_windim
+                    );
+                    self.attach_to_gw2window(gw2_windim);
+                }
+            } else {
+                log::debug!("gw2 process is not alive anymore");
+                self.window.set_should_close(true);
+            }
+        }
+        if ctx.wants_pointer_input() || ctx.wants_keyboard_input() {
+            self.set_passthrough(false);
+        } else {
+            self.set_passthrough(true);
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WindowDimensions {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl From<OverlayWindowConfig> for WindowDimensions {
+    fn from(owc: OverlayWindowConfig) -> Self {
+        WindowDimensions {
+            x: owc.window_pos_x,
+            y: owc.window_pos_y,
+            width: owc.framebuffer_width as i32,
+            height: owc.framebuffer_height as i32,
+        }
     }
 }

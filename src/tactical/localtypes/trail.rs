@@ -11,8 +11,8 @@ use uuid::Uuid;
 /// The trail data struct holding the nodes
 #[derive(Debug, Clone)]
 pub struct TrailData {
-    pub map_id: u32,
     pub version: u32,
+    pub map_id: u32,
     pub nodes: Vec<[f32; 3]>,
 }
 impl TrailData {

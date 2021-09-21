@@ -60,7 +60,7 @@ pub struct MarkerFileEditor {
 }
 impl MarkerManager {
     /// tries to create MarkerPacks from each directory in the specified location and return a new MarkerManger .
-    pub fn new(fm: &FileManager) -> Self {
+    pub fn new(fm: &mut FileManager) -> Self {
         let mut packs = vec![];
         let location = fm.markers.clone();
         for dir in location
@@ -77,10 +77,13 @@ impl MarkerManager {
         {
             let dir_type = dir.metadata().unwrap();
             if dir_type.file_type == vfs::path::VfsFileType::Directory {
+                fm.paths.push(dir.clone());
                 packs.push(MarkerPack::new(dir, fm));
             }
         }
-        let vid = fm.get_vid(&location).unwrap();
+        let vid = fm.get_vid(&location)
+        
+        .unwrap();
         Self {
             path: vid,
             packs,

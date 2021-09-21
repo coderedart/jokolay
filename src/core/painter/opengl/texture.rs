@@ -41,7 +41,9 @@ impl TextureManager {
     /// create a new texture manager with empty map. when we start drawing, they will automatically get uploaded.
     pub fn new(gl: Rc<Context>) -> Self {
         let id = Self::create_tex_array(gl.clone());
-        gl_error!(gl);
+        unsafe {
+            gl_error!(gl);
+        }
 
         unsafe {
             gl.texture_storage_3d(
@@ -53,7 +55,9 @@ impl TextureManager {
                 1 as i32,
             );
         }
-        gl_error!(gl);
+        unsafe {
+            gl_error!(gl);
+        }
 
         TextureManager {
             gl,
@@ -159,7 +163,9 @@ impl TextureManager {
         let tbox = allocation.rectangle;
         let [x_offset, y_offset] = tbox.min.to_array();
         self.upload_pixels(pixels, x_offset, y_offset, layer as i32, width, height);
-        gl_error!(self.gl);
+        unsafe {
+            gl_error!(self.gl);
+        }
         self.tmap.insert(id, (layer, allocation));
         if let Some(t) = self.tmap.get(&id) {
             return *t;
@@ -177,7 +183,9 @@ impl TextureManager {
         width: u32,
         height: u32,
     ) {
-        gl_error!(self.gl);
+        unsafe {
+            gl_error!(self.gl);
+        }
 
         unsafe {
             self.gl.texture_sub_image_3d(
@@ -213,7 +221,9 @@ impl TextureManager {
         if let Some(a) = rect {
             let layer = self.layers.len();
             self.bump_tex_array_size();
-            gl_error!(self.gl);
+            unsafe {
+                gl_error!(self.gl);
+            }
             self.layers.push(atlas);
             return (layer, a);
         }
@@ -238,18 +248,26 @@ impl TextureManager {
         let (layer, allocation) = self.allocate_rectangle(width, height);
         let tbox = allocation.rectangle;
         let [x_offset, y_offset] = tbox.min.to_array();
-        gl_error!(self.gl);
+        unsafe {
+            gl_error!(self.gl);
+        }
 
         self.upload_pixels(&pixels, x_offset, y_offset, layer as i32, width, height);
-        gl_error!(self.gl);
+        unsafe {
+            gl_error!(self.gl);
+        }
         self.tmap.insert(RID::EguiTexture, (layer, allocation));
     }
 
     fn bump_tex_array_size(&mut self) {
-        gl_error!(self.gl);
+        unsafe {
+            gl_error!(self.gl);
+        }
 
         let new_tex = Self::create_tex_array(self.gl.clone());
-        gl_error!(self.gl);
+        unsafe {
+            gl_error!(self.gl);
+        }
 
         let old_depth = self.layers.len() as u32;
         let new_depth = old_depth + 1;

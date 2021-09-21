@@ -1,4 +1,16 @@
+use std::path::PathBuf;
+
 use egui::{CtxRef, Pos2, RawInput, Rect, Visuals};
+use log::trace;
+use x11rb::{
+    protocol::xproto::{
+        change_property, get_atom_name, get_property, intern_atom, reparent_window, Atom, AtomEnum,
+        ConnectionExt, PropMode,
+    },
+    rust_connection::RustConnection,
+};
+
+use crate::core::mlink::{MumbleConfig, MumbleSource};
 
 use self::{
     fm::FileManager,
@@ -22,37 +34,44 @@ pub struct JokoCore {
     pub ow: OverlayWindow,
 }
 
+#[derive(Debug)]
+pub struct JokoConfig {
+    overlay_window_config: OverlayWindowConfig,
+    mumble_config: MumbleConfig,
+    assets_folder_path: PathBuf,
+}
+impl Default for JokoConfig {
+    fn default() -> Self {
+        let mut assets_folder_path = std::env::current_dir().unwrap();
+        assets_folder_path.push("assets");
+
+        Self {
+            overlay_window_config: Default::default(),
+            mumble_config: Default::default(),
+            assets_folder_path,
+        }
+    }
+}
 impl JokoCore {
     pub fn new() -> (Self, CtxRef) {
-        let mut config = OverlayWindowConfig::default();
-        config.transparency = true;
-        let (ow, events, glfw, gl) = OverlayWindow::create(config).unwrap();
+        let joko_config = JokoConfig::default();
+        let mut mumble_src = MumbleSource::new(&joko_config.mumble_config.link_name);
+
+        let config = joko_config.overlay_window_config;
+        let (ow, events, glfw, gl) = OverlayWindow::create(config, &mut mumble_src).unwrap();
+        let mbm = MumbleManager::new(mumble_src).unwrap();
 
         let im = InputManager::new(events, glfw);
-        let mbm = MumbleManager::new("MumbleLink").unwrap();
         // start setting up egui initial state
-        let mut ctx = CtxRef::default();
-        let width = ow.config.framebuffer_width;
-        let height = ow.config.framebuffer_height;
+        let ctx = CtxRef::default();
 
-        let mut input = RawInput::default();
-        input.screen_rect = Some(Rect::from_two_pos(
-            Pos2::new(0.0, 0.0),
-            Pos2::new(width as f32, height as f32),
-        ));
-        input.pixels_per_point = Some(1.0);
         let mut visuals = Visuals::dark();
-
         visuals.window_shadow.extrusion = 0.0;
         visuals.window_corner_radius = 0.0;
         ctx.set_visuals(visuals);
 
-        ctx.begin_frame(input.take());
-
-        let t = ctx.texture();
-        let rr = Renderer::new(gl.clone(), t);
-        let _ = ctx.end_frame();
-        let fm = FileManager::new();
+        let rr = Renderer::new(gl.clone());
+        let fm = FileManager::new(joko_config.assets_folder_path);
         (
             Self {
                 im,
@@ -63,5 +82,10 @@ impl JokoCore {
             },
             ctx,
         )
+    }
+    pub fn tick(&mut self, ctx: &CtxRef) {
+        self.mbm.tick();
+        self.ow.tick(ctx);
+        
     }
 }

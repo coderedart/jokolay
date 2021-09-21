@@ -2,7 +2,7 @@ use jokolay::JokolayApp;
 
 fn main() -> anyhow::Result<()> {
     jokolay::log_init(
-        log::LevelFilter::Error,
+        log::LevelFilter::Info,
         log::LevelFilter::Trace,
         "./joko.log".into(),
     )?;

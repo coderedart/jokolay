@@ -23,14 +23,18 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(gl: Rc<Context>, t: Arc<egui::Texture>) -> Self {
+    pub fn new(gl: Rc<Context>) -> Self {
         unsafe {
             gl.enable(glow::MULTISAMPLE);
             gl.enable(glow::BLEND);
         }
-        gl_error!(gl);
+        unsafe {
+            gl_error!(gl);
+        }
         let egui_gl = EguiGL::new(gl.clone());
-        gl_error!(gl);
+        unsafe {
+            gl_error!(gl);
+        }
 
         let tm = TextureManager::new(gl.clone());
         // let marker_gl = MarkerGl::new(gl.clone());
@@ -60,8 +64,9 @@ impl Renderer {
             .draw_meshes(meshes, screen_size, &mut self.tm, fm, ctx)
             .unwrap();
         let gl = self.egui_gl.gl.clone();
-        gl_error!(gl);
-        log::trace!("egui drawn");
+        unsafe {
+            gl_error!(gl);
+        }
     }
     // pub fn draw_markers(&mut self, mm: &mut MarkerManager, link: &MumbleLink, fm: &FileManager, wc: OverlayWindowConfig) {
     //     self.marker_gl.draw_markers(&mut self.tm, mm, link, fm, wc);
