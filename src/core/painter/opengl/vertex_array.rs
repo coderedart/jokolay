@@ -4,7 +4,7 @@ use glow::{HasContext, NativeVertexArray};
 
 use crate::gl_error;
 
-use super::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
+use super::buffer::VertexBufferLayout;
 
 pub struct VertexArrayObject {
     pub id: NativeVertexArray,

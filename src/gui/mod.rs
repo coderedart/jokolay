@@ -16,9 +16,10 @@ impl JokolayApp {
         self.ctx.begin_frame(input);
 
         let ctx = self.ctx.clone();
-        Window::new("J").show(&ctx, |ui| {
+        Window::new("J").scroll(true).show(&ctx, |ui| {
             self.ui(ui);
         });
+
         let mut show_mumble = self.state.show_mumble_window;
         Window::new("Mumble Info")
             .open(&mut show_mumble)
@@ -41,9 +42,10 @@ impl JokolayApp {
         ctx.tessellate(shapes)
     }
 }
+
 impl Widget for &mut JokolayApp {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        ui.checkbox(&mut self.state.show_mumble_window, "show Mumble Setup");
+        ui.checkbox(&mut self.state.show_mumble_window, "Mumble Live");
         ui.checkbox(&mut self.state.show_marker_manager, "show Marker Manager")
     }
 }

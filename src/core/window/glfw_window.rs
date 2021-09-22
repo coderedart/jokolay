@@ -1,5 +1,4 @@
 use std::{
-    convert::TryInto,
     rc::Rc,
     sync::mpsc::Receiver,
     time::{Duration, Instant},
@@ -12,8 +11,7 @@ use glfw::{Glfw, Window, WindowEvent};
 use glow::{Context, HasContext};
 use serde::{Deserialize, Serialize};
 
-
-use crate::{core::{mlink::MumbleSource, window::linux::LinuxPlatformData}, gl_error};
+use crate::{core::mlink::MumbleSource, gl_error};
 
 /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -68,7 +66,9 @@ pub struct OverlayWindow {
     pub config: OverlayWindowConfig,
     pub gw2_last_checked: Instant,
     #[cfg(target_os = "linux")]
-    pub platform_data: LinuxPlatformData
+    pub platform_data: super::linux::LinuxPlatformData,
+    #[cfg(target_os = "windows")]
+    pub platform_data: super::windows::WindowsPlatformData,
 }
 impl OverlayWindow {
     /// default OpenGL minimum major version
@@ -150,9 +150,11 @@ impl OverlayWindow {
         config.framebuffer_height = height as u32;
         config.framebuffer_width = width as u32;
         log::trace!("window created. config is: {:?}", config);
-        #[cfg(target_os="linux")]
-        let platform_data = LinuxPlatformData::new(&window, mumble_src);
-        
+        #[cfg(target_os = "linux")]
+        let platform_data = super::linux::LinuxPlatformData::new(&window, mumble_src);
+        #[cfg(target_os = "windows")]
+        let platform_data = super::windows::WindowsPlatformData::new(&window, mumble_src);
+
         Ok((
             OverlayWindow {
                 window,

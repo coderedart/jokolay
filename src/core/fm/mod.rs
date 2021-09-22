@@ -68,7 +68,7 @@ impl FileManager {
                 .unwrap()
         }
         let paths = vec![assets_path.clone(), markers_path.clone()];
-        
+
         Self {
             assets: assets_path,
             markers: markers_path,

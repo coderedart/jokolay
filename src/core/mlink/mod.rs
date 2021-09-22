@@ -52,7 +52,7 @@ impl MumbleSource {
                 }
             }
         };
-   
+
         counter = 0;
         max_counter = 60;
         let tick = src.get_link().ui_tick;
@@ -72,7 +72,6 @@ impl MumbleSource {
                 }
             }
         }
-
     }
     fn get_link_buffer(
         &mut self,
@@ -89,7 +88,7 @@ impl MumbleSource {
     pub fn get_link(&mut self) -> MumbleLink {
         let mut link = MumbleLink::default();
         let buffer = self.get_link_buffer();
-        link.update_from_slice(&buffer);
+        link.update_from_slice(&buffer).unwrap();
         link
     }
     pub fn get_gw2_window_handle(&mut self) -> isize {
@@ -180,7 +179,7 @@ pub struct MumbleManager {
     pub link: MumbleLink,
     pub last_update: Instant,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MumbleConfig {
     pub link_name: String,
 }

@@ -1,5 +1,5 @@
 use glow::*;
-use std::{convert::TryInto, rc::Rc};
+use std::rc::Rc;
 
 use crate::gl_error;
 
@@ -105,7 +105,7 @@ impl VertexBufferLayout {
                 }
             }
         }
-        let stride = stride;
+        let _stride = stride;
         let mut offset = 0;
 
         for (index, element) in self.layout_of_elements.iter().enumerate() {

@@ -1,6 +1,6 @@
-use crate::core::{input::InputManager, mlink::MumbleManager, JokoCore};
+use crate::core::{JokoConfig, JokoCore};
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -9,7 +9,6 @@ use glm::vec2;
 use log::LevelFilter;
 
 use tactical::localtypes::manager::MarkerManager;
-use x11rb::protocol::xproto::ConfigureWindowAux;
 
 pub mod core;
 pub mod gui;
@@ -49,10 +48,12 @@ pub fn get_win_pos_dim(link_ptr: *const CMumbleLink) -> anyhow::Result<WindowDim
         })
     }
 } */
+
 pub struct JokolayApp {
     pub core: JokoCore,
     pub ctx: CtxRef,
     pub mm: MarkerManager,
+    pub config: JokoConfig,
     state: EState,
 }
 
@@ -62,8 +63,8 @@ pub struct EState {
     pub show_marker_manager: bool,
 }
 impl JokolayApp {
-    pub fn new() -> Self {
-        let (mut core, ctx) = JokoCore::new();
+    pub fn new(mut config: JokoConfig) -> Self {
+        let (mut core, ctx) = JokoCore::new(&mut config);
 
         let mm = MarkerManager::new(&mut core.fm);
         JokolayApp {
@@ -71,10 +72,12 @@ impl JokolayApp {
             mm,
             ctx,
             core,
+            config,
         }
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
+        let auto_save_timer = Instant::now();
         //fps counter
         let mut fps = 0;
         let mut timer = Instant::now();
@@ -95,7 +98,6 @@ impl JokolayApp {
             }
             fps += 1;
 
-           
             let t = self.tick();
             // ending loop timer
             average_egui = (average_egui + et.elapsed()) / 2;
@@ -111,9 +113,40 @@ impl JokolayApp {
                 self.ctx.clone(),
             );
             average_draw_call = (average_draw_call + dt.elapsed()) / 2;
+
+            if auto_save_timer.elapsed() > Duration::from_secs(5) {
+                Self::save_config(&self.config, "./joko_config.json".into());
+                Self::save_egui_memory(self.ctx.clone(), &self.config.egui_cache_path);
+            }
             self.core.ow.swap_buffers();
         }
         Ok(())
+    }
+}
+
+impl JokolayApp {
+    pub fn save_egui_memory(ctx: CtxRef, path: &Path) {
+        let egui_cache = std::fs::File::create(&path).map_err(|e| {
+            log::error!(
+                "could not write config to config file due to error {:?}",
+                &e
+            );
+            e
+        });
+        if egui_cache.is_err() {
+            return;
+        }
+        let writer = std::io::BufWriter::new(egui_cache.unwrap());
+        let memory = ctx.memory().clone();
+        serde_json::to_writer_pretty(writer, &memory)
+            .map_err(|e| {
+                log::error!(
+                    "could not write config to config file due to error {:?}",
+                    &e
+                );
+                e
+            })
+            .unwrap_or_default();
     }
 }
 /// initializes global logging backend that is used by log macros
@@ -135,7 +168,30 @@ pub fn log_init(
     ])?;
     Ok(())
 }
-
+impl JokolayApp {
+    pub fn save_config(config: &JokoConfig, path: PathBuf) {
+        let config_file = std::fs::File::create(&path).map_err(|e| {
+            log::error!(
+                "could not write config to config file due to error {:?}",
+                &e
+            );
+            e
+        });
+        if config_file.is_err() {
+            return;
+        }
+        let writer = std::io::BufWriter::new(config_file.unwrap());
+        serde_json::to_writer_pretty(writer, config)
+            .map_err(|e| {
+                log::error!(
+                    "could not write config to config file due to error {:?}",
+                    &e
+                );
+                e
+            })
+            .unwrap_or_default();
+    }
+}
 #[macro_export]
 macro_rules! gl_error {
     ($gl:expr) => {

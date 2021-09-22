@@ -37,6 +37,10 @@ pub struct MarkerPack {
     pub names_to_id_map: HashMap<String, usize>,
     /// This is what we will show to the user in terms of enabling/disabling categories and using this to adjust the currently drawn objects
     pub cat_selection_tree: Option<CatSelectionTree>,
+    /// list of all the images that are in this folder, this will help with selecting the texture for a marker/trail
+    pub images: Vec<RID>,
+    /// list of all the trail files that are in this pack, will help to edit these seperately from markers
+    pub trail_files: Vec<RID>,
 }
 
 impl MarkerPack {
@@ -54,6 +58,8 @@ impl MarkerPack {
         let mut raw_global_trails: HashMap<Uuid, XMLTrail> = HashMap::new();
 
         let mut xml_files = vec![];
+        let mut images = vec![];
+        let mut trail_files = vec![];
         for entry in folder_location
             .read_dir()
             .map_err(|e| {
@@ -76,44 +82,39 @@ impl MarkerPack {
                             "xml" => {
                                 let index = fm.paths.len();
                                 fm.paths.push(entry);
-                                xml_files.push(index);
+                                xml_files.push(RID::VID(index));
                             },
                             "png" => {
+                                let index = fm.paths.len();
                                 fm.paths.push(entry);
+                                images.push(RID::VID(index));
                             },
                             "trl" => {
+                                let index = fm.paths.len();
                                 fm.paths.push(entry);
+                                trail_files.push(RID::VID(index));
                             },
                             _ => log::warn!("file with extension that is not png, trl or xml found in pack folder {} with filename: {}", entry.as_str(), folder_location.as_str())
                         }
                     }
-                },
-                vfs::VfsFileType::Directory => {
-
                 }
+                vfs::VfsFileType::Directory => {}
             }
         }
-        for xml_file_index in xml_files
-        {
-            let entry = fm.get_path(RID::VID(xml_file_index)).unwrap();
-            if let Some(ext) = entry.extension() {
-                // for each xml file in this folder
-                if ext == "xml" {
-                    MarkerFile::parse_marker_file(
-                        vid,
-                        fm,
-                        entry.clone(),
-                        &mut global_cats,
-                        &mut raw_global_pois,
-                        &mut raw_global_trails,
-                        &mut name_id_map,
-                        &mut mfiles,
-                        &mut cstree,
-                    );
-                } else if ext == "png" {
-                    fm.paths.push(entry.clone());
-                }
-            }
+        for xml_file_index in xml_files {
+            let entry = fm.get_path(xml_file_index).unwrap();
+
+            MarkerFile::parse_marker_file(
+                vid,
+                fm,
+                entry.clone(),
+                &mut global_cats,
+                &mut raw_global_pois,
+                &mut raw_global_trails,
+                &mut name_id_map,
+                &mut mfiles,
+                &mut cstree,
+            );
         }
 
         // insert uuids of markers and trails into global_cats so we can keep track of which markers to draw based on enabled categories.
@@ -159,6 +160,8 @@ impl MarkerPack {
             global_trails,
             names_to_id_map: name_id_map,
             cat_selection_tree,
+            images,
+            trail_files,
         }
     }
 

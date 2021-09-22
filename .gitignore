@@ -1,4 +1,6 @@
 /target
 /assets/
 /.vscode
-/joko.log
+/jokolay.log
+/joko_config.json
+/egui_cache.json

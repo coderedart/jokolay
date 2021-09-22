@@ -1,14 +1,7 @@
 use std::path::PathBuf;
 
-use egui::{CtxRef, Pos2, RawInput, Rect, Visuals};
-use log::trace;
-use x11rb::{
-    protocol::xproto::{
-        change_property, get_atom_name, get_property, intern_atom, reparent_window, Atom, AtomEnum,
-        ConnectionExt, PropMode,
-    },
-    rust_connection::RustConnection,
-};
+use egui::CtxRef;
+use serde::{Deserialize, Serialize};
 
 use crate::core::mlink::{MumbleConfig, MumbleSource};
 
@@ -34,27 +27,39 @@ pub struct JokoCore {
     pub ow: OverlayWindow,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JokoConfig {
-    overlay_window_config: OverlayWindowConfig,
-    mumble_config: MumbleConfig,
-    assets_folder_path: PathBuf,
+    pub overlay_window_config: OverlayWindowConfig,
+    pub mumble_config: MumbleConfig,
+    pub assets_folder_path: PathBuf,
+    pub log_file_path: PathBuf,
+    pub file_log_level: String,
+    pub term_log_level: String,
+    pub egui_cache_path: PathBuf,
 }
 impl Default for JokoConfig {
     fn default() -> Self {
-        let mut assets_folder_path = std::env::current_dir().unwrap();
-        assets_folder_path.push("assets");
+        let current_dir = std::env::current_dir().unwrap();
+        let assets_folder_path = current_dir.join("assets");
+        let log_file_path = current_dir.join("jokolay.log");
+        let file_log_level = "trace".to_string();
+        let term_log_level = "debug".to_string();
+        let egui_cache_path = current_dir.join("egui_cache.json");
 
         Self {
             overlay_window_config: Default::default(),
             mumble_config: Default::default(),
             assets_folder_path,
+            log_file_path,
+            file_log_level,
+            term_log_level,
+            egui_cache_path,
         }
     }
 }
+
 impl JokoCore {
-    pub fn new() -> (Self, CtxRef) {
-        let joko_config = JokoConfig::default();
+    pub fn new(joko_config: &mut JokoConfig) -> (Self, CtxRef) {
         let mut mumble_src = MumbleSource::new(&joko_config.mumble_config.link_name);
 
         let config = joko_config.overlay_window_config;
@@ -64,14 +69,28 @@ impl JokoCore {
         let im = InputManager::new(events, glfw);
         // start setting up egui initial state
         let ctx = CtxRef::default();
-
-        let mut visuals = Visuals::dark();
-        visuals.window_shadow.extrusion = 0.0;
-        visuals.window_corner_radius = 0.0;
-        ctx.set_visuals(visuals);
+        if let Ok(f) = std::fs::File::open(&joko_config.egui_cache_path).map_err(|e| {
+            log::error!(
+                "failed to open egui_cache path at {:?} due to error: {:?}",
+                &joko_config.egui_cache_path,
+                &e
+            );
+            e
+        }) {
+            if let Ok(memory) = serde_json::from_reader(f).map_err(|e| {
+                log::error!(
+                    "failed to parse memory from file {:?} due ot error {:?}",
+                    &joko_config.egui_cache_path,
+                    &e
+                );
+                e
+            }) {
+                *ctx.memory() = memory;
+            }
+        }
 
         let rr = Renderer::new(gl.clone());
-        let fm = FileManager::new(joko_config.assets_folder_path);
+        let fm = FileManager::new(joko_config.assets_folder_path.clone());
         (
             Self {
                 im,
@@ -86,6 +105,5 @@ impl JokoCore {
     pub fn tick(&mut self, ctx: &CtxRef) {
         self.mbm.tick();
         self.ow.tick(ctx);
-        
     }
 }

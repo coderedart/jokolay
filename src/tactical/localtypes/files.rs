@@ -3,8 +3,7 @@ use crate::{
     tactical::{
         localtypes::{
             category::{CatSelectionTree, IMCategory, MCIndexTree},
-            marker::{MarkerTemplate, POI},
-            trail::Trail,
+            marker::MarkerTemplate,
         },
         xmltypes::{xml_category::OverlayData, xml_marker::XMLPOI, xml_trail::XMLTrail},
     },
@@ -26,38 +25,7 @@ pub struct MarkerFile {
     pub mc_index_tree: Option<MCIndexTree>,
     pub poi_vec: Vec<Uuid>,
     pub trl_vec: Vec<Uuid>,
-    // pub changes: Option<Vec<MarkerEditAction>>,
 }
-
-// #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-// pub enum MarkerEditAction {
-//     CreateCategory {
-//         location: Vec<usize>,
-//         new_category: XMLMarkerCategory,
-//     },
-//     UpdateCategory {
-//         location: Vec<usize>,
-//         previous: XMLMarkerCategory,
-//         updated: XMLMarkerCategory,
-//     },
-//     DeleteCategory {
-//         location: Vec<usize>,
-//         deleted_item: XMLMarkerCategory,
-//     },
-//     CreateMarker {
-//         location: usize,
-//         new_marker: XMLPOI,
-//     },
-//     UpdateMarker {
-//         location: usize,
-//         previous: XMLPOI,
-//         updated: XMLPOI,
-//     },
-//     DeleteMarker {
-//         location: usize,
-//         deleted_item: XMLPOI,
-//     },
-// }
 
 impl MarkerFile {
     pub fn parse_marker_file(

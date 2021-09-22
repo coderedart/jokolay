@@ -81,9 +81,7 @@ impl MarkerManager {
                 packs.push(MarkerPack::new(dir, fm));
             }
         }
-        let vid = fm.get_vid(&location)
-        
-        .unwrap();
+        let vid = fm.get_vid(&location).unwrap();
         Self {
             path: vid,
             packs,

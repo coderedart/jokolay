@@ -10,7 +10,7 @@ use crate::{
         },
     },
 };
-use glm::Vec3;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -160,7 +160,7 @@ impl POI {
     }
     const FADE_NEAR: i32 = -1;
     const FADE_FAR: i32 = -1;
-    const ICON_SIZE: f32 = 1.0;
+    const _ICON_SIZE: f32 = 1.0;
     const ALPHA: f32 = 1.0;
     const HEIGHT_OFFSET: f32 = 1.5;
 }

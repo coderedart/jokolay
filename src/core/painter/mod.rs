@@ -1,15 +1,14 @@
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
 
 use egui::{ClippedMesh, CtxRef};
-use glm::{cross, make_vec3, normalize, Vec2};
+use glm::Vec2;
 use glow::{Context, HasContext};
-use jokolink::mlink::MumbleLink;
 
-use crate::{gl_error, tactical::localtypes::manager::MarkerManager};
+use crate::gl_error;
 
 use self::{egui_renderer::EguiGL, opengl::texture::TextureManager};
 
-use super::{fm::FileManager, window::glfw_window::OverlayWindowConfig};
+use super::fm::FileManager;
 
 pub mod egui_renderer;
 // pub mod marker_renderer;
