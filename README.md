@@ -1,7 +1,7 @@
 # jokolay
 An Overlay for Guild Wars 2 in Rust
 
-​STATUS: there is another overlay for linux in development. its not open source yet. but if the author releases it, and its in rust <3 and if i think its features (even planned ones) are better than jokolay, i will gladly embrace it. otherwise, i will continue to develop this.
+
 
 1. Jokolink: This is what you will run from the same wine prefix as you are running gw2 from. it reads the shared memory (https://wiki.guildwars2.com/wiki/API:MumbleLink ) of gw2 to get player location/camera pos/which character is logged in  etc..  and ofcourse, window location. it can then copy all that stuff as is into a shared memory file under /dev/shm for linux native apps to use, so there can be multiple overlays or other addons requesting data. 
 
@@ -9,15 +9,17 @@ An Overlay for Guild Wars 2 in Rust
 3. Jokolay: this is the actual overlay.there's a rewrite going on for the following reasons.
 
 
-1. read the marker pack into an internal representation to support editing them live as well as use proper UUID for performance and other reasons. 
-2. make the structs themselves represent state for egui rather than separate window structs.
-3. seperate the rendering parts and core logic to allow future upgrade to wgpu-rs / vulkano. 
-4. try to use the same texture manager for both egui and markers/trails.
-5. simplify the rendering to use only the simplest features and also allow for future performance upgrades if users hardware supports it. eg: SSBO, GS, persistent mapped buffers (dynamic resizing) and so on.
+1. ~~read the marker pack into an internal representation to support editing them live as well as use proper UUID for performance and other reasons.~~
+2. ~~make the structs themselves represent state for egui rather than separate window structs.~~
+3. ~~seperate the rendering parts and core logic to allow future upgrade to wgpu-rs / vulkano.~~
+4. ~~try to use the same texture manager for both egui and markers/trails.~~
+5. ~~simplify the rendering to use only the simplest features and also allow for future performance upgrades if users hardware supports it. eg: SSBO, GS, persistent mapped buffers (dynamic resizing) and so on.~~
 
- i am running manjaro/kde/fhd 24" monitor right now . hope we can get some people to be guinea pigs and try it out. we will need to work on some polishing like the default size of markers and such as the people will have wide range of setups like 4k/hidpi screens, weird distros and so on. 
+much of the rewrite is done. we are preparing for a 0.2 alpha release by the first week of october.
 
-performance is decent (i think, need to check the cpu/gpu usages of blish/taco), but trails and other features like timer window need to be done before we can start talking about performance. 
+i am running manjaro/kde/fhd 24" monitor right now . hope we can get some people to be guinea pigs and try it out. we will need to work on some polishing like the default size of markers and such as the people will have wide range of setups like 4k/hidpi screens, weird distros and so on. 
+
+performance is definitely great as long as you reach the minimum requirements.
 
 ### the steps to complete jokolay are 8. 
 [] get a very stable core renderer working. 
@@ -31,8 +33,14 @@ performance is decent (i think, need to check the cpu/gpu usages of blish/taco),
 
 The stability of the core renderer, egui and input are the most important components as the rest of the features will be based on those three components
 
-as for why develop a new overlay instead of porting taco/blish. 
-taco is too low level C (pretending to be C++ ). doesn't use stdlib, doesn't use cmake, merged with windows/directx code, abondoned for the forseeable future as taco dev is nowhere to be seen :( to merge PRs and pretty much zero documentation. too hard for me.
-blish is great otoh. little documentation, blish-hud discord will always be there to help, so its not a problem. there's a lot of momentum especially with modules and its surrounding community. but idk C# (and i don't want to learn a microsoft language honestly if i can afford to), C# on linux doesn't feel like a first class language and C# itself is not suitable imo for addons/modules/plugins kinda system. compare that to something like javascript/lua/python which feel much more natural on linux and absolutely suitable for writing quick/easy addons. 
-and finally, i am not a programmer. i'm learning programming as a hobby. so, this project will help me learn programming. rust seems great with very easy setup stuff like crosscompilation/cargo/dependencies and the safety would save me a lot of time spent debugging seg faults. by using this, i can get speed/performance like taco, but with easier documentation/development setup/more safety in general. Although i do agree that the libraries in c++ would have made jokolay come to life a LOT LOT sooner. just using a renderer like bgfx would have taken care of a lot of stuff for me. anyway, once this is reasonably finished (might take a month or more for editing markers and trails features), i plan to look at multithreading, and finally scripting. 
 
+
+
+## Minimum Requirements
+### Linux
+#### Requires OpenGL 4.6
+you can check your opengl version with the following command
+`glxinfo | grep "OpenGL version"`
+which should return something like `OpenGL version string: 4.6.0 NVIDIA 470.63.01` . the `4.6.0` is what we need. most gpu after gtx 750 should have opengl 4.6.
+#### Requires X11
+Wayland is NOT supported. 
