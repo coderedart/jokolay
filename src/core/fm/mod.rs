@@ -8,6 +8,9 @@ use vfs::{PhysicalFS, VfsPath};
 pub struct FileManager {
     pub assets: VfsPath,
     pub markers: VfsPath,
+    pub log_file_path: VfsPath,
+    pub config_file_path: VfsPath,
+    pub egui_cache_path: VfsPath,
     pub paths: Vec<VfsPath>,
 }
 /// use VID to refer to these paths globally into the paths Vector field of File Manager
@@ -48,7 +51,7 @@ impl FileManager {
             .exists()
             .map_err(|e| {
                 log::error!(
-                    "couldn't verify marker packs path existing due ot vfs error: {:#?}",
+                    "couldn't verify marker packs path existing due to vfs error: {:#?}",
                     &e
                 );
                 e
@@ -67,12 +70,43 @@ impl FileManager {
                 })
                 .unwrap()
         }
+        let log_file_path = assets_path
+            .join(LOG_FILE_NAME)
+            .map_err(|e| {
+                log::error!("couldn't create log_file_path due to vfs error: {:#?}", &e);
+                e
+            })
+            .unwrap();
+        let egui_cache_path = assets_path
+            .join(EGUI_CACHE_NAME)
+            .map_err(|e| {
+                log::error!(
+                    "couldn't create egui_cache_path due to vfs error: {:#?}",
+                    &e
+                );
+                e
+            })
+            .unwrap();
+        let config_file_path = assets_path
+            .join(CONFIG_FILE_NAME)
+            .map_err(|e| {
+                log::error!(
+                    "couldn't create config_file_path due to vfs error: {:#?}",
+                    &e
+                );
+                e
+            })
+            .unwrap();
+
         let paths = vec![assets_path.clone(), markers_path.clone()];
 
         Self {
             assets: assets_path,
             markers: markers_path,
             paths,
+            log_file_path,
+            config_file_path,
+            egui_cache_path,
         }
     }
     pub fn get_vid(&self, path: &VfsPath) -> Option<RID> {
@@ -94,3 +128,8 @@ impl FileManager {
 }
 
 const MARKER_PACK_FOLDER_NAME: &str = "packs";
+pub const LOG_FILE_NAME: &str = "jokoloy.log";
+pub const EGUI_CACHE_NAME: &str = "egui_cache.json";
+pub const CONFIG_FILE_NAME: &str = "joko_config.json";
+
+pub const ASSETS_FOLDER_NAME: &str = "assets";

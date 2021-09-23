@@ -1,6 +1,6 @@
 use crate::core::{JokoConfig, JokoCore};
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{Duration, Instant},
 };
 
@@ -9,6 +9,7 @@ use glm::vec2;
 use log::LevelFilter;
 
 use tactical::localtypes::manager::MarkerManager;
+use vfs::VfsPath;
 
 pub mod core;
 pub mod gui;
@@ -63,8 +64,8 @@ pub struct EState {
     pub show_marker_manager: bool,
 }
 impl JokolayApp {
-    pub fn new(mut config: JokoConfig) -> Self {
-        let (mut core, ctx) = JokoCore::new(&mut config);
+    pub fn new(mut config: JokoConfig, assets_path: PathBuf) -> Self {
+        let (mut core, ctx) = JokoCore::new(&mut config, assets_path);
 
         let mm = MarkerManager::new(&mut core.fm);
         JokolayApp {
@@ -115,8 +116,8 @@ impl JokolayApp {
             average_draw_call = (average_draw_call + dt.elapsed()) / 2;
 
             if auto_save_timer.elapsed() > Duration::from_secs(5) {
-                Self::save_config(&self.config, "./joko_config.json".into());
-                Self::save_egui_memory(self.ctx.clone(), &self.config.egui_cache_path);
+                Self::save_config(&self.config, &self.core.fm.config_file_path);
+                Self::save_egui_memory(self.ctx.clone(), &self.core.fm.egui_cache_path);
             }
             self.core.ow.swap_buffers();
         }
@@ -125,8 +126,8 @@ impl JokolayApp {
 }
 
 impl JokolayApp {
-    pub fn save_egui_memory(ctx: CtxRef, path: &Path) {
-        let egui_cache = std::fs::File::create(&path).map_err(|e| {
+    pub fn save_egui_memory(ctx: CtxRef, path: &VfsPath) {
+        let egui_cache = path.create_file().map_err(|e| {
             log::error!(
                 "could not write config to config file due to error {:?}",
                 &e
@@ -139,6 +140,29 @@ impl JokolayApp {
         let writer = std::io::BufWriter::new(egui_cache.unwrap());
         let memory = ctx.memory().clone();
         serde_json::to_writer_pretty(writer, &memory)
+            .map_err(|e| {
+                log::error!(
+                    "could not write config to config file due to error {:?}",
+                    &e
+                );
+                e
+            })
+            .unwrap_or_default();
+    }
+
+    pub fn save_config(config: &JokoConfig, path: &VfsPath) {
+        let config_file = path.create_file().map_err(|e| {
+            log::error!(
+                "could not write config to config file due to error {:?}",
+                &e
+            );
+            e
+        });
+        if config_file.is_err() {
+            return;
+        }
+        let writer = std::io::BufWriter::new(config_file.unwrap());
+        serde_json::to_writer_pretty(writer, config)
             .map_err(|e| {
                 log::error!(
                     "could not write config to config file due to error {:?}",
@@ -168,30 +192,7 @@ pub fn log_init(
     ])?;
     Ok(())
 }
-impl JokolayApp {
-    pub fn save_config(config: &JokoConfig, path: PathBuf) {
-        let config_file = std::fs::File::create(&path).map_err(|e| {
-            log::error!(
-                "could not write config to config file due to error {:?}",
-                &e
-            );
-            e
-        });
-        if config_file.is_err() {
-            return;
-        }
-        let writer = std::io::BufWriter::new(config_file.unwrap());
-        serde_json::to_writer_pretty(writer, config)
-            .map_err(|e| {
-                log::error!(
-                    "could not write config to config file due to error {:?}",
-                    &e
-                );
-                e
-            })
-            .unwrap_or_default();
-    }
-}
+
 #[macro_export]
 macro_rules! gl_error {
     ($gl:expr) => {
