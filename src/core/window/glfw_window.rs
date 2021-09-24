@@ -287,21 +287,6 @@ impl OverlayWindow {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct WindowDimensions {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
 
-impl From<OverlayWindowConfig> for WindowDimensions {
-    fn from(owc: OverlayWindowConfig) -> Self {
-        WindowDimensions {
-            x: owc.window_pos_x,
-            y: owc.window_pos_y,
-            width: owc.framebuffer_width as i32,
-            height: owc.framebuffer_height as i32,
-        }
-    }
-}
+
+
