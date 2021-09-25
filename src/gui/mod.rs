@@ -17,7 +17,7 @@ impl JokolayApp {
 
         let ctx = self.ctx.clone();
         Window::new("J").scroll(true).show(&ctx, |ui| {
-            self.ui(ui);
+            self.state.ui(ui);
         });
 
         let mut show_mumble = self.state.show_mumble_window;
@@ -43,10 +43,10 @@ impl JokolayApp {
     }
 }
 
-impl Widget for &mut JokolayApp {
+impl Widget for &mut crate::EState {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        ui.checkbox(&mut self.state.show_mumble_window, "Mumble Live");
-        ui.checkbox(&mut self.state.show_marker_manager, "show Marker Manager")
+        ui.checkbox(&mut self.show_mumble_window, "Mumble Live");
+        ui.checkbox(&mut self.show_marker_manager, "show Marker Manager")
     }
 }
 

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use egui::CtxRef;
 use serde::{Deserialize, Serialize};
 
-use crate::core::mlink::{MumbleConfig, MumbleSource};
+use crate::core::mlink::{MumbleConfig};
 
 use self::{
     fm::FileManager,
@@ -41,7 +41,7 @@ impl Default for JokoConfig {
 
         Self {
             overlay_window_config: Default::default(),
-            mumble_config: Default::default(),
+            mumble_config: MumbleConfig::default(),
             file_log_level,
             term_log_level,
         }
@@ -50,11 +50,13 @@ impl Default for JokoConfig {
 
 impl JokoCore {
     pub fn new(joko_config: &mut JokoConfig, assets_path: PathBuf) -> (Self, CtxRef) {
-        let mut mumble_src = MumbleSource::new(&joko_config.mumble_config.link_name);
-
+        let mut mbm = MumbleManager::new(joko_config.mumble_config.clone()).unwrap();
+        while mbm.get_link().ui_tick == 0 {
+            mbm.tick().unwrap()
+        }
         let config = joko_config.overlay_window_config;
-        let (ow, events, glfw, gl) = OverlayWindow::create(config, &mut mumble_src).unwrap();
-        let mbm = MumbleManager::new(mumble_src).unwrap();
+        let (ow, events, glfw, gl) =
+            OverlayWindow::create(config, mbm.src.as_mut().unwrap()).unwrap();
         let fm = FileManager::new(assets_path);
         let im = InputManager::new(events, glfw);
         // start setting up egui initial state
@@ -92,7 +94,13 @@ impl JokoCore {
         )
     }
     pub fn tick(&mut self, ctx: &CtxRef) {
-        self.mbm.tick();
+        self.mbm
+            .tick()
+            .map_err(|e| {
+                log::error!("mumble might not be valid");
+                e
+            })
+            .unwrap();
         self.ow.tick(ctx);
     }
 }

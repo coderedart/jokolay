@@ -1,14 +1,13 @@
 use std::convert::TryInto;
 
+use jokolink::WindowDimensions;
+use log::error;
 use x11rb::{
     protocol::xproto::{change_property, get_property, intern_atom, AtomEnum, PropMode},
     rust_connection::RustConnection,
 };
 
-use crate::core::{
-    mlink::MumbleSource,
-    window::glfw_window::{OverlayWindow, WindowDimensions},
-};
+use crate::core::{mlink::MumbleSource, window::glfw_window::OverlayWindow};
 pub struct LinuxPlatformData {
     pub xc: RustConnection,
     pub ow_window_handle: u32,
@@ -43,6 +42,11 @@ impl LinuxPlatformData {
                     .unwrap();
                 gw2_window_handle = mumble_src
                     .get_gw2_window_handle()
+                    .map_err(|e| {
+                        log::error!("could not get gw2 xid. error: {:?}", &e);
+                        e
+                    })
+                    .unwrap()
                     .try_into()
                     .map_err(|e| {
                         log::error!("could not fit gw_window_handle into u32");
@@ -304,6 +308,78 @@ impl LinuxPlatformData {
             })
             .unwrap()
             .is_running()
+    }
+    pub fn get_gw2_pid(&mut self, conn: &RustConnection) -> u32 {
+        let pid_atom = x11rb::protocol::xproto::intern_atom(conn, true, b"_NET_WM_PID")
+            .map_err(|e| {
+                error!(
+                    "could not intern atom '_NET_WM_PID' because of error: {:#?} ",
+                    &e
+                );
+                e
+            })
+            .unwrap()
+            .reply()
+            .map_err(|e| {
+                error!(
+                    "reply error while interning '_NET_WM_PID'. error: {:#?}",
+                    &e
+                );
+                e
+            })
+            .unwrap()
+            .atom;
+        let handle = self.gw2_window_handle as u32;
+        let reply = x11rb::protocol::xproto::get_property(
+            conn,
+            false,
+            handle,
+            pid_atom,
+            x11rb::protocol::xproto::AtomEnum::CARDINAL,
+            0,
+            1,
+        )
+        .map_err(|e| {
+            error!(
+                "could not request '_NET_WM_PID' for gw2 window handle due to error: {:#?}",
+                &e
+            );
+            e
+        })
+        .unwrap()
+        .reply()
+        .map_err(|e| {
+            error!(
+                "the reply for '_NET_WM_PID' of gw2 handle had error: {:#?}",
+                &e
+            );
+            e
+        })
+        .unwrap();
+
+        let pid_format = 32;
+        if pid_format != reply.format {
+            error!("pid_format is not 32. so, type is wrong");
+            panic!();
+        }
+        let pid_buffer_size = 4;
+        if pid_buffer_size != reply.value.len() {
+            error!("pid_buffer is not 4 bytes");
+            panic!()
+        }
+        let value_len = 1;
+        if value_len != reply.value_len {
+            error!("pid reply's value_len is not 1");
+            panic!()
+        }
+        let remaining_bytes_len = 0;
+        if remaining_bytes_len != reply.bytes_after {
+            error!("we still have too many bytes remaining after reading '_NET_WM_PID'");
+            panic!()
+        }
+        let mut buffer = [0u8; 4];
+        buffer.copy_from_slice(&reply.value);
+        u32::from_ne_bytes(buffer)
     }
 }
 impl OverlayWindow {

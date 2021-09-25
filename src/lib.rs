@@ -8,6 +8,7 @@ use egui::CtxRef;
 use glm::vec2;
 use log::LevelFilter;
 
+use rfd::{MessageButtons, MessageDialog, MessageLevel};
 use tactical::localtypes::manager::MarkerManager;
 use vfs::VfsPath;
 
@@ -78,7 +79,7 @@ impl JokolayApp {
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
-        let auto_save_timer = Instant::now();
+        let mut auto_save_timer = Instant::now();
         //fps counter
         let mut fps = 0;
         let mut timer = Instant::now();
@@ -116,6 +117,7 @@ impl JokolayApp {
             average_draw_call = (average_draw_call + dt.elapsed()) / 2;
 
             if auto_save_timer.elapsed() > Duration::from_secs(5) {
+                auto_save_timer = Instant::now();
                 Self::save_config(&self.config, &self.core.fm.config_file_path);
                 Self::save_egui_memory(self.ctx.clone(), &self.core.fm.egui_cache_path);
             }
@@ -201,4 +203,13 @@ macro_rules! gl_error {
             log::error!("glerror {} at {} {} {}", e, file!(), line!(), column!());
         }
     };
+}
+
+pub fn show_msg_box(title: &str, msg: &str, buttons: MessageButtons, lvl: MessageLevel) -> bool {
+    MessageDialog::new()
+        .set_level(lvl)
+        .set_title(title)
+        .set_description(msg)
+        .set_buttons(buttons)
+        .show()
 }

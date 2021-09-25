@@ -9,6 +9,7 @@ use anyhow::Context as _;
 use egui::CtxRef;
 use glfw::{Glfw, Window, WindowEvent};
 use glow::{Context, HasContext};
+use jokolink::WindowDimensions;
 use serde::{Deserialize, Serialize};
 
 use crate::{core::mlink::MumbleSource, gl_error};
@@ -242,7 +243,12 @@ impl OverlayWindow {
     pub fn get_live_windim(&mut self) -> WindowDimensions {
         self.get_live_inner_position();
         self.get_live_inner_size();
-        self.config.into()
+        WindowDimensions {
+            x: self.config.window_pos_x,
+            y: self.config.window_pos_y,
+            width: self.config.framebuffer_width as i32,
+            height: (self.config.framebuffer_height as i32),
+        }
     }
 
     pub fn swap_buffers(&mut self) {
@@ -286,7 +292,3 @@ impl OverlayWindow {
         }
     }
 }
-
-
-
-
