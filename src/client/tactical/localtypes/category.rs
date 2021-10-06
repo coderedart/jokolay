@@ -1,11 +1,9 @@
-use crate::{
-    core::fm::{FileManager, RID},
-    tactical::{
-        localtypes::{icon_file_to_vid, marker::MarkerTemplate},
-        xmltypes::xml_category::XMLMarkerCategory,
-    },
+use crate::client::{
+    am::AssetManager,
+    tactical::{localtypes::marker::MarkerTemplate, xmltypes::xml_category::XMLMarkerCategory},
 };
 
+// use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -90,34 +88,44 @@ pub struct MCIndexTree {
 pub struct CategoryIndex(pub usize);
 
 impl MCIndexTree {
+    /// This function takes a raw xml MarkerCategory tree and recursively puts them in the global cats, stores their indices in index_tree, and finally puts their full names in the name_id_map
     pub fn index_tree_from_mc_tree(
-        pack_path: RID,
-        fm: &FileManager,
-        mctree: Vec<XMLMarkerCategory>,
+        pack_path: usize,
+        am: &mut AssetManager,
+        raw_xmlmc_tree: Vec<XMLMarkerCategory>,
         index_tree: &mut Vec<MCIndexTree>,
         cats: &mut Vec<IMCategory>,
         parent_template: MarkerTemplate,
         prefix: &str,
         name_id_map: &mut HashMap<String, usize>,
-    ) {
-        for mut mc in mctree {
+    ) -> anyhow::Result<()> {
+        for mut mc in raw_xmlmc_tree {
+            // this checks if this is the root/top of the category tree.
             let name = if !prefix.is_empty() {
+                // if this is a child, take the parent's full name and attach its own name after the pullstop to make its fullname
                 prefix.to_string() + "." + &mc.name
             } else {
+                // if this is the root, its own name is the fullname
                 mc.name.clone()
             };
+            // take the children of this MC node to parse them
             let mc_children = mc.children.take();
+            // if this cat name has not been seen in the global name_id_map, then we add it
             if !name_id_map.contains_key(&name) {
                 let mut inherited_template = MarkerTemplate::default();
-                let icon_vid = if let Some(icon_path) = &mc.icon_file {
-                    icon_file_to_vid(icon_path, pack_path, fm)
-                } else {
-                    None
-                };
-                inherited_template.inherit_from_marker_category(&mc, icon_vid);
+                let mut icon_path_id = None;
+                // if icon file has path
+                if let Some(ref icon_path) = mc.icon_file {
+                    // get absolute path
+                    let ipath = am.pack_relative_to_absolute_path(pack_path, &icon_path)?;
+                        // get the id of the absolute path
+                    icon_path_id = Some(am.get_id_from_file_path(&ipath)?);
+                    
+                }
+
+                inherited_template.inherit_from_marker_category(&mc, icon_path_id);
                 inherited_template.inherit_from_template(&parent_template);
                 let index = cats.len();
-                name_id_map.insert(name.clone(), index);
                 cats.push(IMCategory {
                     full_name: name.clone(),
                     cat: mc,
@@ -125,25 +133,27 @@ impl MCIndexTree {
                     poi_registry: vec![],
                     trail_registry: vec![],
                 });
+                name_id_map.insert(name.clone(), index);
             }
             let id: usize = name_id_map[&name];
             let mut children = Vec::new();
             if let Some(mc_children) = mc_children {
                 Self::index_tree_from_mc_tree(
                     pack_path,
-                    fm,
+                    am,
                     mc_children,
                     &mut children,
                     cats,
                     cats[id].inherited_template.clone(),
                     &name,
                     name_id_map,
-                );
+                )?;
             }
             index_tree.push(MCIndexTree {
                 index: CategoryIndex(id),
                 children,
             });
         }
+        Ok(())
     }
 }

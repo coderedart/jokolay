@@ -1,13 +1,11 @@
 use std::rc::Rc;
 
+use anyhow::Context as _;
 use egui::{ClippedMesh, CtxRef, Rect};
 use glm::Vec2;
 use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
-use crate::{
-    core::fm::{FileManager, RID},
-    gl_error,
-};
+use crate::{client::am::AssetManager, gl_error};
 
 use super::opengl::{
     buffer::Buffer, shader::ShaderProgram, texture::TextureManager, vertex_array::VertexArrayObject,
@@ -93,7 +91,7 @@ impl EguiGL {
         meshes: Vec<ClippedMesh>,
         screen_size: Vec2,
         tm: &mut TextureManager,
-        fm: &FileManager,
+        am: &AssetManager,
         ctx: CtxRef,
     ) -> anyhow::Result<()> {
         self.bind();
@@ -112,10 +110,10 @@ impl EguiGL {
         let t = ctx.texture();
         if Some(t.version) != self.version {
             self.version = Some(t.version);
-            tm.update_etex(ctx.texture());
+            todo!();
         }
         for clipped_mesh in meshes {
-            self.draw_mesh(clipped_mesh, screen_size, tm, fm)?;
+            self.draw_mesh(clipped_mesh, screen_size, tm, am)?;
         }
         unsafe {
             self.gl.disable(glow::SCISSOR_TEST);
@@ -129,7 +127,7 @@ impl EguiGL {
         clipped_mesh: ClippedMesh,
         screen_size: Vec2,
         tm: &mut TextureManager,
-        fm: &FileManager,
+        _am: &AssetManager,
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
@@ -141,21 +139,14 @@ impl EguiGL {
 
         self.ib
             .update(bytemuck::cast_slice(&indices), glow::STREAM_DRAW);
-        let tid = match mesh.texture_id {
-            egui::TextureId::Egui => RID::EguiTexture,
-            egui::TextureId::User(i) => RID::VID(i as usize),
-        };
-        let (layer, allocation) = tm.get_tc(tid, fm);
-        let x_offset = allocation.rectangle.min.x as f32;
-        let y_offset = allocation.rectangle.min.y as f32;
-        let total_width = TextureManager::WIDTH as f32;
-        let total_height = TextureManager::HEIGHT as f32;
-        let tc_width = (allocation.rectangle.max.x as f32 - x_offset) as f32;
-        let tc_height = (allocation.rectangle.max.y as f32 - y_offset) as f32;
-        let tcx_offset = x_offset / total_width;
-        let tcy_offset = y_offset / total_height;
-        let tcx_scale = tc_width / total_width;
-        let tcy_scale = tc_height / total_height;
+        let tid = mesh.texture_id;
+        let allocated_texture = tm.get_tc(tid).context("could not find texture in tmap")?;
+        let tc = allocated_texture.get_tex_coords();
+        let tcx_offset = tc.startx;
+        let tcy_offset = tc.starty;
+        let tcx_scale = tc.scalex;
+        let tcy_scale = tc.scaley;
+        let layer = tc.layer ;
         // update the scaling/offsets of texture in the texture array of atlasses
         unsafe {
             //sampler uniforms are i32

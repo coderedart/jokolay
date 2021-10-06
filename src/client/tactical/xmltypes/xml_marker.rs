@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::tactical::xmltypes::xml_route::XMLRoute;
+use crate::{client::tactical::xmltypes::xml_route::XMLRoute};
 
 use super::{xml_category::XMLMarkerCategory, xml_trail::XMLTrail};
 use serde::{Deserialize, Deserializer, Serialize};

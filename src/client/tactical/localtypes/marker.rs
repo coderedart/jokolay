@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 
-use crate::{
-    core::fm::{FileManager, RID},
+
+use crate::client::{
+    am::AssetManager,
     tactical::{
-        localtypes::{category::CategoryIndex, IMCategory},
+        localtypes::category::{CategoryIndex, IMCategory},
         xmltypes::{
             xml_category::XMLMarkerCategory,
             xml_marker::{Behavior, XMLPOI},
@@ -11,8 +11,14 @@ use crate::{
     },
 };
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+#[derive(
+    Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Default, Deserialize,
+)]
+pub struct MarkerIndex(pub usize);
 
 /// A Marker struct for simpler representation and abstract away icon_file/type fields into indexes of global_cats/images etc..
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
@@ -26,7 +32,7 @@ pub struct POI {
     /// size on minimap/map
     pub map_display_size: Option<u32>,
     /// index of icon_file to use as texture for this marker
-    pub icon_file: Option<RID>,
+    pub icon_file: Option<usize>,
     /// The size of the icon in the game world. Default is 1.0 if this is not defined. Note that the "screen edges herd icons" option will limit the size of the displayed images for technical reasons.
     pub icon_size: Option<f32>,
     /// How opaque the displayed icon should be. The default is 1.0
@@ -65,11 +71,11 @@ pub struct POI {
 }
 impl POI {
     pub fn from_xmlpoi(
-        pack_path: RID,
+        pack_path: usize,
         poi: &XMLPOI,
         global_cats: &Vec<IMCategory>,
-        fm: &FileManager,
-    ) -> Option<POI> {
+        am: &AssetManager,
+    ) -> anyhow::Result<POI> {
         let pos = [
             poi.xpos,
             poi.ypos + poi.height_offset.unwrap_or(Self::HEIGHT_OFFSET),
@@ -78,31 +84,17 @@ impl POI {
         let category = global_cats
             .iter()
             .position(|c| c.full_name == poi.category)
-            .or_else(|| {log::error!("while creating POI from XMLPOI, could not find category: {}, on poi with guid: {:?}", poi.category, poi.guid); None})?;
+            .context(format!("while creating POI from XMLPOI, could not find category: {}, on poi with guid: {:?}", poi.category, poi.guid))?;
         let category = CategoryIndex(category);
         let icon_path = poi.icon_file.clone();
         let icon_vid = if let Some(ipath) = icon_path {
-            let icon_vfs_path = fm.get_path(pack_path).map(|ip| ip.join(&ipath).map_err(|e| {
-                log::error!("iconPath could not be parsed. base_path: {:?}. path: {}. poi_guid: {:?}. error: {:?} ", &ip, &ipath, poi.guid, &e);
-                e
-            }))?.ok()?;
-            let v = fm.get_vid(&icon_vfs_path).or_else(|| {
-                log::error!(
-                    "while creating POI from XMLPOI, could not find iconfile path: {:?}, {:?}, {:?}, {:?}, {:?}",
-                    ipath,
-                    pack_path,
-                    poi.guid,
-                    &poi.icon_file,
-                    &poi.category
-                );
-                None
-            })?;
-            Some(v)
+            let ipath = am.pack_relative_to_absolute_path(pack_path, &ipath)?;
+                Some(am.get_id_from_file_path(&ipath)?)
         } else {
             None
         };
 
-        Some(POI {
+        Ok(POI {
             pos,
             map_id: poi.map_id,
             guid: poi.guid.unwrap(),
@@ -168,7 +160,7 @@ impl POI {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MarkerTemplate {
     pub map_display_size: Option<u32>,
-    pub icon_file: Option<RID>,
+    pub icon_file: Option<usize>,
     pub icon_size: Option<f32>,
     pub alpha: Option<f32>,
     pub behavior: Option<Behavior>,
@@ -194,7 +186,7 @@ impl MarkerTemplate {
     pub fn inherit_from_marker_category(
         &mut self,
         other: &XMLMarkerCategory,
-        icon_file: Option<RID>,
+        icon_file: Option<usize>,
     ) {
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;
@@ -340,23 +332,5 @@ impl POI {
             );
         }
     }
-    /// inserts poi from `pvec` into `all_pois` and returns the Uuids of those inserted pois as a Vec to keep the order
-    /// This is to have all unique POI at one place and use an array of Uuid instead to refer to the contents
-    pub fn get_vec_uuid_pois(
-        pvec: Vec<XMLPOI>,
-        all_pois: &mut HashMap<Uuid, POI>,
-        pack_path: RID,
-        global_cats: &mut Vec<IMCategory>,
-        fm: &FileManager,
-    ) -> Vec<Uuid> {
-        let mut uuid_vec = Vec::new();
-        for xp in pvec {
-            let id = xp.guid.unwrap();
-            if let Some(p) = POI::from_xmlpoi(pack_path, &xp, &global_cats, fm) {
-                all_pois.entry(id).or_insert(p);
-                uuid_vec.push(id);
-            }
-        }
-        uuid_vec
-    }
+
 }

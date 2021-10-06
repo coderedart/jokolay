@@ -172,7 +172,7 @@ impl Quad {
             6 => 2048,
             _ => {
                 log::error!("texture image size too big or small");
-                panic!()
+                panic!("image size is too big. ")
             }
         };
         

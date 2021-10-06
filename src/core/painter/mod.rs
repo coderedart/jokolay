@@ -4,15 +4,15 @@ use egui::{ClippedMesh, CtxRef};
 use glm::Vec2;
 use glow::{Context, HasContext};
 
-use crate::gl_error;
+use crate::{client::am::AssetManager, gl_error};
 
 use self::{egui_renderer::EguiGL, opengl::texture::TextureManager};
 
-use super::fm::FileManager;
 
 pub mod egui_renderer;
 // pub mod marker_renderer;
 pub mod opengl;
+pub mod scene;
 // pub mod trail_renderer;
 pub struct Renderer {
     pub egui_gl: EguiGL,
@@ -49,7 +49,7 @@ impl Renderer {
         &mut self,
         meshes: Vec<ClippedMesh>,
         screen_size: Vec2,
-        fm: &FileManager,
+        am: &AssetManager,
         ctx: CtxRef,
     ) {
         unsafe {
@@ -60,7 +60,7 @@ impl Renderer {
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
         }
         self.egui_gl
-            .draw_meshes(meshes, screen_size, &mut self.tm, fm, ctx)
+            .draw_meshes(meshes, screen_size, &mut self.tm, am, ctx)
             .unwrap();
         let gl = self.egui_gl.gl.clone();
         unsafe {

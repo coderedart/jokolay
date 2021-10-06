@@ -1,13 +1,13 @@
 use std::convert::TryInto;
 
-use jokolink::WindowDimensions;
+use jokolink::{MumbleSource, WindowDimensions};
 use log::error;
 use x11rb::{
     protocol::xproto::{change_property, get_property, intern_atom, AtomEnum, PropMode},
     rust_connection::RustConnection,
 };
 
-use crate::core::{mlink::MumbleSource, window::glfw_window::OverlayWindow};
+
 pub struct LinuxPlatformData {
     pub xc: RustConnection,
     pub ow_window_handle: u32,
@@ -300,14 +300,7 @@ impl LinuxPlatformData {
         u32::from_ne_bytes(buffer)
     }
     pub fn is_gw2_alive(&self) -> bool {
-        let gw2_pid = self.gw2_pid;
-        psutil::process::Process::new(gw2_pid)
-            .map_err(|e| {
-                log::error!("failed to create process for gw2. error: {:#?}", &e);
-                e
-            })
-            .unwrap()
-            .is_running()
+        true
     }
     pub fn get_gw2_pid(&mut self, conn: &RustConnection) -> u32 {
         let pid_atom = x11rb::protocol::xproto::intern_atom(conn, true, b"_NET_WM_PID")
@@ -382,11 +375,11 @@ impl LinuxPlatformData {
         u32::from_ne_bytes(buffer)
     }
 }
-impl OverlayWindow {
-    pub fn is_gw2_alive(&self) -> bool {
-        self.platform_data.is_gw2_alive()
-    }
-    pub fn get_gw2_windim(&self) -> WindowDimensions {
-        self.platform_data.get_gw2_windim()
-    }
-}
+// impl OverlayWindow {
+//     pub fn is_gw2_alive(&self) -> bool {
+//         self.platform_data.is_gw2_alive()
+//     }
+//     pub fn get_gw2_windim(&self) -> WindowDimensions {
+//         self.platform_data.get_gw2_windim()
+//     }
+// }

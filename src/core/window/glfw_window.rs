@@ -1,18 +1,18 @@
 use std::{
     rc::Rc,
     sync::mpsc::Receiver,
-    time::{Duration, Instant},
+    time::{Instant},
 };
 
 use anyhow::Context as _;
 
-use egui::CtxRef;
 use glfw::{Glfw, Window, WindowEvent};
 use glow::{Context, HasContext};
 use jokolink::WindowDimensions;
 use serde::{Deserialize, Serialize};
 
-use crate::{core::mlink::MumbleSource, gl_error};
+use crate::gl_error;
+
 
 /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -65,11 +65,6 @@ impl Default for OverlayWindowConfig {
 pub struct OverlayWindow {
     pub window: Window,
     pub config: OverlayWindowConfig,
-    pub gw2_last_checked: Instant,
-    #[cfg(target_os = "linux")]
-    pub platform_data: super::linux::LinuxPlatformData,
-    #[cfg(target_os = "windows")]
-    pub platform_data: super::windows::WindowsPlatformData,
 }
 impl OverlayWindow {
     /// default OpenGL minimum major version
@@ -105,21 +100,18 @@ impl OverlayWindow {
         glfw.window_hint(glfw::WindowHint::Samples(Self::MULTISAMPLE_COUNT));
     }
     pub fn create(
-        mut config: OverlayWindowConfig,
-        mumble_src: &mut MumbleSource,
-    ) -> anyhow::Result<(
+        mut config: OverlayWindowConfig    ) -> anyhow::Result<(
         OverlayWindow,
         Receiver<(f64, WindowEvent)>,
         Glfw,
         Rc<Context>,
     )> {
-        let gw2_last_checked = Instant::now();
+        let _gw2_last_checked = Instant::now();
         let mut glfw =
             glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw window")?;
 
         Self::set_window_hints(&mut glfw, config);
 
-        // glfw.window_hint(glfw::WindowHint::DoubleBuffer(false));
 
         let (mut window, events) = glfw
             .create_window(
@@ -134,6 +126,7 @@ impl OverlayWindow {
             });
         glfw::Context::make_current(&mut window);
         window.set_all_polling(true);
+        window.set_store_lock_key_mods(true);
 
         let gl = unsafe {
             glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _)
@@ -151,17 +144,12 @@ impl OverlayWindow {
         config.framebuffer_height = height as u32;
         config.framebuffer_width = width as u32;
         log::trace!("window created. config is: {:?}", config);
-        #[cfg(target_os = "linux")]
-        let platform_data = super::linux::LinuxPlatformData::new(&window, mumble_src);
-        #[cfg(target_os = "windows")]
-        let platform_data = super::windows::WindowsPlatformData::new(&window, mumble_src);
+
 
         Ok((
             OverlayWindow {
                 window,
                 config,
-                gw2_last_checked,
-                platform_data,
             },
             events,
             glfw,
@@ -266,29 +254,29 @@ impl OverlayWindow {
         self.set_framebuffer_size(new_windim.width as u32, new_windim.height as u32);
     }
 
-    pub fn tick(&mut self, ctx: &CtxRef) {
-        if self.gw2_last_checked.elapsed() > Duration::from_secs(2) {
-            self.gw2_last_checked = Instant::now();
-            if self.is_gw2_alive() {
-                let gw2_windim = self.get_gw2_windim();
-                let ow_windim: WindowDimensions = self.get_live_windim();
-                if gw2_windim != ow_windim {
-                    log::info!(
-                        "resizing to match gw2. old dimensions: {:#?}, new dimensions: {:#?}",
-                        ow_windim,
-                        gw2_windim
-                    );
-                    self.attach_to_gw2window(gw2_windim);
-                }
-            } else {
-                log::debug!("gw2 process is not alive anymore");
-                self.window.set_should_close(true);
-            }
-        }
-        if ctx.wants_pointer_input() || ctx.wants_keyboard_input() {
-            self.set_passthrough(false);
-        } else {
-            self.set_passthrough(true);
-        }
-    }
+    // pub fn tick(&mut self, ctx: &CtxRef) {
+    //     if self.gw2_last_checked.elapsed() > Duration::from_secs(2) {
+    //         self.gw2_last_checked = Instant::now();
+    //         if self.is_gw2_alive() {
+    //             let gw2_windim = self.get_gw2_windim();
+    //             let ow_windim: WindowDimensions = self.get_live_windim();
+    //             if gw2_windim != ow_windim {
+    //                 log::info!(
+    //                     "resizing to match gw2. old dimensions: {:#?}, new dimensions: {:#?}",
+    //                     ow_windim,
+    //                     gw2_windim
+    //                 );
+    //                 self.attach_to_gw2window(gw2_windim);
+    //             }
+    //         } else {
+    //             log::debug!("gw2 process is not alive anymore");
+    //             self.window.set_should_close(true);
+    //         }
+    //     }
+    //     if ctx.wants_pointer_input() || ctx.wants_keyboard_input() {
+    //         self.set_passthrough(false);
+    //     } else {
+    //         self.set_passthrough(true);
+    //     }
+    // }
 }
