@@ -1,16 +1,18 @@
 pub mod atlas;
-use std::{collections::HashMap, path::PathBuf};
+
+use std::{path::PathBuf};
 use anyhow::Context;
 use num_derive::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use tokio::fs::{File, create_dir};
 use url::Url;
+use ahash::AHashMap;
 
 /// File Manger to keep all the file/directory paths stored in one global place.
 #[derive(Debug, Clone)]
 pub struct AssetManager {
     pub all_paths: Vec<PathBuf>,
-    pub web_img_cache_map: HashMap<Url, usize>,
+    pub web_img_cache_map: AHashMap<Url, usize>,
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, Serialize, Deserialize)]
@@ -86,7 +88,7 @@ impl AssetManager {
             web_img_cache_map
         }
     }
-    fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> HashMap<Url, usize> {
+    fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> AHashMap<Url, usize> {
         todo!()
     }
     pub fn get_id_from_file_path(&self, path: &PathBuf) -> anyhow::Result<usize> {

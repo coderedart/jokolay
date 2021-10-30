@@ -1,4 +1,5 @@
-use std::{collections::HashMap, time::Instant};
+use std::{time::Instant};
+use ahash::AHashMap;
 
 use egui::{ClippedMesh, Rect};
 
@@ -17,7 +18,7 @@ pub struct Scene {
     pub trail_dynamic: Instant,
     pub marker_3d_static: Instant,
     pub marker_3d_dynamic: Instant,
-    pub texture_locations: Option<HashMap<usize, (u32, Rect)>>,
+    pub texture_locations: Option<AHashMap<usize, (u32, Rect)>>,
     
 }
 

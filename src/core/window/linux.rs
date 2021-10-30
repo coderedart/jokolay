@@ -7,6 +7,7 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
+#[allow(dead_code)]
 
 pub struct LinuxPlatformData {
     pub xc: RustConnection,
@@ -14,6 +15,7 @@ pub struct LinuxPlatformData {
     pub gw2_window_handle: u32,
     pub gw2_pid: u32,
 }
+#[allow(dead_code)]
 impl LinuxPlatformData {
     pub fn new(window: &glfw::Window, mumble_src: &mut MumbleSource) -> LinuxPlatformData {
         let ow_window_handle: u32;

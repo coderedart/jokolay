@@ -1,18 +1,14 @@
-use std::{
-    rc::Rc,
-    sync::mpsc::Receiver,
-    time::{Instant},
-};
+use std::{rc::Rc, sync::mpsc::Receiver, time::Instant};
 
 use anyhow::Context as _;
 
 use glfw::{Glfw, Window, WindowEvent};
 use glow::{Context, HasContext};
 use jokolink::WindowDimensions;
+use log::trace;
 use serde::{Deserialize, Serialize};
 
 use crate::gl_error;
-
 
 /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -42,7 +38,7 @@ impl OverlayWindowConfig {
     pub const PASSTHROUGH: bool = false;
     pub const ALWAYS_ON_TOP: bool = true;
     pub const TRANSPARENCY: bool = true;
-    pub const DECORATED: bool = false;
+    pub const DECORATED: bool = true;
 }
 impl Default for OverlayWindowConfig {
     fn default() -> Self {
@@ -100,30 +96,29 @@ impl OverlayWindow {
         glfw.window_hint(glfw::WindowHint::Samples(Self::MULTISAMPLE_COUNT));
     }
     pub fn create(
-        mut config: OverlayWindowConfig    ) -> anyhow::Result<(
+        mut config: OverlayWindowConfig,
+    ) -> anyhow::Result<(
         OverlayWindow,
         Receiver<(f64, WindowEvent)>,
         Glfw,
         Rc<Context>,
     )> {
-        let _gw2_last_checked = Instant::now();
-        let mut glfw =
-            glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw window")?;
-
+        let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw")?;
+        trace!("glfw initialized");
         Self::set_window_hints(&mut glfw, config);
+        trace!("set window hints {:?}", &config);
 
+        let (mut window, events) = match glfw.create_window(
+            config.framebuffer_width,
+            config.framebuffer_height,
+            Self::WINDOW_TITLE,
+            glfw::WindowMode::Windowed,
+        ) {
+            Some(w) => w,
+            None => anyhow::bail!("failed to create window window"),
+        };
 
-        let (mut window, events) = glfw
-            .create_window(
-                config.framebuffer_width,
-                config.framebuffer_height,
-                Self::WINDOW_TITLE,
-                glfw::WindowMode::Windowed,
-            )
-            .unwrap_or_else(|| {
-                log::error!("Failed to create GLFW window");
-                panic!()
-            });
+        trace!("window created");
         glfw::Context::make_current(&mut window);
         window.set_all_polling(true);
         window.set_store_lock_key_mods(true);
@@ -132,6 +127,7 @@ impl OverlayWindow {
             glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _)
         };
         let gl = Rc::new(gl);
+        trace!("got opengl context");
         unsafe {
             gl_error!(gl);
         }
@@ -143,22 +139,14 @@ impl OverlayWindow {
         let (width, height) = window.get_framebuffer_size();
         config.framebuffer_height = height as u32;
         config.framebuffer_width = width as u32;
-        log::trace!("window created. config is: {:?}", config);
+        log::debug!("window created. config is: {:?}", config);
 
-
-        Ok((
-            OverlayWindow {
-                window,
-                config,
-            },
-            events,
-            glfw,
-            gl,
-        ))
+        Ok((OverlayWindow { window, config }, events, glfw, gl))
     }
 
     pub fn set_framebuffer_size(&mut self, width: u32, height: u32) {
         if self.config.framebuffer_width != width || self.config.framebuffer_height != height {
+            trace!("setting frame buffer size to width: {} and height: {}", width, height);
             self.config.framebuffer_height = height;
             self.config.framebuffer_width = width;
             self.window.set_size(width as i32, height as i32);
@@ -167,6 +155,7 @@ impl OverlayWindow {
 
     pub fn set_inner_position(&mut self, xpos: i32, ypos: i32) {
         if self.config.window_pos_x != xpos || self.config.window_pos_y != ypos {
+            trace!("setting window inner position to x: {} and y: {}", xpos, ypos);
             self.config.window_pos_x = xpos;
             self.config.window_pos_y = ypos;
             self.window.set_pos(xpos, ypos);
@@ -175,12 +164,14 @@ impl OverlayWindow {
 
     pub fn set_decorations(&mut self, decorated: bool) {
         if self.config.decorated != decorated {
+            trace!("setting decorated: {}", decorated);
             self.config.decorated = decorated;
             self.window.set_decorated(decorated);
         }
     }
     pub fn set_passthrough(&mut self, passthrough: bool) {
         if passthrough != self.config.passthrough {
+            trace!("setting passthrough: {}", passthrough);
             self.config.passthrough = passthrough;
             self.window.set_mouse_passthrough(passthrough);
         }
@@ -242,8 +233,6 @@ impl OverlayWindow {
     pub fn swap_buffers(&mut self) {
         use glfw::Context;
         self.window.swap_buffers();
-        // use glow::HasContext;
-        // unsafe { self.gl.flush() };
     }
 
     pub fn should_close(&mut self) -> bool {

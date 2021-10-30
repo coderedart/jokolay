@@ -23,11 +23,12 @@ impl InputManager {
         let frame_events = self.glfw_input.get_events(gl, ow);
         frame_events
     }
+    
 }
 
+#[derive(Debug, Clone)]
 pub struct FrameEvents {
     pub all_events: Vec<WindowEvent>,
     pub time: f64,
-    pub clipboard_string: String,
     pub cursor_position: egui::Pos2,
 }

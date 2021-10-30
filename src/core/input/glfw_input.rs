@@ -1,6 +1,6 @@
+use std::rc::Rc;
 use std::sync::mpsc::Receiver;
-use std::time::Duration;
-use std::{rc::Rc, time::Instant};
+
 
 use egui::Key;
 
@@ -12,7 +12,6 @@ use crate::core::window::glfw_window::OverlayWindow;
 pub struct GlfwInput {
     pub events: Receiver<(f64, WindowEvent)>,
     pub glfw: Glfw,
-    pub last_clipboard_string_update: Instant,
 }
 
 impl GlfwInput {
@@ -20,7 +19,6 @@ impl GlfwInput {
         Self {
             events,
             glfw,
-            last_clipboard_string_update: Instant::now(),
         }
     }
     pub fn get_events(&mut self, gl: Rc<glow::Context>, ow: &mut OverlayWindow) -> FrameEvents {
@@ -30,7 +28,6 @@ impl GlfwInput {
         let mut frame_event = FrameEvents {
             all_events: vec![],
             time: self.glfw.get_time(),
-            clipboard_string: String::new(),
             cursor_position: [x as f32, y as f32].into(),
         };
 
@@ -44,19 +41,7 @@ impl GlfwInput {
                         use glow::HasContext;
                         gl.viewport(0, 0, width, height);
                     }
-                }
-                glfw::WindowEvent::Key(k, _i, a, m) => {
-                    // we check if V is pressed with ctrl and if we set the clip_board string within last second, if not, we set it now
-                    if k == glfw::Key::V
-                        && a == Action::Press
-                        && m.contains(glfw::Modifiers::Control)
-                        && self.last_clipboard_string_update.elapsed() > Duration::from_secs(1)
-                    {
-                        self.last_clipboard_string_update = Instant::now();
-                        frame_event.clipboard_string =
-                            ow.window.get_clipboard_string().unwrap_or_default();
-                    }
-                }
+                },
                 _ => {}
             }
         }

@@ -1,24 +1,24 @@
-use std::{rc::Rc};
+use std::rc::Rc;
 
-use crate::{client::{am::{atlas::{AllocatedTexture, AtlasMap}}}, gl_error};
-use egui::{TextureId};
+use crate::{
+    gl_error,
+};
 use glow::{Context, HasContext, NativeTexture};
-
 
 /// A texture manager that manages a texture array, and uses texture atlassing to make sure that we can do a single render pass for vertices using any texture
 /// We will have 3 lvls of indirection. first, a texture array on gpu. we will keep track of the textures on a array layer using the atlas allocators.
 /// resizing the array to get a new layer, copying old contents, when we can't fit a texture into the existing layers.
 /// then we take the RID of a target texture, check if its in array using tmap, uploading the texture if necessary. We only need to think of a way to deallocate textures.
-pub struct TextureManager {
+pub struct TextureServer {
     /// The texture array on gpu. everytime we resize, we will create new one, and replace this after copying the pixels and dropping the old one.
     id: NativeTexture,
-    /// the map will contain the RID and where that texture is allocated. if its not, it will get allocated and uploaded.
-    tmap: AtlasMap,
+    /// The depth of the array
+    depth: u32,
     /// The gl clone so that we can use it to create/drop texturearrays or stuff like that.
     gl: Rc<Context>,
 }
 
-impl TextureManager {
+impl TextureServer {
     /// The Width of the texture Array
     pub const WIDTH: u32 = 2048;
     /// The height of the texture array
@@ -26,40 +26,35 @@ impl TextureManager {
     /// Mipmap levels of the texture array based on f32::floor(f32::log2(Self::WIDTH as f32)) as u32 + 1
     pub const MIPMAP_LEVELS: u32 = 11;
 
-
     /// create a new texture manager with empty map. when we start drawing, they will automatically get uploaded.
     pub fn new(gl: Rc<Context>) -> Self {
         let id = Self::create_tex_array(gl.clone());
         unsafe {
             gl_error!(gl);
         }
-
+        let depth = 1_u32;
         unsafe {
             gl.texture_storage_3d(
                 id,
-                8, //Self::MIPMAP_LEVELS as i32,
+                Self::MIPMAP_LEVELS as i32,
                 glow::RGBA8,
                 Self::WIDTH as i32,
                 Self::HEIGHT as i32,
-                1 as i32,
+                depth as i32,
             );
         }
         unsafe {
             gl_error!(gl);
         }
 
-        TextureManager {
-            gl,
-            id,
-            tmap: Default::default(),
-        }
+        Self { gl, depth, id }
     }
 
     fn create_tex_array(gl: Rc<Context>) -> NativeTexture {
         unsafe {
             //create texture buffer id and initialize its state and set its type to target
             let id = gl.create_textures(glow::TEXTURE_2D_ARRAY).unwrap();
-            // bind it so that it can initialize its state
+            // no need to bind it for initialization, but still need to bind so that shaders can access it without bindless
             gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(id));
             //if texture coordinates are outside of range 0.0-1.0, it will just start over from beginning and thus repeat itself
             gl.texture_parameter_i32(id, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
@@ -73,11 +68,7 @@ impl TextureManager {
         }
     }
 
-    pub fn get_tc(&mut self, id: TextureId) -> Option<AllocatedTexture> {
-        self.tmap.get_alloc_tex(id)
-       
-    }
-    fn upload_pixels(
+    pub fn _upload_pixels(
         &self,
         pixels: &[u8],
         x_offset: i32,
@@ -110,10 +101,7 @@ impl TextureManager {
         }
     }
 
-  
-
-
-    fn bump_tex_array_size(&mut self, new_len: u32) {
+    pub fn bump_tex_array_size(&mut self, new_len: u32) {
         unsafe {
             gl_error!(self.gl);
         }
@@ -123,7 +111,7 @@ impl TextureManager {
             gl_error!(self.gl);
         }
 
-        let _old_depth = new_len - 1;
+        let old_depth = self.depth;
         let new_depth = new_len;
         unsafe {
             gl_error!(self.gl);
@@ -153,14 +141,15 @@ impl TextureManager {
                 0,
                 Self::WIDTH as i32,
                 Self::HEIGHT as i32,
-                new_depth as i32,
+                old_depth as i32,
             );
             let old_tex = self.id;
             gl_error!(self.gl);
 
             self.gl.delete_texture(old_tex);
-            self.id = new_tex;
         }
+        self.id = new_tex;
+        self.depth = new_depth;
     }
     pub fn bind(&self) {
         unsafe {
@@ -169,7 +158,7 @@ impl TextureManager {
         }
     }
 }
-impl Drop for TextureManager {
+impl Drop for TextureServer {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_texture(self.id);

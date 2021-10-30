@@ -1,13 +1,12 @@
 use std::rc::Rc;
 
-use egui::{ClippedMesh, CtxRef};
+use egui::{ClippedMesh};
 use glm::Vec2;
 use glow::{Context, HasContext};
 
-use crate::{client::am::AssetManager, gl_error};
+use crate::gl_error;
 
-use self::{egui_renderer::EguiGL, opengl::texture::TextureManager};
-
+use self::{egui_renderer::EguiGL, opengl::texture::TextureServer};
 
 pub mod egui_renderer;
 // pub mod marker_renderer;
@@ -18,7 +17,7 @@ pub struct Renderer {
     pub egui_gl: EguiGL,
     // pub marker_gl: MarkerGl,
     // pub trail_gl: TrailGl,
-    pub tm: TextureManager,
+    pub ts: TextureServer,
 }
 
 impl Renderer {
@@ -35,23 +34,17 @@ impl Renderer {
             gl_error!(gl);
         }
 
-        let tm = TextureManager::new(gl.clone());
+        let ts = TextureServer::new(gl.clone());
         // let marker_gl = MarkerGl::new(gl.clone());
         // let trail_gl = TrailGl::new(gl);
         Self {
             egui_gl,
             // marker_gl,
             // trail_gl,
-            tm,
+            ts,
         }
     }
-    pub fn draw_egui(
-        &mut self,
-        meshes: Vec<ClippedMesh>,
-        screen_size: Vec2,
-        am: &AssetManager,
-        ctx: CtxRef,
-    ) {
+    pub fn clear(&self) {
         unsafe {
             self.egui_gl.gl.disable(glow::SCISSOR_TEST);
             self.egui_gl.gl.clear_color(0.0, 0.0, 0.0, 0.0);
@@ -59,9 +52,9 @@ impl Renderer {
                 .gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
         }
-        self.egui_gl
-            .draw_meshes(meshes, screen_size, &mut self.tm, am, ctx)
-            .unwrap();
+    }
+    pub fn draw_egui(&mut self, meshes: Vec<ClippedMesh>, screen_size: Vec2) {
+        self.egui_gl.draw_meshes(meshes, screen_size).unwrap();
         let gl = self.egui_gl.gl.clone();
         unsafe {
             gl_error!(gl);

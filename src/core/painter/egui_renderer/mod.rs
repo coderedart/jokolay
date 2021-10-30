@@ -1,18 +1,19 @@
-use std::rc::Rc;
+use std::{rc::Rc};
+use ahash::AHashMap;
 
 use anyhow::Context as _;
-use egui::{ClippedMesh, CtxRef, Rect};
+use egui::{ClippedMesh, Rect, TextureId};
 use glm::Vec2;
 use glow::{Context, HasContext, NativeUniformLocation, UNSIGNED_INT};
 
-use crate::{client::am::AssetManager, gl_error};
+use crate::{client::tc::{atlas::AllocatedTexture}, gl_error};
 
 use super::opengl::{
-    buffer::Buffer, shader::ShaderProgram, texture::TextureManager, vertex_array::VertexArrayObject,
+    buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject,
 };
 
 pub struct EguiGL {
-    pub version: Option<u64>,
+    pub tm: AHashMap<TextureId, AllocatedTexture>,
     pub vao: VertexArrayObject,
     pub sp: ShaderProgram,
     pub vb: Buffer,
@@ -64,7 +65,7 @@ impl EguiGL {
         }
 
         let egui_gl = EguiGL {
-            version: None,
+            tm: AHashMap::default(),
             vao,
             vb,
             ib,
@@ -90,9 +91,6 @@ impl EguiGL {
         &mut self,
         meshes: Vec<ClippedMesh>,
         screen_size: Vec2,
-        tm: &mut TextureManager,
-        am: &AssetManager,
-        ctx: CtxRef,
     ) -> anyhow::Result<()> {
         self.bind();
 
@@ -107,13 +105,9 @@ impl EguiGL {
                 .uniform_2_f32_slice(Some(&self.u_screen_size), screen_size.as_slice());
         }
 
-        let t = ctx.texture();
-        if Some(t.version) != self.version {
-            self.version = Some(t.version);
-            todo!();
-        }
+       
         for clipped_mesh in meshes {
-            self.draw_mesh(clipped_mesh, screen_size, tm, am)?;
+            self.draw_mesh(clipped_mesh, screen_size)?;
         }
         unsafe {
             self.gl.disable(glow::SCISSOR_TEST);
@@ -126,8 +120,6 @@ impl EguiGL {
         &mut self,
         clipped_mesh: ClippedMesh,
         screen_size: Vec2,
-        tm: &mut TextureManager,
-        _am: &AssetManager,
     ) -> anyhow::Result<()> {
         Self::set_scissor(clipped_mesh.0, self.gl.clone(), screen_size);
         let mesh = &clipped_mesh.1;
@@ -140,7 +132,7 @@ impl EguiGL {
         self.ib
             .update(bytemuck::cast_slice(&indices), glow::STREAM_DRAW);
         let tid = mesh.texture_id;
-        let allocated_texture = tm.get_tc(tid).context("could not find texture in tmap")?;
+        let allocated_texture = self.tm.get(&tid).context("could not find texture in tmap")?;
         let tc = allocated_texture.get_tex_coords();
         let tcx_offset = tc.startx;
         let tcy_offset = tc.starty;
