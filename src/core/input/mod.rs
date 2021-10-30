@@ -23,7 +23,6 @@ impl InputManager {
         let frame_events = self.glfw_input.get_events(gl, ow);
         frame_events
     }
-    
 }
 
 #[derive(Debug, Clone)]

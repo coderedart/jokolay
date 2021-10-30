@@ -1,12 +1,13 @@
 use std::rc::Rc;
 
-use egui::{ClippedMesh};
-use glm::Vec2;
 use glow::{Context, HasContext};
 
-use crate::gl_error;
+use crate::{
+    core::painter::{egui_renderer::EguiMesh, scene::Scene},
+    gl_error,
+};
 
-use self::{egui_renderer::EguiGL, opengl::texture::TextureServer};
+use self::opengl::texture::TextureServer;
 
 pub mod egui_renderer;
 // pub mod marker_renderer;
@@ -14,10 +15,11 @@ pub mod opengl;
 pub mod scene;
 // pub mod trail_renderer;
 pub struct Renderer {
-    pub egui_gl: EguiGL,
+    pub scene: Scene,
     // pub marker_gl: MarkerGl,
     // pub trail_gl: TrailGl,
     pub ts: TextureServer,
+    pub gl: Rc<glow::Context>,
 }
 
 impl Renderer {
@@ -29,7 +31,7 @@ impl Renderer {
         unsafe {
             gl_error!(gl);
         }
-        let egui_gl = EguiGL::new(gl.clone());
+        let scene = Scene::new(gl.clone());
         unsafe {
             gl_error!(gl);
         }
@@ -38,27 +40,27 @@ impl Renderer {
         // let marker_gl = MarkerGl::new(gl.clone());
         // let trail_gl = TrailGl::new(gl);
         Self {
-            egui_gl,
+            scene,
             // marker_gl,
             // trail_gl,
             ts,
+            gl,
         }
     }
     pub fn clear(&self) {
         unsafe {
-            self.egui_gl.gl.disable(glow::SCISSOR_TEST);
-            self.egui_gl.gl.clear_color(0.0, 0.0, 0.0, 0.0);
-            self.egui_gl
-                .gl
+            self.gl.disable(glow::SCISSOR_TEST);
+            self.gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            self.gl
                 .clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
         }
     }
-    pub fn draw_egui(&mut self, meshes: Vec<ClippedMesh>, screen_size: Vec2) {
-        self.egui_gl.draw_meshes(meshes, screen_size).unwrap();
-        let gl = self.egui_gl.gl.clone();
-        unsafe {
-            gl_error!(gl);
-        }
+    pub fn update_egui_scene(&mut self, meshes: Vec<EguiMesh>) {
+        self.scene.update_egui_scene_state(meshes);
+    }
+
+    pub fn draw_egui(&self) {
+        self.scene.draw_egui();
     }
     // pub fn draw_markers(&mut self, mm: &mut MarkerManager, link: &MumbleLink, fm: &FileManager, wc: OverlayWindowConfig) {
     //     self.marker_gl.draw_markers(&mut self.tm, mm, link, fm, wc);
@@ -72,4 +74,9 @@ impl Renderer {
     //         ctx
     //     )
     // }
+}
+
+#[derive(Debug, Clone)]
+pub enum RenderCommand {
+    UpdateEguiScene(Vec<EguiMesh>),
 }

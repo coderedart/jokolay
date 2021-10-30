@@ -102,11 +102,12 @@ impl TextureClient {
     pub fn update_egui(&mut self, t: Arc<egui::Texture>) {
         if Some(t.version) != self.egui_texture_version {
             self.egui_texture_version = Some(t.version);
-            self.deallocate_tex_if_exists(TextureId::Egui);
+            self.deallocate_tex(TextureId::Egui);
             let pixels = Self::get_pixels(t.clone());
             let width = t.width as u32;
             let height = t.height as u32;
-            self.allocate_upload_pixels(width, height, pixels);
+            let at = self.allocate_upload_pixels(width, height, pixels);
+            self.eid_tex_map.insert(TextureId::Egui, at);
         }
     }
     fn allocate_upload_pixels(
@@ -163,13 +164,9 @@ impl TextureClient {
             panic!("could not allocate texture.")
         }
     }
-    pub fn deallocate_tex_if_exists(&mut self, eid: TextureId) {
-        if self.eid_tex_map.contains_key(&eid) {
-            self.deallocate_tex(eid);
-        }
-    }
+    
     fn deallocate_tex(&mut self, eid: TextureId) {
-        if let Some(t) = self.get_alloc_tex(eid) {
+        if let Some(t) = self.eid_tex_map.remove(&eid) {
             if let Some(a) = self.layers.get_mut(t.layer) {
                 a.deallocate(t.allocation.id);
             }
@@ -184,7 +181,8 @@ impl TextureClient {
         }
         pixels
     }
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, t: Arc<egui::Texture>) {
+        self.update_egui(t);
         let mut delete_set = AHashSet::default();
         let mut upload_jobs = vec![];
         for (p, ts) in self.async_tex_loads.iter_mut() {

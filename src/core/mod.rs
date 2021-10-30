@@ -1,8 +1,15 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use flume::{Receiver, Sender};
 
-use crate::{client::JokoClient, config::JokoConfig, core::input::FrameEvents};
+use crate::{
+    client::JokoClient,
+    config::JokoConfig,
+    core::{input::FrameEvents, painter::RenderCommand},
+};
 
 use self::{input::InputManager, painter::Renderer, window::glfw_window::OverlayWindow};
 
@@ -61,7 +68,7 @@ impl JokoCore {
         })
     }
     pub fn tick(&mut self) -> bool {
-        let events = self.im.tick(self.rr.egui_gl.gl.clone(), &mut self.ow);
+        let events = self.im.tick(self.rr.gl.clone(), &mut self.ow);
         self.events_sender.send(events).unwrap();
         // aggregate all commands so that the channel doesn't get full if client is running more often than our main thread.
         let mut commands = CoreFrameCommands::default();
@@ -77,6 +84,9 @@ impl JokoCore {
                     commands
                         .render_commands
                         .extend(fc.render_commands.into_iter());
+                    commands
+                    .texture_commands
+                    .extend(fc.texture_commands.into_iter());
                 }
                 Err(e) => match e {
                     flume::TryRecvError::Empty => break,
@@ -105,9 +115,22 @@ impl JokoCore {
                 }
             }
         }
-
+        for t in commands.texture_commands {
+            dbg!("received tex command.");
+            match t {
+                TextureCommand::Upload { pixels, x_offset, y_offset, z_offset, width, height } => self.rr.ts.upload_pixels(&pixels, x_offset, y_offset, z_offset, width as u32, height as u32),
+                TextureCommand::BumpTextureArraySize => todo!(),
+                TextureCommand::Reset => todo!(),
+            }
+        }
+        for r in commands.render_commands {
+            match r {
+                RenderCommand::UpdateEguiScene(meshes) => self.rr.update_egui_scene(meshes),
+            }
+        }
         // draw stuff
         self.rr.clear();
+        self.rr.draw_egui();
         self.ow.swap_buffers();
 
         true
@@ -124,7 +147,17 @@ impl JokoCore {
                 client.tick()?;
             }
         });
-        while self.tick() {}
+        let mut t = Instant::now();
+        let mut frame_number = 0;
+
+        while self.tick() {
+            if t.elapsed() > Duration::from_secs(1) {
+                t = Instant::now();
+                dbg!(frame_number);
+                frame_number = 0;
+            }
+            frame_number += 1;
+        }
         client_thread.join().unwrap().unwrap();
         Ok(())
     }
@@ -159,15 +192,11 @@ pub enum TextureCommand {
     BumpTextureArraySize,
     Reset,
 }
-#[derive(Debug, Clone)]
-pub enum RenderCommand {
-    Draw,
-}
-pub enum GlobalCommand {}
 
 #[derive(Debug, Default)]
 pub struct CoreFrameCommands {
     pub window_commads: Vec<WindowCommand>,
     pub input_commands: Vec<InputCommand>,
     pub render_commands: Vec<RenderCommand>,
+    pub texture_commands: Vec<TextureCommand>,
 }

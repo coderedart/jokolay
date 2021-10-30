@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::mpsc::Receiver, time::Instant};
+use std::{rc::Rc, sync::mpsc::Receiver};
 
 use anyhow::Context as _;
 
@@ -146,7 +146,11 @@ impl OverlayWindow {
 
     pub fn set_framebuffer_size(&mut self, width: u32, height: u32) {
         if self.config.framebuffer_width != width || self.config.framebuffer_height != height {
-            trace!("setting frame buffer size to width: {} and height: {}", width, height);
+            trace!(
+                "setting frame buffer size to width: {} and height: {}",
+                width,
+                height
+            );
             self.config.framebuffer_height = height;
             self.config.framebuffer_width = width;
             self.window.set_size(width as i32, height as i32);
@@ -155,7 +159,11 @@ impl OverlayWindow {
 
     pub fn set_inner_position(&mut self, xpos: i32, ypos: i32) {
         if self.config.window_pos_x != xpos || self.config.window_pos_y != ypos {
-            trace!("setting window inner position to x: {} and y: {}", xpos, ypos);
+            trace!(
+                "setting window inner position to x: {} and y: {}",
+                xpos,
+                ypos
+            );
             self.config.window_pos_x = xpos;
             self.config.window_pos_y = ypos;
             self.window.set_pos(xpos, ypos);

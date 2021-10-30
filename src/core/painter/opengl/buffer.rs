@@ -6,29 +6,28 @@ use crate::gl_error;
 /// This struct wraps the gpu buffer. can be used for array or element bindings
 pub struct Buffer {
     pub id: glow::NativeBuffer,
-    pub target: u32,
     gl: Rc<glow::Context>,
 }
 
 impl Buffer {
-    pub fn new(gl: Rc<glow::Context>, target: u32) -> Buffer {
+    pub fn new(gl: Rc<glow::Context>) -> Buffer {
         unsafe {
             let id = gl.create_buffers().expect("failed to create buffer");
 
-            Buffer { id, target, gl }
+            Buffer { id, gl }
         }
     }
     pub fn update(&self, data: &[u8], usage: u32) {
         unsafe { self.gl.named_buffer_data_u8_slice(self.id, data, usage) }
     }
-    pub fn bind(&self) {
+    pub fn bind(&self, target: u32) {
         unsafe {
-            self.gl.bind_buffer(self.target, Some(self.id));
+            self.gl.bind_buffer(target, Some(self.id));
         }
     }
-    pub fn unbind(&self) {
+    pub fn unbind(&self, target: u32) {
         unsafe {
-            self.gl.bind_buffer(self.target, None);
+            self.gl.bind_buffer(target, None);
         }
     }
 }

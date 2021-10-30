@@ -1,8 +1,6 @@
 use std::rc::Rc;
 
-use crate::{
-    gl_error,
-};
+use crate::gl_error;
 use glow::{Context, HasContext, NativeTexture};
 
 /// A texture manager that manages a texture array, and uses texture atlassing to make sure that we can do a single render pass for vertices using any texture
@@ -68,7 +66,7 @@ impl TextureServer {
         }
     }
 
-    pub fn _upload_pixels(
+    pub fn upload_pixels(
         &self,
         pixels: &[u8],
         x_offset: i32,
@@ -82,6 +80,7 @@ impl TextureServer {
         }
 
         unsafe {
+            dbg!("texture uploaded");
             self.gl.texture_sub_image_3d(
                 self.id,
                 0,

@@ -1,12 +1,12 @@
 pub mod atlas;
 
-use std::{path::PathBuf};
+use ahash::AHashMap;
 use anyhow::Context;
 use num_derive::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
-use tokio::fs::{File, create_dir};
+use std::path::PathBuf;
+use tokio::fs::{create_dir, File};
 use url::Url;
-use ahash::AHashMap;
 
 /// File Manger to keep all the file/directory paths stored in one global place.
 #[derive(Debug, Clone)]
@@ -15,7 +15,20 @@ pub struct AssetManager {
     pub web_img_cache_map: AHashMap<Url, usize>,
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    FromPrimitive,
+    ToPrimitive,
+    Serialize,
+    Deserialize,
+)]
 #[repr(usize)]
 pub enum AssetPaths {
     Assets = 0,
@@ -29,7 +42,6 @@ pub enum AssetPaths {
     DefaultTrailImg = 8,
     UnknownImg = 9,
 }
-
 
 impl AssetManager {
     pub async fn new(assets: PathBuf) -> Self {
@@ -65,34 +77,57 @@ impl AssetManager {
         let marker_png_path = assets_path.join(MARKER_IMG_NAME);
         if !marker_png_path.exists() {
             log::warn!("marker img doesn't exist. trying to create it with default texture.");
-            let marker_img = image::load_from_memory(MARKER_TEXTURE).expect("failed to create image from default MARKER_TEXTURE");
-            marker_img.save_with_format(&marker_png_path, image::ImageFormat::Png).expect("failed to create marker.png");
+            let marker_img = image::load_from_memory(MARKER_TEXTURE)
+                .expect("failed to create image from default MARKER_TEXTURE");
+            marker_img
+                .save_with_format(&marker_png_path, image::ImageFormat::Png)
+                .expect("failed to create marker.png");
         }
         let trail_png_path = assets_path.join(TRAIL_IMG_NAME);
         if !trail_png_path.exists() {
             log::warn!("trail img doesn't exist. trying to create it with default texture.");
-            let trail_img = image::load_from_memory(TRAIL_TEXTURE).expect("failed to create image from default TRAIL_TEXTURE");
-            trail_img.save_with_format(&trail_png_path, image::ImageFormat::Png).expect("failed to create trail.png");
+            let trail_img = image::load_from_memory(TRAIL_TEXTURE)
+                .expect("failed to create image from default TRAIL_TEXTURE");
+            trail_img
+                .save_with_format(&trail_png_path, image::ImageFormat::Png)
+                .expect("failed to create trail.png");
         }
         let unknown_png_path = assets_path.join(UNKNOWN_IMG_NAME);
         if !unknown_png_path.exists() {
-            log::warn!("unknown (question) img doesn't exist. trying to create it with default texture.");
-            let unknown_img = image::load_from_memory(QUESTION_TEXTURE).expect("failed to create image from default QUESTION_TEXTURE");
-            unknown_img.save_with_format(&unknown_png_path, image::ImageFormat::Png).expect("failed to create unknown.png");
+            log::warn!(
+                "unknown (question) img doesn't exist. trying to create it with default texture."
+            );
+            let unknown_img = image::load_from_memory(QUESTION_TEXTURE)
+                .expect("failed to create image from default QUESTION_TEXTURE");
+            unknown_img
+                .save_with_format(&unknown_png_path, image::ImageFormat::Png)
+                .expect("failed to create unknown.png");
         }
         // IMPORTANT: make sure this matches the order of enums from above
-        let mut all_paths = vec![assets_path, markers_path, log_file_path, config_file_path, egui_cache_path, web_img_cache_folder, web_img_cache_map_file, marker_png_path, trail_png_path, unknown_png_path];
+        let mut all_paths = vec![
+            assets_path,
+            markers_path,
+            log_file_path,
+            config_file_path,
+            egui_cache_path,
+            web_img_cache_folder,
+            web_img_cache_map_file,
+            marker_png_path,
+            trail_png_path,
+            unknown_png_path,
+        ];
         let web_img_cache_map = Self::fill_web_cache_imgs(&mut all_paths);
         Self {
             all_paths,
-            web_img_cache_map
+            web_img_cache_map,
         }
     }
     fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> AHashMap<Url, usize> {
         todo!()
     }
     pub fn get_id_from_file_path(&self, path: &PathBuf) -> anyhow::Result<usize> {
-        Ok(self.all_paths
+        Ok(self
+            .all_paths
             .iter()
             .position(|p| *p == *path)
             .map(|p| p)
@@ -111,14 +146,15 @@ impl AssetManager {
                 let index = self.all_paths.len();
                 self.all_paths.push(path);
                 index
-            },
+            }
         }
     }
     pub async fn open_file(&self, id: usize) -> anyhow::Result<File> {
-        let path = self.get_file_path_from_id(id).expect("invalid id given to open_file in AssetManager");
+        let path = self
+            .get_file_path_from_id(id)
+            .expect("invalid id given to open_file in AssetManager");
         Ok(File::open(path).await?)
     }
-
 }
 
 pub const MARKER_PACK_FOLDER_NAME: &str = "packs";
