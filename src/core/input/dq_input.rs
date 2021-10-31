@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use copypasta::ClipboardProvider;
+// use copypasta::ClipboardProvider;
 use device_query::{DeviceState, Keycode};
 use egui::{Event, Key, Pos2, RawInput};
 
@@ -9,7 +9,7 @@ pub struct DQState {
     pub dq: DeviceState,
     pub mouse_buttons: [bool; 3],
     pub keys_pressed: BTreeSet<Key>,
-    pub clipboard: copypasta::ClipboardContext,
+    // pub clipboard: copypasta::ClipboardContext,
 }
 
 impl DQState {
@@ -42,11 +42,11 @@ impl DQState {
                 events.push(Event::Cut);
             }
             // paste
-            if keys.contains(&Keycode::V) {
-                events.push(Event::Text(
-                    input_state.clipboard.get_contents().unwrap_or_default(),
-                ));
-            }
+            // if keys.contains(&Keycode::V) {
+            //     events.push(Event::Text(
+            //         input_state.clipboard.get_contents().unwrap_or_default(),
+            //     ));
+            // }
         }
         if keys.contains(&Keycode::LShift) | keys.contains(&Keycode::RShift) {
             modifiers.shift = true;
