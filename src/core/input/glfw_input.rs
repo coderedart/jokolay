@@ -1,29 +1,43 @@
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
+use std::time::Instant;
 
 use egui::{Key, PointerButton};
 
 use glfw::{Action, Glfw, WindowEvent};
 
 use crate::core::input::FrameEvents;
-use crate::core::window::glfw_window::OverlayWindow;
+use crate::core::window::OverlayWindow;
 
+#[derive(Debug)]
 pub struct GlfwInput {
     pub events: Receiver<(f64, WindowEvent)>,
     pub glfw: Glfw,
+    pub frame_number: usize,
+    pub last_reset: f64,
+    pub average_fps: usize,
 }
 
 impl GlfwInput {
     pub fn new(events: Receiver<(f64, WindowEvent)>, glfw: Glfw) -> Self {
-        Self { events, glfw }
+        let last_reset = glfw.get_time();
+        Self { events, glfw, frame_number: 0, last_reset, average_fps: 0 }
     }
     pub fn get_events(&mut self, gl: Rc<glow::Context>, ow: &mut OverlayWindow) -> FrameEvents {
         self.glfw.poll_events();
         let (x, y) = ow.window.get_cursor_pos();
-
+        let time = self.glfw.get_time();
+        let delta = time - self.last_reset;
+        self.frame_number += 1;
+        if delta > 1.0 {
+            self.average_fps = (self.frame_number as f64 / delta) as usize;
+            self.last_reset = time;
+            self.frame_number = 0;
+        }
         let mut frame_event = FrameEvents {
+            average_frame_rate: self.average_fps,
             all_events: vec![],
-            time: self.glfw.get_time(),
+            time,
             cursor_position: [x as f32, y as f32].into(),
         };
 

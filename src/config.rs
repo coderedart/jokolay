@@ -1,6 +1,11 @@
-use crate::core::window::glfw_window::OverlayWindowConfig;
+use crate::core::window::OverlayWindowConfig;
 use jokolink::MumbleConfig;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+
+use egui::CtxRef;
+
+use tokio::{fs::File, io::AsyncWriteExt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JokoConfig {
@@ -24,4 +29,19 @@ impl Default for JokoConfig {
             term_log_level,
         }
     }
+}
+
+pub async fn save_egui_memory(ctx: CtxRef, path: &Path) -> anyhow::Result<()> {
+    let mut egui_cache = File::create(path).await?;
+    let memory = ctx.memory().clone();
+    let string = serde_json::to_string_pretty(&memory)?;
+    egui_cache.write_all(string.as_bytes()).await?;
+    Ok(())
+}
+
+pub async fn save_config(config: &JokoConfig, path: &Path) -> anyhow::Result<()> {
+    let mut config_file = File::create(path).await?;
+    let config_string = serde_json::to_string_pretty(config)?;
+    config_file.write_all(config_string.as_bytes()).await?;
+    Ok(())
 }

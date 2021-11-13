@@ -8,6 +8,7 @@ use crate::gl_error;
 
 use super::opengl::{buffer::Buffer, shader::ShaderProgram, vertex_array::VertexArrayObject};
 
+#[derive(Debug)]
 pub struct EguiGL {
     pub vao: VertexArrayObject,
     pub sp: ShaderProgram,
@@ -191,6 +192,7 @@ pub struct EguiMesh {
     pub indices: Vec<u32>,
     pub tid: TextureId,
 }
+#[derive(Debug)]
 pub struct EguiSceneState {
     pub egui_gl: EguiGL,
     pub meshes: Vec<(EguiMesh, Buffer, Buffer)>,
@@ -205,9 +207,19 @@ impl EguiSceneState {
     pub fn draw(&self) {
         self.egui_gl.enable_egui_state();
         for (m, vb, ib) in self.meshes.iter() {
-            self.egui_gl.update_uniforms(0, m.sampler_layer, m.tcx_offset, m.tcy_offset, m.tcx_scale, m.tcy_scale, m.screen_size);
+            self.egui_gl.update_uniforms(
+                0,
+                m.sampler_layer,
+                m.tcx_offset,
+                m.tcy_offset,
+                m.tcx_scale,
+                m.tcy_scale,
+                m.screen_size,
+            );
             EguiGL::set_scissor(m.clip_rect, self.egui_gl.gl.clone(), m.screen_size);
-            self.egui_gl.draw_mesh(m.indices.len() as u32, vb, ib).unwrap();
+            self.egui_gl
+                .draw_mesh(m.indices.len() as u32, vb, ib)
+                .unwrap();
         }
         self.egui_gl.disable_egui_state();
     }

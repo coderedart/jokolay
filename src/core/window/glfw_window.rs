@@ -2,84 +2,24 @@ use std::{rc::Rc, sync::mpsc::Receiver};
 
 use anyhow::Context as _;
 
-use glfw::{Glfw, Window, WindowEvent};
+use glfw::{Glfw, WindowEvent};
 use glow::{Context, HasContext};
 use jokolink::WindowDimensions;
 use log::trace;
-use serde::{Deserialize, Serialize};
 
-use crate::gl_error;
-
-/// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct OverlayWindowConfig {
-    /// framebuffer width in pixels
-    pub framebuffer_width: u32,
-    /// framebuffer height in pixels
-    pub framebuffer_height: u32,
-    /// can be negative. includes decorations etc.. in screen coordinates
-    pub window_pos_x: i32,
-    /// can be negative. includes decorations etc.. in screen coordinates
-    pub window_pos_y: i32,
-    /// whether Window has input passthrough enabled
-    pub passthrough: bool,
-    /// always on top flag
-    pub always_on_top: bool,
-    /// transparency flag
-    pub transparency: bool,
-    /// decorated flag
-    pub decorated: bool,
-}
-impl OverlayWindowConfig {
-    pub const WINDOW_HEIGHT: u32 = 600;
-    pub const WINDOW_WIDTH: u32 = 800;
-    pub const WINDOW_POS_X: i32 = 0;
-    pub const WINDOW_POS_Y: i32 = 0;
-    pub const PASSTHROUGH: bool = false;
-    pub const ALWAYS_ON_TOP: bool = true;
-    pub const TRANSPARENCY: bool = true;
-    pub const DECORATED: bool = true;
-}
-impl Default for OverlayWindowConfig {
-    fn default() -> Self {
-        Self {
-            framebuffer_width: Self::WINDOW_WIDTH,
-            framebuffer_height: Self::WINDOW_HEIGHT,
-            window_pos_x: Self::WINDOW_POS_X,
-            window_pos_y: Self::WINDOW_POS_Y,
-            passthrough: Self::PASSTHROUGH,
-            always_on_top: Self::ALWAYS_ON_TOP,
-            transparency: Self::TRANSPARENCY,
-            decorated: Self::DECORATED,
-        }
-    }
-}
-
-/// This is the overlay window which wraps the window functions like resizing or getting the present size etc..
-/// we will cache a few attributes to avoid calling into system for high frequency variables like
-///
-pub struct OverlayWindow {
-    pub window: Window,
-    pub config: OverlayWindowConfig,
-}
-impl OverlayWindow {
-    /// default OpenGL minimum major version
-    pub const GL_VERSION_MAJOR: u32 = 4;
-    /// default OpenGL minimum minor version
-    pub const GL_VERSION_MINOR: u32 = 6;
-    /// default window title string
-    pub const WINDOW_TITLE: &'static str = "Jokolay";
-
-    /// default MultiSampling samples count
-    pub const MULTISAMPLE_COUNT: Option<u32> = None;
-}
+use crate::{
+    core::window::{OverlayWindow, OverlayWindowConfig},
+    gl_error,
+};
 
 impl OverlayWindow {
     fn set_window_hints(glfw: &mut Glfw, config: OverlayWindowConfig) {
+
         glfw.window_hint(glfw::WindowHint::ContextVersion(
             Self::GL_VERSION_MAJOR,
             Self::GL_VERSION_MINOR,
         ));
+
         glfw.window_hint(glfw::WindowHint::OpenGlProfile(
             glfw::OpenGlProfileHint::Core,
         ));
@@ -93,6 +33,7 @@ impl OverlayWindow {
         glfw.window_hint(glfw::WindowHint::MousePassthrough(config.passthrough));
 
         glfw.window_hint(glfw::WindowHint::Decorated(config.decorated));
+
         glfw.window_hint(glfw::WindowHint::Samples(Self::MULTISAMPLE_COUNT));
     }
     pub fn create(
@@ -105,7 +46,9 @@ impl OverlayWindow {
     )> {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw")?;
         trace!("glfw initialized");
+
         Self::set_window_hints(&mut glfw, config);
+        
         trace!("set window hints {:?}", &config);
 
         let (mut window, events) = match glfw.create_window(
@@ -127,6 +70,7 @@ impl OverlayWindow {
             glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _)
         };
         let gl = Rc::new(gl);
+
         trace!("got opengl context");
         unsafe {
             gl_error!(gl);
@@ -140,6 +84,9 @@ impl OverlayWindow {
         config.framebuffer_height = height as u32;
         config.framebuffer_width = width as u32;
         log::debug!("window created. config is: {:?}", config);
+        // WARNING: Need to restart so that egui will get the FrameBuffer size event and it can set the screen_rect property of Rawinput before starting to draw
+        // otherwise, it will use the default of (10_000, 10_000) for screen_size. glfw won't bother resizing if we give the same width/height. so, we change them slightly
+        window.set_size(width - 1, height- 1) ;
 
         Ok((OverlayWindow { window, config }, events, glfw, gl))
     }
@@ -251,29 +198,5 @@ impl OverlayWindow {
         self.set_framebuffer_size(new_windim.width as u32, new_windim.height as u32);
     }
 
-    // pub fn tick(&mut self, ctx: &CtxRef) {
-    //     if self.gw2_last_checked.elapsed() > Duration::from_secs(2) {
-    //         self.gw2_last_checked = Instant::now();
-    //         if self.is_gw2_alive() {
-    //             let gw2_windim = self.get_gw2_windim();
-    //             let ow_windim: WindowDimensions = self.get_live_windim();
-    //             if gw2_windim != ow_windim {
-    //                 log::info!(
-    //                     "resizing to match gw2. old dimensions: {:#?}, new dimensions: {:#?}",
-    //                     ow_windim,
-    //                     gw2_windim
-    //                 );
-    //                 self.attach_to_gw2window(gw2_windim);
-    //             }
-    //         } else {
-    //             log::debug!("gw2 process is not alive anymore");
-    //             self.window.set_should_close(true);
-    //         }
-    //     }
-    //     if ctx.wants_pointer_input() || ctx.wants_keyboard_input() {
-    //         self.set_passthrough(false);
-    //     } else {
-    //         self.set_passthrough(true);
-    //     }
-    // }
+
 }

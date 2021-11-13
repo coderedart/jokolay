@@ -1,178 +1,228 @@
 pub mod atlas;
 
-use ahash::AHashMap;
-use anyhow::Context;
-use num_derive::{FromPrimitive, ToPrimitive};
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use tokio::fs::{create_dir, File};
-use url::Url;
+use std::{
+    convert::TryInto,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-/// File Manger to keep all the file/directory paths stored in one global place.
+use ahash::{AHashMap, AHashSet};
+use egui::{Color32, Pos2, Rect, TextureId, Vec2};
+use flume::Receiver;
+use guillotiere::*;
+use image::GenericImageView;
+
+use crate::{client::tc::atlas::AllocatedTexture, core::painter::{opengl::texture::TextureServer, RenderCommand}};
+
+/// struct to simulate a texture array, and manage it as a dynamic atlas. sending commands to a texture manager in core
+#[derive(Clone)]
+pub struct TextureClient {
+    /// This will track the each layer of texture as a rectangle, and can be used to check which has enough free space to fit in our incoming texture
+    layers: Vec<AtlasAllocator>,
+    /// This will map textures to a egui texture id after allocating them. the primary atlas map.
+    pub eid_tex_map: AHashMap<egui::TextureId, AllocatedTexture>,
+    /// This takes the allocated tex AND its egui id to map it to a path (if its from web, it will be a temp file)
+    pub fs_eid_map: AHashMap<PathBuf, (egui::TextureId, AllocatedTexture)>,
+    /// handle to tokio runtime to spawn async texture loads
+    pub handle: tokio::runtime::Handle,
+    /// The async texture loading status
+    pub async_tex_loads: AHashMap<PathBuf, Receiver<TextureLoadStatus>>,
+    /// The Texture Commands buffer to send to server
+    pub tex_commands: Option<Vec<RenderCommand>>,
+    pub egui_texture_version: Option<u64>,
+}
+
 #[derive(Debug, Clone)]
-pub struct AssetManager {
-    pub all_paths: Vec<PathBuf>,
-    pub web_img_cache_map: AHashMap<Url, usize>,
+pub enum TextureLoadStatus {
+    Success(image::DynamicImage),
+    Failed(String),
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Hash,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    FromPrimitive,
-    ToPrimitive,
-    Serialize,
-    Deserialize,
-)]
-#[repr(usize)]
-pub enum AssetPaths {
-    Assets = 0,
-    MarkerPacks = 1,
-    Log = 2,
-    Config = 3,
-    EguiCache = 4,
-    WebImgCache = 5,
-    WebImgMap = 6,
-    DefaultMarkerImg = 7,
-    DefaultTrailImg = 8,
-    UnknownImg = 9,
-}
+impl TextureClient {
+    /// The Width of the texture Array
+    pub const WIDTH: u32 = TextureServer::WIDTH;
+    /// The height of the texture array
+    pub const HEIGHT: u32 = TextureServer::HEIGHT;
+    /// Mipmap levels of the texture array based on f32::floor(f32::log2(Self::WIDTH as f32)) as u32 + 1
+    pub const MIPMAP_LEVELS: u32 = TextureServer::MIPMAP_LEVELS;
 
-impl AssetManager {
-    pub async fn new(assets: PathBuf) -> Self {
-        let assets_path = assets;
-        if !assets_path.exists() {
-            log::warn!("assets path doesn't exist. trying to create it.");
-            create_dir(&assets_path).await.expect(&format!(
-                "failed to create assets path: {:#?}",
-                assets_path.as_os_str()
-            ));
-        }
-        let markers_path = assets_path.join(MARKER_PACK_FOLDER_NAME);
-        if !markers_path.exists() {
-            log::warn!("marker packs path doesn't exist. trying to create it.");
-            create_dir(&markers_path).await.expect(&format!(
-                "failed to create markers path: {:?}",
-                markers_path.as_os_str()
-            ));
-        }
-        let log_file_path = assets_path.join(LOG_FILE_NAME);
-        let egui_cache_path = assets_path.join(EGUI_CACHE_NAME);
-        let config_file_path = assets_path.join(CONFIG_FILE_NAME);
-
-        let web_img_cache_folder = assets_path.join(WEB_IMAGE_CACHE_FOLDER_NAME);
-        if !web_img_cache_folder.exists() {
-            log::warn!("web image cache folder path doesn't exist. trying to create it.");
-            create_dir(&web_img_cache_folder).await.expect(&format!(
-                "failed to create web image cache folder: {:?}",
-                web_img_cache_folder.as_os_str()
-            ));
-        }
-        let web_img_cache_map_file = web_img_cache_folder.join(WEB_IMAGE_CACHE_MAP_FILE_NAME);
-        let marker_png_path = assets_path.join(MARKER_IMG_NAME);
-        if !marker_png_path.exists() {
-            log::warn!("marker img doesn't exist. trying to create it with default texture.");
-            let marker_img = image::load_from_memory(MARKER_TEXTURE)
-                .expect("failed to create image from default MARKER_TEXTURE");
-            marker_img
-                .save_with_format(&marker_png_path, image::ImageFormat::Png)
-                .expect("failed to create marker.png");
-        }
-        let trail_png_path = assets_path.join(TRAIL_IMG_NAME);
-        if !trail_png_path.exists() {
-            log::warn!("trail img doesn't exist. trying to create it with default texture.");
-            let trail_img = image::load_from_memory(TRAIL_TEXTURE)
-                .expect("failed to create image from default TRAIL_TEXTURE");
-            trail_img
-                .save_with_format(&trail_png_path, image::ImageFormat::Png)
-                .expect("failed to create trail.png");
-        }
-        let unknown_png_path = assets_path.join(UNKNOWN_IMG_NAME);
-        if !unknown_png_path.exists() {
-            log::warn!(
-                "unknown (question) img doesn't exist. trying to create it with default texture."
-            );
-            let unknown_img = image::load_from_memory(QUESTION_TEXTURE)
-                .expect("failed to create image from default QUESTION_TEXTURE");
-            unknown_img
-                .save_with_format(&unknown_png_path, image::ImageFormat::Png)
-                .expect("failed to create unknown.png");
-        }
-        // IMPORTANT: make sure this matches the order of enums from above
-        let mut all_paths = vec![
-            assets_path,
-            markers_path,
-            log_file_path,
-            config_file_path,
-            egui_cache_path,
-            web_img_cache_folder,
-            web_img_cache_map_file,
-            marker_png_path,
-            trail_png_path,
-            unknown_png_path,
-        ];
-        let web_img_cache_map = Self::fill_web_cache_imgs(&mut all_paths);
+    /// create a new texture manager with empty map. when we start drawing, they will automatically get uploaded.
+    pub fn new(handle: tokio::runtime::Handle) -> Self {
         Self {
-            all_paths,
-            web_img_cache_map,
+            layers: vec![AtlasAllocator::new(size2(
+                Self::WIDTH as i32,
+                Self::HEIGHT as i32,
+            ))],
+            eid_tex_map: Default::default(),
+            fs_eid_map: Default::default(),
+            async_tex_loads: Default::default(),
+            tex_commands: Default::default(),
+            handle,
+            egui_texture_version: None,
         }
     }
-    fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> AHashMap<Url, usize> {
-        todo!()
+
+    pub fn get_alloc_tex(&self, eid: TextureId) -> Option<AllocatedTexture> {
+        self.eid_tex_map.get(&eid).cloned()
     }
-    pub fn get_id_from_file_path(&self, path: &PathBuf) -> anyhow::Result<usize> {
-        Ok(self
-            .all_paths
-            .iter()
-            .position(|p| *p == *path)
-            .map(|p| p)
-            .context(format!("could not find path: {:?}", path.as_os_str()))?)
+    pub fn is_being_allocated(&self, path: &Path) -> bool {
+        self.async_tex_loads.contains_key(path)
     }
-    pub fn get_file_path_from_id(&self, id: usize) -> Option<&PathBuf> {
-        self.all_paths.get(id)
+    pub fn allocate_if_needed(&mut self, path: &Path) {
+        if !self.fs_eid_map.contains_key(path) && !self.async_tex_loads.contains_key(path) {
+            self.allocate_image(path.to_path_buf());
+        }
     }
-    pub fn get_id_from_url(&self, u: &Url) -> Option<&usize> {
-        self.web_img_cache_map.get(u)
+    fn allocate_image(&mut self, path: PathBuf) {
+        let copy_path = path.clone();
+        let (s, r) = flume::bounded::<TextureLoadStatus>(1);
+        self.handle.spawn(async move {
+            match tokio::fs::read(path).await {
+                Ok(buffer) => {
+                    match image::load_from_memory_with_format(&buffer, image::ImageFormat::Png) {
+                        Ok(i) => s.send_async(TextureLoadStatus::Success(i)).await.unwrap(),
+                        Err(e) => s
+                            .send_async(TextureLoadStatus::Failed(format!(
+                                "failed to get png image from the file. {:?}",
+                                &e
+                            )))
+                            .await
+                            .unwrap(),
+                    }
+                }
+                Err(e) => s
+                    .send_async(TextureLoadStatus::Failed(format!(
+                        "failed to read image file. {:?}",
+                        &e
+                    )))
+                    .await
+                    .unwrap(),
+            }
+        });
+        self.async_tex_loads.insert(copy_path, r);
     }
-    pub fn register_path(&mut self, path: PathBuf) -> usize {
-        match self.all_paths.iter().position(|p| p == &path) {
-            Some(index) => index,
-            None => {
-                let index = self.all_paths.len();
-                self.all_paths.push(path);
-                index
+    pub fn update_egui(&mut self, t: Arc<egui::Texture>) {
+        if Some(t.version) != self.egui_texture_version {
+            self.egui_texture_version = Some(t.version);
+            self.deallocate_tex(TextureId::Egui);
+            let pixels = Self::get_pixels(t.clone());
+            let width = t.width as u32;
+            let height = t.height as u32;
+            let at = self.allocate_upload_pixels(width, height, pixels);
+            self.eid_tex_map.insert(TextureId::Egui, at);
+        }
+    }
+    fn allocate_upload_pixels(
+        &mut self,
+        width: u32,
+        height: u32,
+        pixels: Vec<u8>,
+    ) -> AllocatedTexture {
+        for (layer, atlas) in self.layers.iter_mut().enumerate() {
+            if let Some(allocation) = atlas.allocate(size2(width as i32, height as i32)) {
+                let allocated_texture = AllocatedTexture::new(allocation, layer);
+                if self.tex_commands.is_none() {
+                    self.tex_commands = Some(vec![]);
+                }
+                if let Some(ref mut tm) = self.tex_commands {
+                    tm.push(RenderCommand::TextureUpload {
+                        pixels,
+                        x_offset: allocated_texture.allocation.rectangle.min.x,
+                        y_offset: allocated_texture.allocation.rectangle.min.y,
+                        z_offset: layer as i32,
+                        width: allocated_texture.allocation.rectangle.width(),
+                        height: allocated_texture.allocation.rectangle.height(),
+                    });
+                }
+                return allocated_texture;
+            }
+        }
+        let mut a = AtlasAllocator::new(size2(Self::WIDTH as i32, Self::HEIGHT as i32));
+        if self.tex_commands.is_none() {
+            self.tex_commands = Some(vec![]);
+        }
+        if let Some(ref mut tm) = self.tex_commands {
+            tm.push(RenderCommand::BumpTextureArraySize);
+        }
+        if let Some(at) = a.allocate(size2(width as i32, height as i32)) {
+            let layer = self.layers.len();
+            let allocated_texture = AllocatedTexture::new(at, layer);
+            if self.tex_commands.is_none() {
+                self.tex_commands = Some(vec![]);
+            }
+            if let Some(ref mut tm) = self.tex_commands {
+                tm.push(RenderCommand::TextureUpload {
+                    pixels,
+                    x_offset: allocated_texture.allocation.rectangle.min.x,
+                    y_offset: allocated_texture.allocation.rectangle.min.y,
+                    z_offset: layer as i32,
+                    width: allocated_texture.allocation.rectangle.width(),
+                    height: allocated_texture.allocation.rectangle.height(),
+                });
+            }
+            self.layers.push(a);
+            return allocated_texture;
+        } else {
+            panic!("could not allocate texture.")
+        }
+    }
+
+    fn deallocate_tex(&mut self, eid: TextureId) {
+        if let Some(t) = self.eid_tex_map.remove(&eid) {
+            if let Some(a) = self.layers.get_mut(t.layer) {
+                a.deallocate(t.allocation.id);
             }
         }
     }
-    pub async fn open_file(&self, id: usize) -> anyhow::Result<File> {
-        let path = self
-            .get_file_path_from_id(id)
-            .expect("invalid id given to open_file in AssetManager");
-        Ok(File::open(path).await?)
+    fn get_pixels(t: Arc<egui::Texture>) -> Vec<u8> {
+        let mut pixels = Vec::new();
+        for &alpha in &t.pixels {
+            let rgba = Color32::from_white_alpha(alpha);
+            let a = rgba.to_array();
+            pixels.extend_from_slice(&a);
+        }
+        pixels
+    }
+    pub fn tick(&mut self, t: Arc<egui::Texture>) {
+        self.update_egui(t);
+        let mut delete_set = AHashSet::default();
+        let mut upload_jobs = vec![];
+        for (p, ts) in self.async_tex_loads.iter_mut() {
+            match ts.try_recv() {
+                Ok(status) => match status {
+                    TextureLoadStatus::Success(i) => {
+                        upload_jobs.push((p.clone(), i));
+                    }
+                    TextureLoadStatus::Failed(i) => {
+                        log::error!("Texture load failed due to error: {}", &i);
+                    }
+                },
+                Err(e) => match e {
+                    flume::TryRecvError::Empty => continue,
+                    flume::TryRecvError::Disconnected => log::error!(
+                        "disconnected async load job.\n path: {:?}\n error: {:?}",
+                        &p,
+                        &e
+                    ),
+                },
+            }
+            delete_set.insert(p.clone());
+        }
+        for (p, i) in upload_jobs {
+            let width = i.width();
+            let height = i.height();
+            let pixels = i.to_bytes();
+            let at = self.allocate_upload_pixels(width, height, pixels);
+            let id = at.allocation.id.serialize() as u64;
+            if let Some(previous) = self.eid_tex_map.insert(TextureId::User(id), at) {
+                log::error!("had a previous allocation. something very wrong. previous id: {:?}, present id: {:?} and map: {:?} ", previous, at, &self.eid_tex_map);
+            }
+            if let Some(previous) = self.fs_eid_map.insert(p, (TextureId::User(id), at)) {
+                log::error!("had a previous allocation. something very wrong. previous id: {:?}, present id: {:?} and map: {:?} ", previous, at, &self.fs_eid_map);
+            }
+        }
+        for e in delete_set {
+            self.async_tex_loads.remove(&e);
+        }
     }
 }
-
-pub const MARKER_PACK_FOLDER_NAME: &str = "packs";
-pub const LOG_FILE_NAME: &str = "jokoloy.log";
-pub const EGUI_CACHE_NAME: &str = "egui_cache.json";
-pub const CONFIG_FILE_NAME: &str = "joko_config.json";
-
-pub const ASSETS_FOLDER_NAME: &str = "assets";
-pub const MARKER_IMG_NAME: &str = "marker.png";
-pub const TRAIL_IMG_NAME: &str = "trail.png";
-pub const UNKNOWN_IMG_NAME: &str = "unknown.png";
-
-pub const WEB_IMAGE_CACHE_FOLDER_NAME: &str = "webcache";
-pub const WEB_IMAGE_CACHE_MAP_FILE_NAME: &str = "webimgcache.json";
-
-/// The default trail texture
-const TRAIL_TEXTURE: &'static [u8] = include_bytes!("./trail.png");
-/// The default Marker Texture
-const MARKER_TEXTURE: &'static [u8] = include_bytes!("./marker.png");
-/// The Question mark texture for when we can't find a texture
-const QUESTION_TEXTURE: &'static [u8] = include_bytes!("./question.png");

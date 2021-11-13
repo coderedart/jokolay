@@ -4,6 +4,7 @@ use std::rc::Rc;
 use crate::gl_error;
 
 /// This struct wraps the gpu buffer. can be used for array or element bindings
+#[derive(Debug)]
 pub struct Buffer {
     pub id: glow::NativeBuffer,
     gl: Rc<glow::Context>,

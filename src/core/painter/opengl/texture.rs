@@ -7,6 +7,7 @@ use glow::{Context, HasContext, NativeTexture};
 /// We will have 3 lvls of indirection. first, a texture array on gpu. we will keep track of the textures on a array layer using the atlas allocators.
 /// resizing the array to get a new layer, copying old contents, when we can't fit a texture into the existing layers.
 /// then we take the RID of a target texture, check if its in array using tmap, uploading the texture if necessary. We only need to think of a way to deallocate textures.
+#[derive(Debug)]
 pub struct TextureServer {
     /// The texture array on gpu. everytime we resize, we will create new one, and replace this after copying the pixels and dropping the old one.
     id: NativeTexture,
@@ -44,7 +45,7 @@ impl TextureServer {
         unsafe {
             gl_error!(gl);
         }
-
+        log::trace!("created new texture server. {:?}", id);
         Self { gl, depth, id }
     }
 
@@ -62,6 +63,7 @@ impl TextureServer {
             gl.texture_parameter_i32(id, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
 
             gl_error!(gl);
+            log::debug!("created texture array. id: {:?}", id);
             id
         }
     }
@@ -78,9 +80,15 @@ impl TextureServer {
         unsafe {
             gl_error!(self.gl);
         }
-
+        log::debug!(
+            "uploading texture. width: {}, height: {}, z_offset: {}, y_offset: {}, x_offset: {}",
+            width,
+            height,
+            z_offset,
+            y_offset,
+            x_offset
+        );
         unsafe {
-            dbg!("texture uploaded");
             self.gl.texture_sub_image_3d(
                 self.id,
                 0,
@@ -100,7 +108,7 @@ impl TextureServer {
         }
     }
 
-    pub fn bump_tex_array_size(&mut self, new_len: u32) {
+    pub fn bump_tex_array_size(&mut self, new_len: Option<u32>) {
         unsafe {
             gl_error!(self.gl);
         }
@@ -111,7 +119,12 @@ impl TextureServer {
         }
 
         let old_depth = self.depth;
-        let new_depth = new_len;
+        let new_depth = new_len.unwrap_or(old_depth + 1);
+        log::debug!(
+            "bumping texture array from {} to {} layers",
+            old_depth,
+            new_depth
+        );
         unsafe {
             gl_error!(self.gl);
 
@@ -160,6 +173,7 @@ impl TextureServer {
 impl Drop for TextureServer {
     fn drop(&mut self) {
         unsafe {
+            log::debug!("deleting texture array. {:?}", self.id);
             self.gl.delete_texture(self.id);
         }
     }

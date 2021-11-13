@@ -1,5 +1,6 @@
-use jokolay::real_main;
+use jokolay::app::JokoApp;
 
 fn main() {
-    while real_main() {}
+    let app = JokoApp::new();
+    app.run();
 }

@@ -1,7 +1,6 @@
-An Overlay Window that handles position/size/transparent/focus/alwaysontop attributes and collects events from global device states. 
-Classes for creation/modification/deletion of shaders/textures/buffers/vertexArrayObjects. 
-A OpenGL state class that stores and manages its assets ^^ 
-A Scene class that contains a Opengl state class and other state/assets and implements the renderable trait to draw based on its state/assets. 
+An Overlay Window that handles position/size/transparent/focus/alwaysontop attributes and collects events from glfw window. 
+A client object which waits for events from main window and after processing them, sends back any data/commands back to the main window. 
+A Scene Object managest opengl state for its scene. we have a egui, marker and trail scenes probably. 
 
 An App class that holds all of these and runs an event loop. 
 

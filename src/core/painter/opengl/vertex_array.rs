@@ -6,6 +6,7 @@ use crate::gl_error;
 
 use super::buffer::VertexBufferLayout;
 
+#[derive(Debug)]
 pub struct VertexArrayObject {
     pub id: NativeVertexArray,
     pub gl: Rc<glow::Context>,

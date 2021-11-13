@@ -10,10 +10,11 @@ use crate::{
 use self::opengl::texture::TextureServer;
 
 pub mod egui_renderer;
-// pub mod marker_renderer;
+pub mod marker_renderer;
 pub mod opengl;
 pub mod scene;
 // pub mod trail_renderer;
+#[derive(Debug)]
 pub struct Renderer {
     pub scene: Scene,
     // pub marker_gl: MarkerGl,
@@ -78,5 +79,15 @@ impl Renderer {
 
 #[derive(Debug, Clone)]
 pub enum RenderCommand {
+    TextureUpload {
+        pixels: Vec<u8>,
+        x_offset: i32,
+        y_offset: i32,
+        z_offset: i32,
+        width: i32,
+        height: i32,
+    },
+    BumpTextureArraySize,
+    Reset,
     UpdateEguiScene(Vec<EguiMesh>),
 }

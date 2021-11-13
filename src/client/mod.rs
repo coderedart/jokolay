@@ -1,42 +1,45 @@
+use std::{path::PathBuf, sync::{atomic::AtomicBool, Arc}};
+
 use egui::{Event, Pos2, RawInput};
 use flume::{Receiver, Sender};
 
-use crate::{
-    client::{gui::main_window::MainWindow, tc::atlas::TextureClient},
-    core::{
-        input::{
+use crate::{client::{am::AssetManager, gui::{debug::DebugWindow, main_window::MainWindow}, tc::TextureClient}, core::{CoreFrameCommands, input::{
             glfw_input::{self, glfw_to_egui_action, glfw_to_egui_key, glfw_to_egui_modifers},
             FrameEvents,
-        },
-        painter::{egui_renderer::EguiMesh, RenderCommand},
-        CoreFrameCommands,
-    },
-};
+        }, painter::{egui_renderer::EguiMesh, RenderCommand}, window::WindowCommand}};
 
 pub mod gui;
 pub mod mlink;
 pub mod tc;
+pub mod am;
 
 pub struct JokoClient {
     pub tc: TextureClient,
     pub ctx: egui::CtxRef,
+    pub am: AssetManager,
     pub main_window: MainWindow,
     pub handle: tokio::runtime::Handle,
-    pub quit_signal_sender: tokio::sync::oneshot::Sender<()>,
+    pub quit_signal_sender: flume::Sender<()>,
     pub events_receiver: Receiver<FrameEvents>,
     pub commands_sender: Sender<CoreFrameCommands>,
+    pub soft_restart: Arc<AtomicBool>,
+    #[cfg(debug_assertions)]
+    pub debug_window: DebugWindow,
 }
 
 impl JokoClient {
     pub fn new(
         events_receiver: Receiver<FrameEvents>,
         commands_sender: Sender<CoreFrameCommands>,
+        soft_restart: Arc<AtomicBool>,
+        assets_path: PathBuf
     ) -> anyhow::Result<Self> {
         let rt = tokio::runtime::Runtime::new()?;
         let handle = rt.handle().clone();
-        let (quit_signal_sender, quit_signal_receiver) = tokio::sync::oneshot::channel::<()>();
+        let (quit_signal_sender, quit_signal_receiver) = flume::bounded(1);
         std::thread::spawn(move || {
             rt.block_on(async {
+                let quit_signal_receiver = quit_signal_receiver.into_recv_async();
                 quit_signal_receiver.await.unwrap();
             })
         });
@@ -44,36 +47,61 @@ impl JokoClient {
             tc: TextureClient::new(handle.clone()),
             ctx: egui::CtxRef::default(),
             main_window: MainWindow::default(),
+            am: AssetManager::new(assets_path),
             handle,
             quit_signal_sender,
             commands_sender,
             events_receiver,
+            soft_restart,
+            #[cfg(debug_assertions)]
+            debug_window: Default::default(),
         })
     }
-    pub fn tick(&mut self) -> anyhow::Result<()> {
+    pub fn tick(&mut self) -> anyhow::Result<bool> {
+        let mut c = CoreFrameCommands::default();
+        // block until we get events so that we don't spin for no reason
         match self.events_receiver.recv() {
-            Ok(e) => {
-                let i = handle_events(e);
+            // if we get events, just drain the receiver so that if client is slow, frame_events don't pile up from the core
+            // and we also don't want to just keep receiving events form 100 frames back.
+            Ok(mut e) => {
+                for fe in self.events_receiver.try_iter() {
+                    e.average_frame_rate = e.average_frame_rate;
+                    e.cursor_position = fe.cursor_position;
+                    e.time = fe.time;
+                    e.all_events.extend(fe.all_events.into_iter());
+                }
+                let average_fps = e.average_frame_rate;
+                let mut quit = false;
+                let i = handle_events(e, &mut quit);
+                if quit {
+                    self.quit_signal_sender.send(()).unwrap();
+                    return Ok(false);
+                }
+                // now we start the egui frame
                 self.ctx.begin_frame(i);
+                #[cfg(debug_assertions)]
+                gui::debug::show_debug_window(self.ctx.clone(), self, average_fps, &mut c);
             }
             Err(e) => match e {
-                flume::RecvError::Disconnected => todo!(),
+                flume::RecvError::Disconnected => {
+                    self.quit_signal_sender.send(()).unwrap();
+                    return Ok(false);
+                }
             },
         }
-        egui::Window::new("w")
-        .scroll2([true, true])
-        .show(&self.ctx.clone(), |ui| {
-            self.ctx.settings_ui(ui);
-        });
+
+        
 
         self.tc.tick(self.ctx.texture());
-
+        
         let screen_size = self.ctx.input().screen_rect();
         let allo = self.tc.get_alloc_tex(egui::TextureId::Egui).unwrap();
         let tex_coords = allo.get_tex_coords();
         let (output, shapes) = self.ctx.end_frame();
-        let mut c = CoreFrameCommands::default();
-
+        self.tc
+            .tex_commands
+            .as_mut()
+            .map(|cmd| c.render_commands.append(cmd));
         if output.needs_repaint {
             let shapes = self.ctx.tessellate(shapes);
             let meshes: Vec<EguiMesh> = shapes
@@ -95,33 +123,20 @@ impl JokoClient {
             c.render_commands
                 .push(RenderCommand::UpdateEguiScene(meshes));
         }
-        if let Some(tcmd) = self.tc.tex_commands.take() {
-            for cmd in tcmd.iter() {
-                match cmd {
-                    crate::core::TextureCommand::Upload {
-                        pixels: _,
-                        x_offset: _,
-                        y_offset: _,
-                        z_offset: _,
-                        width,
-                        height,
-                    } => {
-                        dbg!(width, height);
-                    }
-                    crate::core::TextureCommand::BumpTextureArraySize => {
-                        dbg!("bump");
-                    }
-                    crate::core::TextureCommand::Reset => todo!(),
-                }
-            }
-            c.texture_commands = tcmd;
+        if self.ctx.wants_pointer_input() || self.ctx.wants_keyboard_input() {
+            c.window_commads.push(WindowCommand::Passthrough(false));
+        } else {
+            c.window_commads.push(WindowCommand::Passthrough(true));
         }
         self.commands_sender.send(c).unwrap();
-        Ok(())
+        Ok(true)
+    }
+    pub fn run(mut self) {
+        while self.tick().unwrap() {}
     }
 }
 
-pub fn handle_events(events: FrameEvents) -> RawInput {
+pub fn handle_events(events: FrameEvents, quit: &mut bool) -> RawInput {
     let mut input = RawInput::default();
     input.time = Some(events.time);
     input
@@ -168,7 +183,8 @@ pub fn handle_events(events: FrameEvents) -> RawInput {
                 None
             }
             glfw::WindowEvent::Close => {
-                std::process::exit(0);
+                *quit = true;
+                None
             }
             _ => None,
         } {

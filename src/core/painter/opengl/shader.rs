@@ -4,6 +4,7 @@ use std::rc::Rc;
 /// Struct to abstract away creation/binding of shader program.
 /// compiles shaders and attaches them to a new program. id is the program id.
 /// destroys the program when dropped, so keep it alive if you don't want that.
+#[derive(Debug)]
 pub struct ShaderProgram {
     pub id: NativeProgram,
     gl: Rc<glow::Context>,

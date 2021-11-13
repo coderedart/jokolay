@@ -8,6 +8,7 @@ use crate::core::painter::{
 /// This struct will store the data needed to render. when there's Some(data), it means we want to update the gl buffers.
 /// when its None, it means there's no update and should continue as usual. and when there's Some(Vec::new()) like emptry data, it means we
 /// want to clear the buffers and not draw that.
+#[derive(Debug)]
 pub struct Scene {
     pub buffer_pool: Vec<Buffer>,
     pub egui_scene: EguiSceneState,
