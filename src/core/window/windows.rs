@@ -1,7 +1,8 @@
-use crate::core::{
-    mlink::MumbleSource,
-    window::glfw_window::{OverlayWindow, WindowDimensions},
-};
+use jokolink::{MumbleSource, WindowDimensions};
+
+use crate::core::window::OverlayWindow;
+
+
 
 pub struct WindowsPlatformData {
     pub gw2_window_handle: u32,
@@ -20,11 +21,11 @@ impl WindowsPlatformData {
     }
 }
 
-impl OverlayWindow {
-    pub fn is_gw2_alive(&self) -> bool {
-        self.platform_data.is_gw2_alive()
-    }
-    pub fn get_gw2_windim(&self) -> WindowDimensions {
-        self.platform_data.get_gw2_windim()
-    }
-}
+// impl OverlayWindow {
+//     pub fn is_gw2_alive(&self) -> bool {
+//         self.platform_data.is_gw2_alive()
+//     }
+//     pub fn get_gw2_windim(&self) -> WindowDimensions {
+//         self.platform_data.get_gw2_windim()
+//     }
+// }

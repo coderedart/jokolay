@@ -4,18 +4,19 @@ version = "0.1.12"
 description = "An Overlay for Guild Wars 2 in rust"
 license = "MIT"
 authors = ["coderedart <redartofcode@gmail.com>"]
-edition = "2018"
+edition = "2021"
 keywords = ["GuildWars2", "GW2", "Overlay"]
 
 resolver = "2"
 
 [dependencies]
-#glfw = { version = "0.41.0", git = "https://github.com/coderedart/glfw-rs.git" }
-#glow = { version = "0.10.0", git = "https://github.com/coderedart/glow.git" }
-glfw = {version =  "*", path = "../glfw-rs"}
-glow = {version =  "*", path = "../glow"}
+glfw = { version = "*", git = "https://github.com/coderedart/glfw-rs.git" }
+glow = { version = "*", git = "https://github.com/coderedart/glow.git" }
+# glfw = {version =  "*", path = "../glfw-rs"}
+# glow = {version =  "*", path = "../glow"}
 # jokolink = {version  = "*", path =  "../jokolink"}
 jokolink = "0.3.0"
+jmf = {version = "*", path = "../jmf"}
 quick-xml = { version = "0.22.0", features = ["serialize"] }
 #serde-xml-rs = "0.5.0"
 serde = { version = "1.0.130", features = ["derive"] }
@@ -34,7 +35,7 @@ image = { version = "0.23.14", default-features = false, features = ["png"] }
 device_query = "0.2.8"
 copypasta = {version = "0.7.1", default-features = false, features = ["x11"]}
 log = "0.4.14"
-simplelog = "0.10.1"
+simplelog = "0.11.0"
 fastrand = "1.5.0"
 anyhow = "1.0.44"
 rayon = "1.5.1"
@@ -62,6 +63,14 @@ ahash = "0.7.6"
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.9.0", features = ["all-extensions"] }
 
+# [profile.dev]
+# debug = true
+# debug-assertions = true
+# panic = 'abort'
+# incremental = true
+
+# [profile.dev.package."*"]
+# opt-level = 3
+
 [profile.release]
-incremental = true
-panic = 'abort'
+debug-assertions = true

@@ -120,10 +120,7 @@ pub fn setup() -> anyhow::Result<(JokoConfig, PathBuf)> {
         let _ = notify_rust::Notification::new()
             .summary("Jokolay Crash Error")
             .body(&format!("crashed due to: {:?}.", info))
-            .hint(notify_rust::Hint::Category("Jokolay".to_owned()))
-            .hint(notify_rust::Hint::Resident(true)) // this is not supported by all implementations
             .timeout(notify_rust::Timeout::Never)
-            .urgency(notify_rust::Urgency::Critical)
             .show();
         let _ = notify_rust::Notification::new()
             .summary("Jokolay")
@@ -131,10 +128,7 @@ pub fn setup() -> anyhow::Result<(JokoConfig, PathBuf)> {
                 "Jokolay crashed. logfile at '{:?}'.",
                 log_file_path
             ))
-            .hint(notify_rust::Hint::Category("Jokolay".to_owned()))
-            .hint(notify_rust::Hint::Resident(true)) // this is not supported by all implementations
             .timeout(notify_rust::Timeout::Never)
-            .urgency(notify_rust::Urgency::Critical)
             .show();
     }));
 
