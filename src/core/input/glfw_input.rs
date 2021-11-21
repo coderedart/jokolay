@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
-use std::time::Instant;
 
 use egui::{Key, PointerButton};
 
@@ -21,7 +20,13 @@ pub struct GlfwInput {
 impl GlfwInput {
     pub fn new(events: Receiver<(f64, WindowEvent)>, glfw: Glfw) -> Self {
         let last_reset = glfw.get_time();
-        Self { events, glfw, frame_number: 0, last_reset, average_fps: 0 }
+        Self {
+            events,
+            glfw,
+            frame_number: 0,
+            last_reset,
+            average_fps: 0,
+        }
     }
     pub fn get_events(&mut self, gl: Rc<glow::Context>, ow: &mut OverlayWindow) -> FrameEvents {
         self.glfw.poll_events();
@@ -43,16 +48,13 @@ impl GlfwInput {
 
         for (_, event) in glfw::flush_messages(&self.events) {
             frame_event.all_events.push(event.clone());
-            match event {
-                glfw::WindowEvent::FramebufferSize(width, height) => {
-                    // make sure the viewport matches the new window dimensions; note that width and
-                    // height will be significantly larger than specified on retina displays.
-                    unsafe {
-                        use glow::HasContext;
-                        gl.viewport(0, 0, width, height);
-                    }
+            if let glfw::WindowEvent::FramebufferSize(width, height) = event {
+                // make sure the viewport matches the new window dimensions; note that width and
+                // height will be significantly larger than specified on retina displays.
+                unsafe {
+                    use glow::HasContext;
+                    gl.viewport(0, 0, width, height);
                 }
-                _ => {}
             }
         }
         frame_event

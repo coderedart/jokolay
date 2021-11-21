@@ -1,16 +1,10 @@
-use std::{
-    convert::TryInto,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::convert::TryInto;
 
-use ahash::{AHashMap, AHashSet};
-use egui::{Color32, Pos2, Rect, TextureId, Vec2};
-use flume::Receiver;
+use egui::{Pos2, Rect, Vec2};
+
 use guillotiere::*;
-use image::GenericImageView;
 
-use crate::{client::tc::TextureClient, core::painter::{opengl::texture::TextureServer, RenderCommand}};
+use crate::client::tc::TextureClient;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AllocatedTexture {

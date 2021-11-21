@@ -1,17 +1,11 @@
 use std::rc::Rc;
 
-use egui::CtxRef;
-use glm::{Vec3, cross, make_vec3, make_vec4, normalize};
-use glow::{HasContext, NativeUniformLocation};
-use jokolink::mlink::MumbleLink;
+use glow::NativeUniformLocation;
 
 use crate::core::painter::opengl::{shader::ShaderProgram, vertex_array::VertexArrayObject};
 
-
 pub mod marker;
-pub struct MarkerSceneState {
-    
-}
+pub struct MarkerSceneState {}
 pub struct MarkerGl {
     pub vao: VertexArrayObject,
     pub sp: ShaderProgram,
@@ -33,9 +27,7 @@ impl MarkerGl {
     //     marker_gl.bind();
     //     marker_gl
     // }
-    pub fn draw_markers(
-        &self,
-    ) {
+    pub fn draw_markers(&self) {
         // unsafe {
         //     // self.gl.enable(glow::DEPTH_TEST);
 
@@ -48,7 +40,6 @@ impl MarkerGl {
         // let view = glm::look_at_lh(&camera_position, &camera_dvec, &glm::vec3(0.0, 1.0, 0.0));
         // let projection = glm::perspective_fov_lh(link.identity.fov, wc.framebuffer_width as f32, wc.framebuffer_height as f32, self.znear, self.zfar);
         // let vp = projection * view;
-  
     }
     pub fn bind(&self) {
         self.vao.bind();

@@ -23,8 +23,8 @@ pub struct JokoApp {
     pub soft_restart: Arc<AtomicBool>,
 }
 
-impl JokoApp {
-    pub fn new() -> Self {
+impl Default for JokoApp {
+    fn default() -> Self {
         let (mut config, assets_path) = setup()
             .map_err(|e| {
                 rfd::MessageDialog::new()
@@ -41,14 +41,24 @@ impl JokoApp {
 
         trace!("Jokolay Setup done");
 
-        let core =
-            JokoCore::new(&mut config, assets_path.clone(), commands_receiver, events_sender).unwrap();
+        let core = JokoCore::new(
+            &mut config,
+            assets_path.clone(),
+            commands_receiver,
+            events_sender,
+        )
+        .unwrap();
 
         log::trace!("Jokolay Core initialized.");
         let soft_restart = Arc::new(AtomicBool::new(false));
         // create client
-        let client = JokoClient::new(events_receiver, commands_sender, soft_restart.clone(), assets_path)
-            .expect("failed to create JokoClient");
+        let client = JokoClient::new(
+            events_receiver,
+            commands_sender,
+            soft_restart.clone(),
+            assets_path,
+        )
+        .expect("failed to create JokoClient");
         trace!("jokoclient initialized");
 
         Self {
@@ -57,6 +67,8 @@ impl JokoApp {
             soft_restart,
         }
     }
+}
+impl JokoApp {
     pub fn run(mut self) {
         loop {
             let client = self.client.take().unwrap();
@@ -68,7 +80,7 @@ impl JokoApp {
             client_thread.join().unwrap();
             if self.soft_restart.load(std::sync::atomic::Ordering::Relaxed) {
                 log::info!("soft restarting app");
-                self = JokoApp::new();
+                self = JokoApp::default();
                 continue;
             } else {
                 break;

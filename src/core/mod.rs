@@ -36,7 +36,7 @@ impl JokoCore {
         let config = joko_config.overlay_window_config;
         let (ow, events, glfw, gl) = OverlayWindow::create(config)?;
         let im = InputManager::new(events, glfw);
-        let rr = Renderer::new(gl.clone());
+        let rr = Renderer::new(gl);
 
         Ok(Self {
             im,

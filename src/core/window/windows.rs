@@ -2,8 +2,6 @@ use jokolink::{MumbleSource, WindowDimensions};
 
 use crate::core::window::OverlayWindow;
 
-
-
 pub struct WindowsPlatformData {
     pub gw2_window_handle: u32,
     pub gw2_pid: u32,

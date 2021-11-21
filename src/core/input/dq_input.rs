@@ -97,7 +97,7 @@ impl DQState {
 
         let keys: Vec<Key> = keys
             .into_iter()
-            .filter_map(|k| Self::dq_key_to_egui_key(k))
+            .filter_map(Self::dq_key_to_egui_key)
             .collect();
         input_state.keys_pressed.retain(|&k| {
             if !keys.contains(&k) {

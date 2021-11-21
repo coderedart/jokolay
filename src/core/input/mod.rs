@@ -21,8 +21,7 @@ impl InputManager {
     }
 
     pub fn tick(&mut self, gl: Rc<glow::Context>, ow: &mut OverlayWindow) -> FrameEvents {
-        let frame_events = self.glfw_input.get_events(gl, ow);
-        frame_events
+        self.glfw_input.get_events(gl, ow)
     }
 }
 

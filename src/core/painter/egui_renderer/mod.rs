@@ -71,7 +71,7 @@ impl EguiGL {
             gl_error!(gl);
         }
 
-        return egui_gl;
+        egui_gl
     }
 
     pub fn enable_egui_state(&self) {
@@ -92,7 +92,6 @@ impl EguiGL {
     }
     pub fn update_uniforms(
         &self,
-        sampler: i32,
         sampler_layer: i32,
         tcx_offset: f32,
         tcy_offset: f32,
@@ -103,7 +102,7 @@ impl EguiGL {
         // update the scaling/offsets of texture in the texture array of atlasses
         unsafe {
             //sampler uniforms are i32
-            self.gl.uniform_1_i32(Some(&self.u_sampler), sampler);
+            self.gl.uniform_1_i32(Some(&self.u_sampler), 0);
             self.gl
                 .uniform_2_f32_slice(Some(&self.u_screen_size), screen_size.as_slice());
             self.gl
@@ -200,7 +199,7 @@ pub struct EguiSceneState {
 impl EguiSceneState {
     pub fn new(gl: Rc<glow::Context>) -> Self {
         Self {
-            egui_gl: EguiGL::new(gl.clone()),
+            egui_gl: EguiGL::new(gl),
             meshes: vec![],
         }
     }
@@ -208,7 +207,6 @@ impl EguiSceneState {
         self.egui_gl.enable_egui_state();
         for (m, vb, ib) in self.meshes.iter() {
             self.egui_gl.update_uniforms(
-                0,
                 m.sampler_layer,
                 m.tcx_offset,
                 m.tcy_offset,

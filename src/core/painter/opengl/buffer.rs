@@ -95,12 +95,12 @@ impl VertexBufferLayout {
                     stride += 4 * element.count as i32;
                 }
                 UNSIGNED_BYTE => {
-                    stride += 1 * element.count as i32;
+                    stride += element.count as i32;
                 }
                 UNSIGNED_SHORT => {
                     stride += 2 * element.count as i32;
                 }
-                rest @ _ => {
+                rest => {
                     panic!("vertexBufferElement's etype is not right: {}", rest);
                 }
             }
@@ -158,7 +158,7 @@ impl VertexBufferLayout {
                         );
                         gl_error!(gl);
 
-                        offset += 1 * element.count as u32;
+                        offset += element.count as u32;
                     }
                     // UNSIGNED_SHORT => {
                     //     gl.vertex_array_attrib_format_f32(

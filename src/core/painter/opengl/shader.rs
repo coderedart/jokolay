@@ -22,7 +22,7 @@ impl ShaderProgram {
             let shader_program = gl.create_program().unwrap();
 
             let vertex_shader = gl.create_shader(glow::VERTEX_SHADER).unwrap();
-            gl.shader_source(vertex_shader, &vertex_shader_source);
+            gl.shader_source(vertex_shader, vertex_shader_source);
             gl.compile_shader(vertex_shader);
             if !gl.get_shader_compile_status(vertex_shader) {
                 let e = gl.get_shader_info_log(vertex_shader);
@@ -30,7 +30,7 @@ impl ShaderProgram {
                 panic!("vertex shader compilation error: {}", &e);
             }
             let frag_shader = gl.create_shader(glow::FRAGMENT_SHADER).unwrap();
-            gl.shader_source(frag_shader, &fragment_shader_source);
+            gl.shader_source(frag_shader, fragment_shader_source);
             gl.compile_shader(frag_shader);
             if !gl.get_shader_compile_status(frag_shader) {
                 let e = gl.get_shader_info_log(frag_shader);
@@ -41,8 +41,8 @@ impl ShaderProgram {
             gl.attach_shader(shader_program, frag_shader);
             let geometry_shader;
             geometry_shader = gl.create_shader(glow::GEOMETRY_SHADER).unwrap();
-            if geometry_shader_source.is_some() {
-                gl.shader_source(geometry_shader, geometry_shader_source.unwrap());
+            if let Some(gss) = geometry_shader_source {
+                gl.shader_source(geometry_shader, gss);
                 gl.compile_shader(geometry_shader);
                 if !gl.get_shader_compile_status(geometry_shader) {
                     let e = gl.get_shader_info_log(geometry_shader);

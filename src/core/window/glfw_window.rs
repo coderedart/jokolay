@@ -14,7 +14,6 @@ use crate::{
 
 impl OverlayWindow {
     fn set_window_hints(glfw: &mut Glfw, config: OverlayWindowConfig) {
-
         glfw.window_hint(glfw::WindowHint::ContextVersion(
             Self::GL_VERSION_MAJOR,
             Self::GL_VERSION_MINOR,
@@ -36,6 +35,8 @@ impl OverlayWindow {
 
         glfw.window_hint(glfw::WindowHint::Samples(Self::MULTISAMPLE_COUNT));
     }
+
+    #[allow(clippy::type_complexity)]
     pub fn create(
         mut config: OverlayWindowConfig,
     ) -> anyhow::Result<(
@@ -48,7 +49,7 @@ impl OverlayWindow {
         trace!("glfw initialized");
 
         Self::set_window_hints(&mut glfw, config);
-        
+
         trace!("set window hints {:?}", &config);
 
         let (mut window, events) = match glfw.create_window(
@@ -86,7 +87,7 @@ impl OverlayWindow {
         log::debug!("window created. config is: {:?}", config);
         // WARNING: Need to restart so that egui will get the FrameBuffer size event and it can set the screen_rect property of Rawinput before starting to draw
         // otherwise, it will use the default of (10_000, 10_000) for screen_size. glfw won't bother resizing if we give the same width/height. so, we change them slightly
-        window.set_size(width - 1, height- 1) ;
+        window.set_size(width - 1, height - 1);
 
         Ok((OverlayWindow { window, config }, events, glfw, gl))
     }
@@ -197,6 +198,4 @@ impl OverlayWindow {
         self.set_inner_position(new_windim.x, new_windim.y);
         self.set_framebuffer_size(new_windim.width as u32, new_windim.height as u32);
     }
-
-
 }

@@ -1,11 +1,11 @@
-
 use ahash::AHashMap;
 use anyhow::Context;
 use num_derive::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
+use std::fs::create_dir_all;
+use std::path::Path;
 use std::{fs::File, path::PathBuf};
 use url::Url;
-use std::fs::{create_dir_all};
 
 /// File Manger to keep all the file/directory paths stored in one global place.
 #[derive(Debug, Clone)]
@@ -47,19 +47,23 @@ impl AssetManager {
         let assets_path = assets;
         if !assets_path.exists() {
             log::warn!("assets path doesn't exist. trying to create it.");
-            
-            create_dir_all(&assets_path).expect(&format!(
-                "failed to create assets path: {:#?}",
-                assets_path.as_os_str()
-            ));
+
+            create_dir_all(&assets_path).unwrap_or_else(|_| {
+                panic!(
+                    "failed to create assets path: {:#?}",
+                    assets_path.as_os_str()
+                )
+            });
         }
         let markers_path = assets_path.join(MARKER_PACK_FOLDER_NAME);
         if !markers_path.exists() {
             log::warn!("marker packs path doesn't exist. trying to create it.");
-            create_dir_all(&markers_path).expect(&format!(
-                "failed to create markers path: {:?}",
-                markers_path.as_os_str()
-            ));
+            create_dir_all(&markers_path).unwrap_or_else(|_| {
+                panic!(
+                    "failed to create markers path: {:?}",
+                    markers_path.as_os_str()
+                )
+            });
         }
         let log_file_path = assets_path.join(LOG_FILE_NAME);
         let egui_cache_path = assets_path.join(EGUI_CACHE_NAME);
@@ -68,10 +72,12 @@ impl AssetManager {
         let web_img_cache_folder = assets_path.join(WEB_IMAGE_CACHE_FOLDER_NAME);
         if !web_img_cache_folder.exists() {
             log::warn!("web image cache folder path doesn't exist. trying to create it.");
-            create_dir_all(&web_img_cache_folder).expect(&format!(
-                "failed to create web image cache folder: {:?}",
-                web_img_cache_folder.as_os_str()
-            ));
+            create_dir_all(&web_img_cache_folder).unwrap_or_else(|_| {
+                panic!(
+                    "failed to create web image cache folder: {:?}",
+                    web_img_cache_folder.as_os_str()
+                )
+            });
         }
         let web_img_cache_map_file = web_img_cache_folder.join(WEB_IMAGE_CACHE_MAP_FILE_NAME);
         let marker_png_path = assets_path.join(MARKER_IMG_NAME);
@@ -104,7 +110,7 @@ impl AssetManager {
                 .expect("failed to create unknown.png");
         }
         // IMPORTANT: make sure this matches the order of enums from above
-        let mut all_paths = vec![
+        let all_paths = vec![
             assets_path,
             markers_path,
             log_file_path,
@@ -122,16 +128,14 @@ impl AssetManager {
             web_img_cache_map: Default::default(),
         }
     }
-    fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> AHashMap<Url, usize> {
+    pub fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> AHashMap<Url, usize> {
         todo!()
     }
-    pub fn get_id_from_file_path(&self, path: &PathBuf) -> anyhow::Result<usize> {
-        Ok(self
-            .all_paths
+    pub fn get_id_from_file_path(&self, path: &Path) -> anyhow::Result<usize> {
+        self.all_paths
             .iter()
             .position(|p| *p == *path)
-            .map(|p| p)
-            .context(format!("could not find path: {:?}", path.as_os_str()))?)
+            .context(format!("could not find path: {:?}", path.as_os_str()))
     }
     pub fn get_file_path_from_id(&self, id: usize) -> Option<&PathBuf> {
         self.all_paths.get(id)
@@ -171,8 +175,8 @@ pub const WEB_IMAGE_CACHE_FOLDER_NAME: &str = "webcache";
 pub const WEB_IMAGE_CACHE_MAP_FILE_NAME: &str = "webimgcache.json";
 
 /// The default trail texture
-const TRAIL_TEXTURE: &'static [u8] = include_bytes!("./trail.png");
+const TRAIL_TEXTURE: &[u8] = include_bytes!("./trail.png");
 /// The default Marker Texture
-const MARKER_TEXTURE: &'static [u8] = include_bytes!("./marker.png");
+const MARKER_TEXTURE: &[u8] = include_bytes!("./marker.png");
 /// The Question mark texture for when we can't find a texture
-const QUESTION_TEXTURE: &'static [u8] = include_bytes!("./question.png");
+const QUESTION_TEXTURE: &[u8] = include_bytes!("./question.png");

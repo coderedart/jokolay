@@ -1,18 +1,20 @@
 pub mod atlas;
 
 use std::{
-    convert::TryInto,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use ahash::{AHashMap, AHashSet};
-use egui::{Color32, Pos2, Rect, TextureId, Vec2};
+use egui::{Color32, TextureId};
 use flume::Receiver;
 use guillotiere::*;
 use image::GenericImageView;
 
-use crate::{client::tc::atlas::AllocatedTexture, core::painter::{opengl::texture::TextureServer, RenderCommand}};
+use crate::{
+    client::tc::atlas::AllocatedTexture,
+    core::painter::{opengl::texture::TextureServer, RenderCommand},
+};
 
 /// struct to simulate a texture array, and manage it as a dynamic atlas. sending commands to a texture manager in core
 #[derive(Clone)]
@@ -161,7 +163,7 @@ impl TextureClient {
                 });
             }
             self.layers.push(a);
-            return allocated_texture;
+            allocated_texture
         } else {
             panic!("could not allocate texture.")
         }

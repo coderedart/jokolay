@@ -1,25 +1,38 @@
-use std::{path::PathBuf, sync::{atomic::AtomicBool, Arc}};
+use std::{
+    path::PathBuf,
+    sync::{atomic::AtomicBool, Arc},
+};
 
+use crate::{
+    client::{
+        am::AssetManager,
+        gui::{debug::DebugWindow, main_window::MainWindow},
+        tc::TextureClient,
+    },
+    core::{
+        input::{
+            glfw_input::{self, glfw_to_egui_action, glfw_to_egui_key, glfw_to_egui_modifers},
+            FrameEvents,
+        },
+        painter::{egui_renderer::EguiMesh, RenderCommand},
+        window::WindowCommand,
+        CoreFrameCommands,
+    },
+};
 use egui::{Event, Pos2, RawInput};
 use flume::{Receiver, Sender};
 
-use crate::{client::{am::AssetManager, gui::{debug::DebugWindow, main_window::MainWindow}, mm::MarkerManager, tc::TextureClient}, core::{CoreFrameCommands, input::{
-            glfw_input::{self, glfw_to_egui_action, glfw_to_egui_key, glfw_to_egui_modifers},
-            FrameEvents,
-        }, painter::{egui_renderer::EguiMesh, RenderCommand}, window::WindowCommand}};
-
+pub mod am;
 pub mod gui;
 pub mod mlink;
-pub mod tc;
-pub mod am;
 pub mod mm;
+pub mod tc;
 
 pub struct JokoClient {
     pub tc: TextureClient,
     pub ctx: egui::CtxRef,
     pub am: AssetManager,
     pub main_window: MainWindow,
-    pub mm: MarkerManager,
     pub handle: tokio::runtime::Handle,
     pub quit_signal_sender: flume::Sender<()>,
     pub events_receiver: Receiver<FrameEvents>,
@@ -35,7 +48,7 @@ impl JokoClient {
         events_receiver: Receiver<FrameEvents>,
         commands_sender: Sender<CoreFrameCommands>,
         soft_restart: Arc<AtomicBool>,
-        assets_path: PathBuf
+        assets_path: PathBuf,
     ) -> anyhow::Result<Self> {
         let rt = tokio::runtime::Runtime::new()?;
         let handle = rt.handle().clone();
@@ -46,16 +59,13 @@ impl JokoClient {
                 quit_signal_receiver.await.unwrap();
             })
         });
-        let             am = AssetManager::new(assets_path);
-
-        let mut mm = MarkerManager::default();
+        let am = AssetManager::new(assets_path);
 
         Ok(Self {
             tc: TextureClient::new(handle.clone()),
             ctx: egui::CtxRef::default(),
             main_window: MainWindow::default(),
             am,
-            mm,
             handle,
             quit_signal_sender,
             commands_sender,
@@ -63,7 +73,7 @@ impl JokoClient {
             soft_restart,
             #[cfg(debug_assertions)]
             debug_window: Default::default(),
-            mouse_position: Pos2::default()
+            mouse_position: Pos2::default(),
         })
     }
     pub fn tick(&mut self) -> anyhow::Result<bool> {
@@ -74,7 +84,7 @@ impl JokoClient {
             // and we also don't want to just keep receiving events form 100 frames back.
             Ok(mut e) => {
                 for fe in self.events_receiver.try_iter() {
-                    e.average_frame_rate = e.average_frame_rate;
+                    e.average_frame_rate = fe.average_frame_rate;
                     e.cursor_position = fe.cursor_position;
                     e.time = fe.time;
                     e.all_events.extend(fe.all_events.into_iter());
@@ -92,10 +102,10 @@ impl JokoClient {
                     self.quit_signal_sender.send(()).unwrap();
                     return Ok(false);
                 }
-               
+
                 // now we start the egui frame
                 self.ctx.begin_frame(i);
-                
+
                 #[cfg(debug_assertions)]
                 gui::debug::show_debug_window(self.ctx.clone(), self, average_fps, &mut c);
             }
@@ -107,18 +117,15 @@ impl JokoClient {
             },
         }
 
-        
-
         self.tc.tick(self.ctx.texture());
-        
+
         let screen_size = self.ctx.input().screen_rect();
         let allo = self.tc.get_alloc_tex(egui::TextureId::Egui).unwrap();
         let tex_coords = allo.get_tex_coords();
         let (output, shapes) = self.ctx.end_frame();
-        self.tc
-            .tex_commands
-            .as_mut()
-            .map(|cmd| c.render_commands.append(cmd));
+        if let Some(cmds) = self.tc.tex_commands.as_mut() {
+            c.render_commands.append(cmds)
+        }
         if output.needs_repaint {
             let shapes = self.ctx.tessellate(shapes);
             let meshes: Vec<EguiMesh> = shapes
@@ -139,8 +146,7 @@ impl JokoClient {
                 .collect();
             c.render_commands
                 .push(RenderCommand::UpdateEguiScene(meshes));
-                
-        } 
+        }
         if self.ctx.wants_pointer_input() || self.ctx.wants_keyboard_input() {
             c.window_commads.push(WindowCommand::Passthrough(false));
         } else {
@@ -155,15 +161,22 @@ impl JokoClient {
     }
 }
 
-pub fn handle_events(events: FrameEvents, quit: &mut bool, previous_cursor_position: Pos2) -> RawInput {
-    let mut input = RawInput::default();
-    input.time = Some(events.time);
+pub fn handle_events(
+    events: FrameEvents,
+    quit: &mut bool,
+    previous_cursor_position: Pos2,
+) -> RawInput {
+    let mut input = RawInput {
+        time: Some(events.time),
+        ..Default::default()
+    };
+
     if events.cursor_position != previous_cursor_position {
         input
-        .events
-        .push(egui::Event::PointerMoved(events.cursor_position));
+            .events
+            .push(egui::Event::PointerMoved(events.cursor_position));
     }
-   
+
     for e in events.all_events {
         if let Some(ev) = match e {
             glfw::WindowEvent::FramebufferSize(w, h) => {
@@ -189,17 +202,11 @@ pub fn handle_events(events: FrameEvents, quit: &mut bool, previous_cursor_posit
                 input.scroll_delta = [x as f32, y as f32].into();
                 None
             }
-            glfw::WindowEvent::Key(k, _, a, m) => {
-                if let Some(key) = glfw_to_egui_key(k) {
-                    Some(Event::Key {
-                        key: key,
-                        pressed: glfw_to_egui_action(a),
-                        modifiers: glfw_to_egui_modifers(m),
-                    })
-                } else {
-                    None
-                }
-            }
+            glfw::WindowEvent::Key(k, _, a, m) => glfw_to_egui_key(k).map(|key| Event::Key {
+                key,
+                pressed: glfw_to_egui_action(a),
+                modifiers: glfw_to_egui_modifers(m),
+            }),
             glfw::WindowEvent::ContentScale(x, _) => {
                 input.pixels_per_point = Some(x);
                 None
