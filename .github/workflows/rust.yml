@@ -1,26 +1,9 @@
-on: [push, pull_request]
+on: pull_request
 
 name: CI_CHECK
 
 
 jobs:
-  check_all_features:
-    name: cargo check --all-features
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.56.0
-          override: true
-      - run: sudo apt-get update && sudo apt-get install libspeechd-dev
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-features
-
-
   test:
     name: cargo test
     runs-on: ubuntu-latest
@@ -31,6 +14,7 @@ jobs:
           profile: minimal
           toolchain: 1.56.0
           override: true
+      - run: sudo apt-get update && sudo apt-get install libspeechd-dev xorg-dev
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -47,6 +31,7 @@ jobs:
           toolchain: 1.56.0
           override: true
       - run: rustup component add rustfmt
+      - run: sudo apt-get update && sudo apt-get install libspeechd-dev xorg-dev
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
@@ -63,6 +48,7 @@ jobs:
           toolchain: 1.56.0
           override: true
       - run: rustup component add clippy
+      - run: sudo apt-get update && sudo apt-get install libspeechd-dev xorg-dev
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
