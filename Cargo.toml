@@ -16,7 +16,7 @@ glow = { version = "*", git = "https://github.com/coderedart/glow.git" }
 # glow = {version =  "*", path = "../glow"}
 # jokolink = {version  = "*", path =  "../jokolink"}
 jokolink = "0.3.0"
-jmf = {version = "*", path = "../jmf"}
+jmf = {version = "*", git = "https://github.com/coderedart/jmf.git"}
 quick-xml = { version = "0.22.0", features = ["serialize"] }
 #serde-xml-rs = "0.5.0"
 serde = { version = "1.0.130", features = ["derive"] }

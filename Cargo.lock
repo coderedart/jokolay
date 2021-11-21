@@ -1222,6 +1222,7 @@ checksum = "b71991ff56294aa922b450139ee08b3bfc70982c6b2c7562771375cf73542dd4"
 [[package]]
 name = "jmf"
 version = "0.1.0"
+source = "git+https://github.com/coderedart/jmf.git#95405ac6fc69db4601504dad57d231e1a9cd228b"
 dependencies = [
  "ahash",
  "async-walkdir",
