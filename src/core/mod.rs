@@ -73,9 +73,18 @@ impl JokoCore {
                 WindowCommand::ShouldClose(b) => self.ow.window.set_should_close(b),
                 WindowCommand::SwapInterval(i) => self.im.glfw_input.glfw.set_swap_interval(i),
                 WindowCommand::SetTransientFor(_) => todo!(),
-                WindowCommand::SetClipBoard(s) => self.ow.window.set_clipboard_string(&s),
+                WindowCommand::SetClipBoard(s) => self.ow.set_text_clipboard(&s),
                 WindowCommand::GetClipBoard(s) => {
-                    let _ = s.send(self.ow.window.get_clipboard_string().unwrap_or_default());
+                    let _ = s.send(self.ow.get_text_clipboard());
+                }
+                WindowCommand::ConfigSync(config) => {
+                    self.im.glfw_input.glfw.set_swap_interval(
+                        match config.overlay_window_config.vsync {
+                            Some(i) => glfw::SwapInterval::Sync(i),
+                            None => glfw::SwapInterval::None,
+                        },
+                    );
+                    self.ow.sync_config(config.overlay_window_config);
                 }
             }
         }

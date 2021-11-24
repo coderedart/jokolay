@@ -27,8 +27,9 @@ impl InputManager {
 
 #[derive(Debug, Clone)]
 pub struct FrameEvents {
-    pub average_frame_rate: usize,
     pub all_events: Vec<WindowEvent>,
-    pub time: f64,
+    pub clipboard_text: Option<String>,
     pub cursor_position: egui::Pos2,
+    pub time: f64,
+    pub average_frame_rate: u16,
 }

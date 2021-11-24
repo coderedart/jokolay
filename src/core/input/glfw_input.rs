@@ -10,11 +10,11 @@ use crate::core::window::OverlayWindow;
 
 #[derive(Debug)]
 pub struct GlfwInput {
-    pub events: Receiver<(f64, WindowEvent)>,
     pub glfw: Glfw,
-    pub frame_number: usize,
+    pub events: Receiver<(f64, WindowEvent)>,
     pub last_reset: f64,
-    pub average_fps: usize,
+    pub frame_number: u16,
+    pub average_fps: u16,
 }
 
 impl GlfwInput {
@@ -35,11 +35,12 @@ impl GlfwInput {
         let delta = time - self.last_reset;
         self.frame_number += 1;
         if delta > 1.0 {
-            self.average_fps = (self.frame_number as f64 / delta) as usize;
+            self.average_fps = (self.frame_number as f64 / delta) as u16;
             self.last_reset = time;
             self.frame_number = 0;
         }
         let mut frame_event = FrameEvents {
+            clipboard_text: None,
             average_frame_rate: self.average_fps,
             all_events: vec![],
             time,
@@ -55,6 +56,15 @@ impl GlfwInput {
                     use glow::HasContext;
                     gl.viewport(0, 0, width, height);
                 }
+            }
+            if let glfw::WindowEvent::Key(
+                glfw::Key::V,
+                _,
+                glfw::Action::Press,
+                glfw::Modifiers::Control,
+            ) = event
+            {
+                frame_event.clipboard_text = ow.get_text_clipboard();
             }
         }
         frame_event

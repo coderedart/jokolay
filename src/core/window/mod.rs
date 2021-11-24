@@ -10,6 +10,8 @@ use glfw::Window;
 
 use serde::{Deserialize, Serialize};
 
+use crate::config::JokoConfig;
+
 /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct OverlayWindowConfig {
@@ -29,6 +31,8 @@ pub struct OverlayWindowConfig {
     pub transparency: bool,
     /// decorated flag
     pub decorated: bool,
+    /// vsync mode
+    pub vsync: Option<u32>,
 }
 impl OverlayWindowConfig {
     pub const WINDOW_HEIGHT: u32 = 600;
@@ -39,6 +43,7 @@ impl OverlayWindowConfig {
     pub const ALWAYS_ON_TOP: bool = true;
     pub const TRANSPARENCY: bool = true;
     pub const DECORATED: bool = true;
+    pub const VSYNC: Option<u32> = Some(1);
 }
 impl Default for OverlayWindowConfig {
     fn default() -> Self {
@@ -51,6 +56,7 @@ impl Default for OverlayWindowConfig {
             always_on_top: Self::ALWAYS_ON_TOP,
             transparency: Self::TRANSPARENCY,
             decorated: Self::DECORATED,
+            vsync: Self::VSYNC,
         }
     }
 }
@@ -73,6 +79,14 @@ impl OverlayWindow {
 
     /// default MultiSampling samples count
     pub const MULTISAMPLE_COUNT: Option<u32> = None;
+
+    pub fn sync_config(&mut self, config: OverlayWindowConfig) {
+        self.set_framebuffer_size(config.framebuffer_width, config.framebuffer_height);
+        self.set_inner_position(config.window_pos_x, config.window_pos_y);
+        self.set_passthrough(config.passthrough);
+        self.set_decorations(config.decorated);
+        self.set_always_on_top(config.always_on_top);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -87,5 +101,6 @@ pub enum WindowCommand {
     SwapInterval(glfw::SwapInterval),
     SetTransientFor(u32),
     SetClipBoard(String),
-    GetClipBoard(Sender<String>),
+    GetClipBoard(Sender<Option<String>>),
+    ConfigSync(JokoConfig),
 }

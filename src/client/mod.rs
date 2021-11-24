@@ -4,11 +4,8 @@ use std::{
 };
 
 use crate::{
-    client::{
-        am::AssetManager,
-        gui::{debug::DebugWindow, main_window::MainWindow},
-        tc::TextureClient,
-    },
+    client::{am::AssetManager, gui::config_window::ConfigWindow, tc::TextureClient},
+    config::JokoConfig,
     core::{
         input::{
             glfw_input::{self, glfw_to_egui_action, glfw_to_egui_key, glfw_to_egui_modifers},
@@ -28,19 +25,17 @@ pub mod mlink;
 pub mod mm;
 pub mod tc;
 
+/// The main client app struct that runs in the off-render thread.
 pub struct JokoClient {
     pub tc: TextureClient,
     pub ctx: egui::CtxRef,
     pub am: AssetManager,
-    pub main_window: MainWindow,
+    pub config_window: ConfigWindow,
     pub handle: tokio::runtime::Handle,
     pub quit_signal_sender: flume::Sender<()>,
     pub events_receiver: Receiver<FrameEvents>,
     pub commands_sender: Sender<CoreFrameCommands>,
     pub soft_restart: Arc<AtomicBool>,
-    #[cfg(debug_assertions)]
-    pub debug_window: DebugWindow,
-    pub mouse_position: Pos2,
 }
 
 impl JokoClient {
@@ -49,6 +44,7 @@ impl JokoClient {
         commands_sender: Sender<CoreFrameCommands>,
         soft_restart: Arc<AtomicBool>,
         assets_path: PathBuf,
+        config: JokoConfig,
     ) -> anyhow::Result<Self> {
         let rt = tokio::runtime::Runtime::new()?;
         let handle = rt.handle().clone();
@@ -64,19 +60,17 @@ impl JokoClient {
         Ok(Self {
             tc: TextureClient::new(handle.clone()),
             ctx: egui::CtxRef::default(),
-            main_window: MainWindow::default(),
+            config_window: ConfigWindow::new(config),
             am,
             handle,
             quit_signal_sender,
             commands_sender,
             events_receiver,
             soft_restart,
-            #[cfg(debug_assertions)]
-            debug_window: Default::default(),
-            mouse_position: Pos2::default(),
         })
     }
     pub fn tick(&mut self) -> anyhow::Result<bool> {
+        // collect all the events from main thread
         let mut c = CoreFrameCommands::default();
         // block until we get events so that we don't spin for no reason
         match self.events_receiver.recv() {
@@ -89,14 +83,10 @@ impl JokoClient {
                     e.time = fe.time;
                     e.all_events.extend(fe.all_events.into_iter());
                 }
-                let average_fps = e.average_frame_rate;
                 let mut quit = false;
-                if e.all_events.is_empty() && self.mouse_position == e.cursor_position {
-                    // return Ok(true);
-                }
-                let prev_frame_cursor_pos = self.mouse_position;
-                self.mouse_position = e.cursor_position;
-
+                let prev_frame_cursor_pos = self.config_window.cursor_position;
+                self.config_window.cursor_position = e.cursor_position;
+                let new_frame_rate = e.average_frame_rate;
                 let i = handle_events(e, &mut quit, prev_frame_cursor_pos);
                 if quit {
                     self.quit_signal_sender.send(()).unwrap();
@@ -106,8 +96,8 @@ impl JokoClient {
                 // now we start the egui frame
                 self.ctx.begin_frame(i);
 
-                #[cfg(debug_assertions)]
-                gui::debug::show_debug_window(self.ctx.clone(), self, average_fps, &mut c);
+                self.config_window
+                    .tick(self.ctx.clone(), &mut c, new_frame_rate);
             }
             Err(e) => match e {
                 flume::RecvError::Disconnected => {
@@ -116,17 +106,28 @@ impl JokoClient {
                 }
             },
         }
-
+        // check if egui texture needs updating
         self.tc.tick(self.ctx.texture());
+        // start filling up the egui with ui
 
-        let screen_size = self.ctx.input().screen_rect();
-        let allo = self.tc.get_alloc_tex(egui::TextureId::Egui).unwrap();
-        let tex_coords = allo.get_tex_coords();
+        // start preparing meshes to send to main thread for drawing
+
         let (output, shapes) = self.ctx.end_frame();
         if let Some(cmds) = self.tc.tex_commands.as_mut() {
             c.render_commands.append(cmds)
         }
+        if !output.copied_text.is_empty() {
+            // match copypasta::ClipboardContext::new().and_then(|mut cc| cc.set_contents(output.copied_text.clone())) {
+            //     Ok(_) => log::debug!("text copied to clipboard. text: {}", output.copied_text),
+            //     Err(e) => log::error!("clipboard error: {:?}", &e),
+            // }
+            c.window_commads
+                .push(WindowCommand::SetClipBoard(output.copied_text));
+        }
         if output.needs_repaint {
+            let screen_size = self.ctx.input().screen_rect();
+            let allo = self.tc.get_alloc_tex(egui::TextureId::Egui).unwrap();
+            let tex_coords = allo.get_tex_coords();
             let shapes = self.ctx.tessellate(shapes);
             let meshes: Vec<EguiMesh> = shapes
                 .into_iter()
@@ -176,7 +177,10 @@ pub fn handle_events(
             .events
             .push(egui::Event::PointerMoved(events.cursor_position));
     }
-
+    if let Some(clipboard_text) = events.clipboard_text {
+        log::debug!("send egui the clipboard contents: {}", &clipboard_text);
+        input.events.push(Event::Text(clipboard_text));
+    }
     for e in events.all_events {
         if let Some(ev) = match e {
             glfw::WindowEvent::FramebufferSize(w, h) => {
@@ -202,11 +206,31 @@ pub fn handle_events(
                 input.scroll_delta = [x as f32, y as f32].into();
                 None
             }
-            glfw::WindowEvent::Key(k, _, a, m) => glfw_to_egui_key(k).map(|key| Event::Key {
-                key,
-                pressed: glfw_to_egui_action(a),
-                modifiers: glfw_to_egui_modifers(m),
+            glfw::WindowEvent::Key(k, _, a, m) => match k {
+                glfw::Key::C => {
+                    if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {
+                        Some(Event::Copy)
+                    } else {
+                        None
+                    }
+                }
+                glfw::Key::X => {
+                    if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {
+                        Some(Event::Cut)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+            .or_else(|| {
+                glfw_to_egui_key(k).map(|key| Event::Key {
+                    key,
+                    pressed: glfw_to_egui_action(a),
+                    modifiers: glfw_to_egui_modifers(m),
+                })
             }),
+            glfw::WindowEvent::Char(c) => Some(Event::Text(c.to_string())),
             glfw::WindowEvent::ContentScale(x, _) => {
                 input.pixels_per_point = Some(x);
                 None
@@ -215,7 +239,7 @@ pub fn handle_events(
                 *quit = true;
                 None
             }
-            _ => None,
+            _rest => None,
         } {
             input.events.push(ev);
         }

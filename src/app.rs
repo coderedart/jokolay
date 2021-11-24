@@ -57,6 +57,7 @@ impl Default for JokoApp {
             commands_sender,
             soft_restart.clone(),
             assets_path,
+            config,
         )
         .expect("failed to create JokoClient");
         trace!("jokoclient initialized");

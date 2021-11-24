@@ -1,2 +1,1 @@
-pub mod debug;
-pub mod main_window;
+pub mod config_window;

@@ -185,12 +185,22 @@ impl OverlayWindow {
             height: (self.config.framebuffer_height as i32),
         }
     }
-
+    pub fn set_always_on_top(&mut self, top: bool) {
+        self.window.set_floating(top);
+    }
     pub fn swap_buffers(&mut self) {
         use glfw::Context;
         self.window.swap_buffers();
     }
-
+    pub fn set_text_clipboard(&mut self, s: &str) {
+        log::debug!("setting clipboard to: {}", s);
+        self.window.set_clipboard_string(s);
+    }
+    pub fn get_text_clipboard(&mut self) -> Option<String> {
+        let t = self.window.get_clipboard_string();
+        log::debug!("getting clipboard contents. contents: {:?}", &t);
+        t
+    }
     pub fn should_close(&mut self) -> bool {
         self.window.should_close()
     }
