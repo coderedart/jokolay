@@ -1,40 +1,28 @@
-on: pull_request
+on: push
 
 name: CI_CHECK
 
 
 jobs:
   fmt:
-    name: cargo fmt
+    name: cargo check everything
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.56.0
+          toolchain: 1.57.0
           override: true
-      - run: rustup component add rustfmt
+      - run: rustup component add rustfmt clippy
       - run: sudo apt-get update && sudo apt-get install libspeechd-dev xorg-dev libgtk-3-dev
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-
-  clippy:
-    name: cargo clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.56.0
-          override: true
-      - run: rustup component add clippy
-      # libspeechd-dev for egui, xorg-dev for glfw, libgtk3-dev for rfd
-      - run: sudo apt-get update && sudo apt-get install libspeechd-dev xorg-dev libgtk-3-dev
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: --all-targets --all-features --  -D warnings -W clippy::all
+
+
