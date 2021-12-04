@@ -1,14 +1,12 @@
 use jokolink::{MumbleSource, WindowDimensions};
 
-use crate::core::window::OverlayWindow;
-
 pub struct WindowsPlatformData {
     pub gw2_window_handle: u32,
     pub gw2_pid: u32,
 }
 
 impl WindowsPlatformData {
-    pub fn new(window: &glfw::Window, mumble_src: &mut MumbleSource) -> Self {
+    pub fn new(_window: &glfw::Window, _mumble_src: &mut MumbleSource) -> Self {
         todo!()
     }
     pub fn is_gw2_alive(&self) -> bool {

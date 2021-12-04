@@ -1,0 +1,62 @@
+[package]
+name = "jmf"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+jokotypes = {version = "*", path = "../jokotypes"}
+# roxml gives nicer errors which we can use to help point out the issues in imported packs
+roxmltree = "0.14.1"
+# roxml doesn't have serde or ability of writing xml, so we use quick-xml
+quick-xml = { version = "0.22.0", features = ["serialize"] }
+# serde and derive are obvious, path_to_error gives the more exact location for quick_xml, repr is for enums to be represented as integers like Behavior attribute
+serde = { version = "1.0.130", features = ["derive"] }
+serde_path_to_error = "0.1.5"
+serde_derive = "1.0.130"
+serde_repr = "0.1.7"
+serde_json = "1.0.68"
+# for hex encoding like color attribute
+hex = { version = "0.4.3", features = ["serde"] }
+# encoding for marker packs
+base64 = "0.13.0"
+uuid = { version = "1.0.0-alpha.1", git = "https://github.com/uuid-rs/uuid.git", features = ["serde", "v4"] }
+# num-derive = "0.3.3"
+# to cast enums to numbers and back
+num-traits = "0.2.14"
+# cast slices of T to slices of U. 
+bytemuck = "1.7.2"
+# for dealing with png files in marker packs. oxipng for compressing png to optimal (smaller) sizes
+image = { version = "0.23.14", default-features = false, features = ["png"] }
+oxipng = "5.0.0"
+# for hashing images/trails
+xxhash-rust = {version = "0.8.2", features = ["xxh3"] }
+
+log = "0.4.14"
+simplelog = "0.11"
+# for easier extraction to folers and compression of folders into zip files (.taco format alias)
+zip-extensions = "0.6.1"
+zip = "0.5.13"
+# to create temp directories for extraction/compression of zip files
+tempfile = "3.2.0"
+# for async, we can remove features to keep it leaner
+tokio = {version = "1.12.0", features = ["full"]}
+# for async walk dir returning a stream of dir entries
+async-walkdir = "0.2.0"
+tokio-stream = {version = "0.1.7", features = ["fs"]}
+url = {version = "2.2.2", features = ["serde"]}
+# customized errors. optional honestly
+thiserror = "1.0.30"
+
+# crevice = {version = "0.8.0", features = ["nalgebra"]}
+
+# bitflags = "1.3.2"
+serde_with = {version = "1.11.0", features = ["json", "base64", "hex", "macros"]}
+flume = "0.10.9"
+fastrand = "1.5.0"
+
+time = {version = "0.3.5", features = ["serde-human-readable"]}
+
+[dev-dependencies]
+cargo-husky = {version = "1.5.0", default-features = false, features = ["precommit-hook", "run-cargo-test", "run-cargo-check", "run-cargo-clippy", "run-cargo-fmt"]}
