@@ -1,0 +1,13 @@
+[package]
+name = "jokotypes"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# halfbrown = "*"
+hashbrown = {version = "*", features = ["serde"]}
+uuid = { version = "1.0.0-alpha.1", git = "https://github.com/uuid-rs/uuid.git", features = ["serde", "v4"] }
+derive_more = "*"
+serde = {version = "1", features = ["derive"]}

@@ -1,51 +1,9 @@
-[package]
-name = "jokolay"
-version = "0.1.12"
-description = "An Overlay for Guild Wars 2 in rust"
-license = "MIT"
-authors = ["coderedart <redartofcode@gmail.com>"]
-edition = "2018"
-keywords = ["GuildWars2", "GW2", "Overlay"]
-
-[dependencies]
-#glfw = { version = "0.41.0", git = "https://github.com/coderedart/glfw-rs.git" }
-#glow = { version = "0.10.0", git = "https://github.com/coderedart/glow.git" }
-glfw = {version =  "*", path = "../glfw-rs"}
-glow = {version =  "*", path = "../glow"}
-jokolink = "0.2.0"
-vfs = "0.5.1"
-quick-xml = { version = "0.22.0", features = ["serialize"] }
-#serde-xml-rs = "0.5.0"
-serde = { version = "1.0.126", features = ["derive"] }
-serde_path_to_error = "0.1.4"
-serde_derive = "1.0.126"
-serde_repr = "0.1.7"
-hex = { version = "0.4.3", features = ["serde"] }
-base64 = "0.13.0"
-uuid = { version = "0.8", features = ["serde", "v4"] }
-num-derive = "0.3.3"
-num-traits = "0.2.14"
-bytemuck = "1.5.1"
-egui = "0.14.0"
-glm = { version = "0.15.0", package = "nalgebra-glm" }
-image = { version = "0.23.14", default-features = false, features = ["png"] }
-device_query = "0.2.8"
-#copypasta = "0.7.1"
-log = "0.4.14"
-simplelog = "0.10.0"
-fastrand = "1.5.0"
-anyhow = "1.0.41"
-rayon = "1.5.1"
-bus = "2.2.3"
-guillotiere = "0.6.2"
-raw-window-handle = "0.3.3"
-serde_json = "1.0.68"
-psutil = "3.2.1"
-
-
-
-[target.'cfg(unix)'.dependencies]
-x11rb = {version =  "0.9.0", features = ["all-extensions"]}
-
-[profile.release]
-incremental = true
+[workspace]
+resolver = "2"
+members = [
+    "jokolay",
+    "jokolink",
+    "jmf",
+    "jokoapi",
+    "jokotypes"
+]
