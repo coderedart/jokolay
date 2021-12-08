@@ -15,7 +15,8 @@ glow = { version = "*", git = "https://github.com/coderedart/glow.git" }
 # glfw = {version =  "*", path = "../glfw-rs"}
 # glow = {version =  "*", path = "../glow"}
 # jokolink = {version  = "*", path =  "../jokolink"}
-jokolink = "0.3.0"
+jokolink = {version = "*", path = "../jokolink"}
+jokotypes = {version = "*", path = "../jokotypes"}
 jmf = {version = "*", path = "../jmf"}
 quick-xml = { version = "0.22.0", features = ["serialize"] }
 #serde-xml-rs = "0.5.0"
@@ -41,13 +42,13 @@ anyhow = "1.0.44"
 rayon = "1.5.1"
 bus = "2.2.3"
 guillotiere = {version = "*", features = ["serialization"]}
-raw-window-handle = "0.3.3"
+raw-window-handle = "0.3.4"
 serde_json = "1.0.68"
 zip-extensions = "0.6.1"
 zip = "0.5.13"
 tempfile = "3.2.0"
 git2 = "0.13.22"
-rfd = "0.5.0"
+rfd = "0.6.1"
 open = "2.0.1"
 notify-rust = "4.5.3"
 # heim = {version = "0.1.0-rc.1", features = ["full"]} # need async for this one
@@ -57,9 +58,10 @@ url = "2.2.2"
 tokio-stream = {version = "0.1.7", features = ["fs"]}
 flume = "0.10.9"
 dashmap = "4.0.2"
-ahash = "0.7.6"
-# fast_log = "1.3.32"
+xxhash-rust = {version = "0.8.2", features = ["xxh3"] }
 
+# fast_log = "1.3.32"
+parking_lot = "*"
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.9.0", features = ["all-extensions"] }
 

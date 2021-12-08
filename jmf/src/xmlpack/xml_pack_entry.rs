@@ -17,7 +17,7 @@ use crate::{
         json_marker::{Achievement, Behavior, Dynamic, Info, Marker, Trigger},
         json_pack::*,
         json_trail::Trail,
-        single_json::SinglePack,
+        SinglePack,
     },
     xmlpack::{
         xml_category::parse_join_mc,
@@ -51,9 +51,9 @@ impl XmlPackEntries {
     /// creates a new pack from the folder given. on hard errors, it will just return the error. fix all errors and then try again.
     pub async fn new(pack_folder: &Path) -> (XmlPackEntries, Vec<XmlPackLoadError>) {
         let mut contents = async_walkdir::WalkDir::new(pack_folder);
-        let mut images = UOMap::new();
-        let mut xml_files = UOMap::new();
-        let mut trl_files = UOMap::new();
+        let mut images = UOMap::default();
+        let mut xml_files = UOMap::default();
+        let mut trl_files = UOMap::default();
         let mut unrecognized_files = vec![];
         let mut errors = vec![];
         // for each entry in the marker pack folder, check the file type and put the contents into a respective containers
@@ -208,8 +208,8 @@ impl XmlPackEntries {
     /// if this succeeds, we can probably convert it into a json pack.
     pub fn validate_pack(&mut self) -> Vec<XmlPackValidationErrors> {
         let mut validation_errors: Vec<XmlPackValidationErrors> = vec![];
-        let mut cats = UOMap::new();
-        let mut id_set: UOMap<Uuid, Arc<PathBuf>> = UOMap::new();
+        let mut cats = UOMap::default();
+        let mut id_set: UOMap<Uuid, Arc<PathBuf>> = UOMap::default();
 
         for (_p, xf) in self.xml_files.iter() {
             if let Some(ref mc) = xf.od.categories {
@@ -342,15 +342,15 @@ impl XmlPackEntries {
         // let mut jpack = SinglePack::default();
         // // give new id for a new pack
         // jpack.pack_description.id = Uuid::new_v4();
-        let mut jpack_cats: UOMap<CategoryID, JsonCat> = UOMap::new();
-        let mut jpack_trls = UOMap::new();
-        let mut jpack_trl_descriptions = UOMap::new();
-        let mut jpack_image_descriptions = UOMap::new();
-        let mut jpack_images = UOMap::new();
+        let mut jpack_cats: UOMap<CategoryID, JsonCat> = UOMap::default();
+        let mut jpack_trls = UOMap::default();
+        let mut jpack_trl_descriptions = UOMap::default();
+        let mut jpack_image_descriptions = UOMap::default();
+        let mut jpack_images = UOMap::default();
         // templates which will be used by markers to inherit from. templates will inherit attributes from parent cats.
-        let mut templates = UOMap::new();
+        let mut templates = UOMap::default();
         // map which will have the id of the category referenced by its "full name"
-        let mut names_id_map = UOMap::new();
+        let mut names_id_map = UOMap::default();
         // A Cat Selection Tree which will be constructed from the hierarchial xml categories.
         let mut cat_selection_tree = vec![];
         // for progress

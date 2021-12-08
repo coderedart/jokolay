@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use flume::Sender;
 
 pub mod glfw_window;
@@ -8,9 +10,9 @@ mod windows;
 
 use glfw::Window;
 
-use serde::{Deserialize, Serialize};
-
 use crate::config::JokoConfig;
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
 
 /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -32,7 +34,7 @@ pub struct OverlayWindowConfig {
     /// decorated flag
     pub decorated: bool,
     /// vsync mode
-    pub vsync: Option<u32>,
+    pub vsync: u32,
 }
 impl OverlayWindowConfig {
     pub const WINDOW_HEIGHT: u32 = 600;
@@ -43,7 +45,7 @@ impl OverlayWindowConfig {
     pub const ALWAYS_ON_TOP: bool = true;
     pub const TRANSPARENCY: bool = true;
     pub const DECORATED: bool = true;
-    pub const VSYNC: Option<u32> = Some(1);
+    pub const VSYNC: u32 = 1;
 }
 impl Default for OverlayWindowConfig {
     fn default() -> Self {
@@ -66,7 +68,7 @@ impl Default for OverlayWindowConfig {
 #[derive(Debug)]
 pub struct OverlayWindow {
     pub window: Window,
-    pub config: OverlayWindowConfig,
+    pub joko_config: Arc<RwLock<JokoConfig>>,
 }
 
 impl OverlayWindow {
@@ -80,12 +82,13 @@ impl OverlayWindow {
     /// default MultiSampling samples count
     pub const MULTISAMPLE_COUNT: Option<u32> = None;
 
-    pub fn sync_config(&mut self, config: OverlayWindowConfig) {
-        self.set_framebuffer_size(config.framebuffer_width, config.framebuffer_height);
-        self.set_inner_position(config.window_pos_x, config.window_pos_y);
-        self.set_passthrough(config.passthrough);
-        self.set_decorations(config.decorated);
-        self.set_always_on_top(config.always_on_top);
+    pub fn sync_config(&mut self) {
+        let config = self.joko_config.read().overlay_window_config;
+        self.force_set_framebuffer_size(config.framebuffer_width, config.framebuffer_height);
+        self.force_set_inner_position(config.window_pos_x, config.window_pos_y);
+        self.force_set_passthrough(config.passthrough);
+        self.force_set_decorations(config.decorated);
+        self.force_set_always_on_top(config.always_on_top);
     }
 }
 
@@ -102,5 +105,5 @@ pub enum WindowCommand {
     SetTransientFor(u32),
     SetClipBoard(String),
     GetClipBoard(Sender<Option<String>>),
-    ConfigSync(JokoConfig),
+    ApplyConfig,
 }

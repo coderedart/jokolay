@@ -5,11 +5,11 @@ use std::{
     sync::Arc,
 };
 
-use ahash::{AHashMap, AHashSet};
 use egui::{Color32, TextureId};
 use flume::Receiver;
 use guillotiere::*;
 use image::GenericImageView;
+use jokotypes::{ImageHash, UOMap};
 
 use crate::{
     client::tc::atlas::AllocatedTexture,
@@ -22,13 +22,13 @@ pub struct TextureClient {
     /// This will track the each layer of texture as a rectangle, and can be used to check which has enough free space to fit in our incoming texture
     layers: Vec<AtlasAllocator>,
     /// This will map textures to a egui texture id after allocating them. the primary atlas map.
-    pub eid_tex_map: AHashMap<egui::TextureId, AllocatedTexture>,
+    pub eid_tex_map: UOMap<egui::TextureId, AllocatedTexture>,
     /// This takes the allocated tex AND its egui id to map it to a path (if its from web, it will be a temp file)
-    pub fs_eid_map: AHashMap<PathBuf, (egui::TextureId, AllocatedTexture)>,
+    pub fs_eid_map: UOMap<PathBuf, (egui::TextureId, AllocatedTexture)>,
     /// handle to tokio runtime to spawn async texture loads
     pub handle: tokio::runtime::Handle,
     /// The async texture loading status
-    pub async_tex_loads: AHashMap<PathBuf, Receiver<TextureLoadStatus>>,
+    pub async_tex_loads: UOMap<PathBuf, Receiver<TextureLoadStatus>>,
     /// The Texture Commands buffer to send to server
     pub tex_commands: Option<Vec<RenderCommand>>,
     pub egui_texture_version: Option<u64>,
@@ -36,7 +36,7 @@ pub struct TextureClient {
 
 #[derive(Debug, Clone)]
 pub enum TextureLoadStatus {
-    Success(image::DynamicImage),
+    Success(ImageHash, u32, u32, Vec<u8>),
     Failed(String),
 }
 
@@ -55,7 +55,7 @@ impl TextureClient {
                 Self::WIDTH as i32,
                 Self::HEIGHT as i32,
             ))],
-            eid_tex_map: Default::default(),
+            eid_tex_map: UOMap::default(),
             fs_eid_map: Default::default(),
             async_tex_loads: Default::default(),
             tex_commands: Default::default(),
@@ -82,7 +82,20 @@ impl TextureClient {
             match tokio::fs::read(path).await {
                 Ok(buffer) => {
                     match image::load_from_memory_with_format(&buffer, image::ImageFormat::Png) {
-                        Ok(i) => s.send_async(TextureLoadStatus::Success(i)).await.unwrap(),
+                        Ok(i) => {
+                            let width = i.width();
+                            let height = i.height();
+                            let pixels = i.to_rgba8().to_vec();
+                            let hash = xxhash_rust::xxh3::xxh3_64(&pixels);
+                            s.send_async(TextureLoadStatus::Success(
+                                hash.into(),
+                                width,
+                                height,
+                                pixels,
+                            ))
+                            .await
+                            .unwrap();
+                        }
                         Err(e) => s
                             .send_async(TextureLoadStatus::Failed(format!(
                                 "failed to get png image from the file. {:?}",
@@ -187,13 +200,13 @@ impl TextureClient {
     }
     pub fn tick(&mut self, t: Arc<egui::Texture>) {
         self.update_egui(t);
-        let mut delete_set = AHashSet::default();
+        let mut delete_set = vec![];
         let mut upload_jobs = vec![];
         for (p, ts) in self.async_tex_loads.iter_mut() {
             match ts.try_recv() {
                 Ok(status) => match status {
-                    TextureLoadStatus::Success(i) => {
-                        upload_jobs.push((p.clone(), i));
+                    TextureLoadStatus::Success(hash, width, height, pixels) => {
+                        upload_jobs.push((p.clone(), (hash, width, height, pixels)));
                     }
                     TextureLoadStatus::Failed(i) => {
                         log::error!("Texture load failed due to error: {}", &i);
@@ -208,18 +221,15 @@ impl TextureClient {
                     ),
                 },
             }
-            delete_set.insert(p.clone());
+            delete_set.push(p.clone());
         }
-        for (p, i) in upload_jobs {
-            let width = i.width();
-            let height = i.height();
-            let pixels = i.to_bytes();
+        for (p, (hash, width, height, pixels)) in upload_jobs {
+            let hash = hash.into();
             let at = self.allocate_upload_pixels(width, height, pixels);
-            let id = at.allocation.id.serialize() as u64;
-            if let Some(previous) = self.eid_tex_map.insert(TextureId::User(id), at) {
+            if let Some(previous) = self.eid_tex_map.insert(TextureId::User(hash), at) {
                 log::error!("had a previous allocation. something very wrong. previous id: {:?}, present id: {:?} and map: {:?} ", previous, at, &self.eid_tex_map);
             }
-            if let Some(previous) = self.fs_eid_map.insert(p, (TextureId::User(id), at)) {
+            if let Some(previous) = self.fs_eid_map.insert(p, (TextureId::User(hash), at)) {
                 log::error!("had a previous allocation. something very wrong. previous id: {:?}, present id: {:?} and map: {:?} ", previous, at, &self.fs_eid_map);
             }
         }

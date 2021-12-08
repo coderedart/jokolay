@@ -100,8 +100,8 @@ fn main() {
             let pack = *jpack;
 
             // rt.block_on(pack.save_to_folder(&save_folder)).unwrap();
-            let spack = serde_json::to_string_pretty(&pack).unwrap();
-            std::fs::File::create("./assets/reactif.json")
+            let spack = serde_json::to_string(&pack).unwrap();
+            std::fs::File::create("./assets/tw_data.json")
                 .unwrap()
                 .write_all(spack.as_bytes())
                 .unwrap();

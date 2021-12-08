@@ -11,6 +11,7 @@ use std::{
 use anyhow::Context;
 
 use log::{trace, LevelFilter};
+use parking_lot::RwLock;
 
 use crate::{
     client::am::{ASSETS_FOLDER_NAME, LOG_FILE_NAME},
@@ -25,7 +26,7 @@ pub struct JokoApp {
 
 impl Default for JokoApp {
     fn default() -> Self {
-        let (mut config, assets_path) = setup()
+        let (config, assets_path) = setup()
             .map_err(|e| {
                 rfd::MessageDialog::new()
                     .set_title("jokolay could not start")
@@ -42,7 +43,7 @@ impl Default for JokoApp {
         trace!("Jokolay Setup done");
 
         let core = JokoCore::new(
-            &mut config,
+            config.clone(),
             assets_path.clone(),
             commands_receiver,
             events_sender,
@@ -91,7 +92,7 @@ impl JokoApp {
 }
 
 /// gets the assets folder, gets the configuration file, initializes the logging and sets up the panic hook to show notifications upon crashes
-pub fn setup() -> anyhow::Result<(JokoConfig, PathBuf)> {
+pub fn setup() -> anyhow::Result<(Arc<RwLock<JokoConfig>>, PathBuf)> {
     let assets_path = match std::env::var("JOKO_ASSETS") {
         Ok(ap) => ap,
         Err(_) => std::env::current_dir()
@@ -144,7 +145,7 @@ pub fn setup() -> anyhow::Result<(JokoConfig, PathBuf)> {
             .timeout(notify_rust::Timeout::Never)
             .show();
     }));
-
+    let config = Arc::new(RwLock::new(config));
     Ok((config, assets_path))
 }
 

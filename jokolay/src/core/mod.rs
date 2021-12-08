@@ -1,9 +1,11 @@
 use std::{
     path::PathBuf,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use flume::{Receiver, Sender};
+use parking_lot::RwLock;
 
 use crate::{
     config::JokoConfig,
@@ -28,13 +30,12 @@ pub struct JokoCore {
 impl JokoCore {
     /// creates a Core with windowing, input and rendering objects along with the communication channels for interacting with the client.
     pub fn new(
-        joko_config: &mut JokoConfig,
+        joko_config: Arc<RwLock<JokoConfig>>,
         _assets_path: PathBuf,
         commands_receiver: Receiver<CoreFrameCommands>,
         events_sender: Sender<FrameEvents>,
     ) -> anyhow::Result<Self> {
-        let config = joko_config.overlay_window_config;
-        let (ow, events, glfw, gl) = OverlayWindow::create(config)?;
+        let (ow, events, glfw, gl) = OverlayWindow::create(joko_config)?;
         let im = InputManager::new(events, glfw);
         let rr = Renderer::new(gl);
 
@@ -77,14 +78,14 @@ impl JokoCore {
                 WindowCommand::GetClipBoard(s) => {
                     let _ = s.send(self.ow.get_text_clipboard());
                 }
-                WindowCommand::ConfigSync(config) => {
-                    self.im.glfw_input.glfw.set_swap_interval(
-                        match config.overlay_window_config.vsync {
-                            Some(i) => glfw::SwapInterval::Sync(i),
-                            None => glfw::SwapInterval::None,
-                        },
-                    );
-                    self.ow.sync_config(config.overlay_window_config);
+                WindowCommand::ApplyConfig => {
+                    self.im
+                        .glfw_input
+                        .glfw
+                        .set_swap_interval(glfw::SwapInterval::Sync(
+                            self.ow.joko_config.read().overlay_window_config.vsync,
+                        ));
+                    self.ow.sync_config();
                 }
             }
         }
@@ -124,7 +125,7 @@ impl JokoCore {
         while self.tick() {
             if t.elapsed() > Duration::from_secs(1) {
                 t = Instant::now();
-                dbg!(frame_number);
+                log::info!("{}", frame_number);
                 frame_number = 0;
             }
             frame_number += 1;

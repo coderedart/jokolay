@@ -4,10 +4,7 @@ use super::{xml_category::XMLMarkerCategory, xml_marker::POI, xml_trail::Trail};
 use crate::jsonpack::json_cat::{CatSelectionTree, JsonCat};
 use jokotypes::*;
 
-pub async fn json_to_xml_zip(
-    mut jpack: crate::jsonpack::single_json::SinglePack,
-    save_path: &Path,
-) {
+pub async fn json_to_xml_zip(mut jpack: crate::jsonpack::SinglePack, save_path: &Path) {
     let tdir = tempfile::tempdir().expect("failed to create temp dir");
     let td_path = tdir.path().to_path_buf();
     let images_dir = td_path.join("images");
@@ -44,7 +41,7 @@ pub async fn json_to_xml_zip(
     let mut markers = vec![];
     let mut trails = vec![];
     let mut mc_tree = vec![];
-    let mut id_names_map = UOMap::new();
+    let mut id_names_map = UOMap::default();
     fill_id_names(&jpack.pack.cattree, &jpack.pack.cats, "", &mut id_names_map);
     sc_tree_to_mc_tree(
         &jpack.pack.cattree,

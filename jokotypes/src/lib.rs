@@ -1,13 +1,13 @@
-use std::hash::Hash;
+use std::{borrow::Borrow, hash::Hash};
 
 use derive_more::{Display, From, Into};
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Default, Deserialize, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, Display)]
 #[serde(transparent)]
-pub struct UOMap<K: Eq + std::hash::Hash + Ord, V>(HashMap<K, V>);
+pub struct UOMap<K: Eq + std::hash::Hash, V>(HashMap<K, V>);
 
 #[derive(
     Debug, Clone, Serialize, Default, Deserialize, Hash, Display, derive_more::IntoIterator,
@@ -179,13 +179,20 @@ pub struct PackID(Uuid);
 #[serde(transparent)]
 pub struct TrailHash(u64);
 
-impl<'a, K: Eq + Hash + Ord, V> UOMap<K, V> {
-    pub fn contains_key(&self, key: &K) -> bool {
-        self.0.contains_key(key)
-    }
-    pub fn new() -> Self {
+impl<'a, K: Eq + Hash, V> Default for UOMap<K, V> {
+    fn default() -> Self {
         Self(HashMap::new())
     }
+}
+impl<'a, K: Eq + Hash, V> UOMap<K, V> {
+    pub fn contains_key<Q: ?Sized>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.0.contains_key(key)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -281,7 +288,7 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
     }
 }
 
-impl<'a, K: std::hash::Hash + std::cmp::Ord, V> IntoIterator for &'a UOMap<K, V> {
+impl<'a, K: std::hash::Hash + Eq, V> IntoIterator for &'a UOMap<K, V> {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, V>;
 
@@ -316,7 +323,7 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
     }
 }
 
-impl<'a, K: std::hash::Hash + std::cmp::Ord, V> IntoIterator for &'a mut UOMap<K, V> {
+impl<'a, K: std::hash::Hash + std::cmp::Eq, V> IntoIterator for &'a mut UOMap<K, V> {
     type Item = (&'a K, &'a mut V);
     type IntoIter = IterMut<'a, K, V>;
 

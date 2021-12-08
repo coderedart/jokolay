@@ -18,6 +18,7 @@ use crate::{
 };
 use egui::{Event, Pos2, RawInput};
 use flume::{Receiver, Sender};
+use parking_lot::RwLock;
 
 pub mod am;
 pub mod gui;
@@ -44,7 +45,7 @@ impl JokoClient {
         commands_sender: Sender<CoreFrameCommands>,
         soft_restart: Arc<AtomicBool>,
         assets_path: PathBuf,
-        config: JokoConfig,
+        config: Arc<RwLock<JokoConfig>>,
     ) -> anyhow::Result<Self> {
         let rt = tokio::runtime::Runtime::new()?;
         let handle = rt.handle().clone();
@@ -56,10 +57,27 @@ impl JokoClient {
             })
         });
         let am = AssetManager::new(assets_path);
+        let mut ctx = egui::CtxRef::default();
+        {
+            // initializing the first screen_rect because until there's a resize event, egui won't get any input about screen_size and will use something ridiculous like 10,000 x 10,000 as screen rect
+            let input = RawInput {
+                screen_rect: Some(egui::Rect::from_two_pos(
+                    [0.0, 0.0].into(),
+                    [
+                        config.read().overlay_window_config.framebuffer_width as f32,
+                        config.read().overlay_window_config.framebuffer_height as f32,
+                    ]
+                    .into(),
+                )),
+                ..Default::default()
+            };
 
+            ctx.begin_frame(input);
+            let _ = ctx.end_frame();
+        }
         Ok(Self {
             tc: TextureClient::new(handle.clone()),
-            ctx: egui::CtxRef::default(),
+            ctx,
             config_window: ConfigWindow::new(config),
             am,
             handle,
@@ -87,13 +105,19 @@ impl JokoClient {
                 let prev_frame_cursor_pos = self.config_window.cursor_position;
                 self.config_window.cursor_position = e.cursor_position;
                 let new_frame_rate = e.average_frame_rate;
-                let i = handle_events(e, &mut quit, prev_frame_cursor_pos);
+                let i = handle_events(
+                    e,
+                    &mut quit,
+                    prev_frame_cursor_pos,
+                    self.config_window.config.clone(),
+                );
                 if quit {
                     self.quit_signal_sender.send(()).unwrap();
                     return Ok(false);
                 }
 
                 // now we start the egui frame
+
                 self.ctx.begin_frame(i);
 
                 self.config_window
@@ -124,7 +148,7 @@ impl JokoClient {
             c.window_commads
                 .push(WindowCommand::SetClipBoard(output.copied_text));
         }
-        if output.needs_repaint {
+        {
             let screen_size = self.ctx.input().screen_rect();
             let allo = self.tc.get_alloc_tex(egui::TextureId::Egui).unwrap();
             let tex_coords = allo.get_tex_coords();
@@ -166,19 +190,20 @@ pub fn handle_events(
     events: FrameEvents,
     quit: &mut bool,
     previous_cursor_position: Pos2,
+    config: Arc<RwLock<JokoConfig>>,
 ) -> RawInput {
     let mut input = RawInput {
         time: Some(events.time),
         ..Default::default()
     };
-
+    let mut jc = config.write();
     if events.cursor_position != previous_cursor_position {
         input
             .events
             .push(egui::Event::PointerMoved(events.cursor_position));
     }
     if let Some(clipboard_text) = events.clipboard_text {
-        log::debug!("send egui the clipboard contents: {}", &clipboard_text);
+        log::trace!("paste event: {}", &clipboard_text);
         input.events.push(Event::Text(clipboard_text));
     }
     for e in events.all_events {
@@ -191,52 +216,112 @@ pub fn handle_events(
                         y: h as f32,
                     },
                 ));
+                log::trace!("window framebuffer size update: {} {}", w, h);
+                jc.overlay_window_config.framebuffer_width = w.try_into().unwrap();
+                jc.overlay_window_config.framebuffer_height = h.try_into().unwrap();
                 None
             }
-            glfw::WindowEvent::MouseButton(mb, a, m) => Some(Event::PointerButton {
-                pos: events.cursor_position,
-                button: glfw_input::glfw_to_egui_pointer_button(mb),
-                pressed: glfw_to_egui_action(a),
-                modifiers: glfw_to_egui_modifers(m),
-            }),
+            glfw::WindowEvent::MouseButton(mb, a, m) => {
+                let emb = Event::PointerButton {
+                    pos: events.cursor_position,
+                    button: glfw_input::glfw_to_egui_pointer_button(mb),
+                    pressed: glfw_to_egui_action(a),
+                    modifiers: glfw_to_egui_modifers(m),
+                };
+                log::trace!("mouse button press: {:?}", &emb);
+                Some(emb)
+            }
             glfw::WindowEvent::CursorPos(x, y) => {
                 Some(Event::PointerMoved([x as f32, y as f32].into()))
             }
             glfw::WindowEvent::Scroll(x, y) => {
-                input.scroll_delta = [x as f32, y as f32].into();
+                input.scroll_delta = [
+                    x as f32 * jc.input_config.scroll_power,
+                    y as f32 * jc.input_config.scroll_power,
+                ]
+                .into();
                 None
             }
-            glfw::WindowEvent::Key(k, _, a, m) => match k {
-                glfw::Key::C => {
-                    if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {
-                        Some(Event::Copy)
-                    } else {
-                        None
+            glfw::WindowEvent::Key(k, scan_code, a, m) => {
+                log::trace!(
+                    "key: {:?}, scan_code: {:?}, action: {:?}, modifiers: {:?}",
+                    k,
+                    scan_code,
+                    a,
+                    m
+                );
+                match k {
+                    glfw::Key::C => {
+                        if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {
+                            log::trace!("copy event. active modifiers: {:?}", m);
+                            Some(Event::Copy)
+                        } else {
+                            None
+                        }
                     }
-                }
-                glfw::Key::X => {
-                    if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {
-                        Some(Event::Cut)
-                    } else {
-                        None
+                    glfw::Key::X => {
+                        if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {
+                            log::trace!("cut event. active modifiers: {:?}", m);
+
+                            Some(Event::Cut)
+                        } else {
+                            None
+                        }
                     }
+                    _ => None,
                 }
-                _ => None,
-            }
-            .or_else(|| {
-                glfw_to_egui_key(k).map(|key| Event::Key {
-                    key,
-                    pressed: glfw_to_egui_action(a),
-                    modifiers: glfw_to_egui_modifers(m),
+                .or_else(|| {
+                    glfw_to_egui_key(k).map(|key| Event::Key {
+                        key,
+                        pressed: glfw_to_egui_action(a),
+                        modifiers: glfw_to_egui_modifers(m),
+                    })
                 })
-            }),
-            glfw::WindowEvent::Char(c) => Some(Event::Text(c.to_string())),
+            }
+            glfw::WindowEvent::Char(c) => {
+                log::trace!("char event: {}", c);
+                Some(Event::Text(c.to_string()))
+            }
             glfw::WindowEvent::ContentScale(x, _) => {
+                log::warn!("content scale event: {}", x);
                 input.pixels_per_point = Some(x);
                 None
             }
             glfw::WindowEvent::Close => {
+                log::warn!("close event received");
                 *quit = true;
+                None
+            }
+            glfw::WindowEvent::Pos(x, y) => {
+                log::debug!("window position changed. {} {}", x, y);
+                jc.overlay_window_config.window_pos_x = x;
+                jc.overlay_window_config.window_pos_y = y;
+                None
+            }
+            glfw::WindowEvent::Size(x, y) => {
+                log::debug!("window size changed. {} {}", x, y);
+                None
+            }
+            glfw::WindowEvent::Refresh => {
+                log::debug!("refresh event");
+                None
+            }
+            glfw::WindowEvent::Focus(f) => {
+                log::trace!("focus event: {}", f);
+                None
+            }
+            glfw::WindowEvent::Iconify(i) => {
+                log::trace!("iconify event. {}", i);
+                None
+            }
+            // glfw::WindowEvent::CursorEnter(_) => todo!(),
+            // glfw::WindowEvent::CharModifiers(_, _) => todo!(),
+            glfw::WindowEvent::FileDrop(f) => {
+                log::info!("file dropped. {:#?}", &f);
+                None
+            }
+            glfw::WindowEvent::Maximize(m) => {
+                log::trace!("maximize event: {}", m);
                 None
             }
             _rest => None,

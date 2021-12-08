@@ -1,13 +1,18 @@
-use std::{rc::Rc, sync::mpsc::Receiver};
+use std::{
+    rc::Rc,
+    sync::{mpsc::Receiver, Arc},
+};
 
 use anyhow::Context as _;
 
 use glfw::{Glfw, WindowEvent};
 use glow::{Context, HasContext};
 use jokolink::WindowDimensions;
-use log::trace;
+use log::{debug, trace};
+use parking_lot::RwLock;
 
 use crate::{
+    config::JokoConfig,
     core::window::{OverlayWindow, OverlayWindowConfig},
     gl_error,
 };
@@ -38,7 +43,7 @@ impl OverlayWindow {
 
     #[allow(clippy::type_complexity)]
     pub fn create(
-        mut config: OverlayWindowConfig,
+        joko_config: Arc<RwLock<JokoConfig>>,
     ) -> anyhow::Result<(
         OverlayWindow,
         Receiver<(f64, WindowEvent)>,
@@ -47,7 +52,7 @@ impl OverlayWindow {
     )> {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw")?;
         trace!("glfw initialized");
-
+        let mut config = joko_config.read().overlay_window_config;
         Self::set_window_hints(&mut glfw, config);
 
         trace!("set window hints {:?}", &config);
@@ -66,6 +71,7 @@ impl OverlayWindow {
         glfw::Context::make_current(&mut window);
         window.set_all_polling(true);
         window.set_store_lock_key_mods(true);
+        glfw.set_swap_interval(glfw::SwapInterval::Sync(config.vsync));
 
         let gl = unsafe {
             glow::Context::from_loader_function(|s| window.get_proc_address(s) as *const _)
@@ -87,90 +93,159 @@ impl OverlayWindow {
         log::debug!("window created. config is: {:?}", config);
         // WARNING: Need to restart so that egui will get the FrameBuffer size event and it can set the screen_rect property of Rawinput before starting to draw
         // otherwise, it will use the default of (10_000, 10_000) for screen_size. glfw won't bother resizing if we give the same width/height. so, we change them slightly
-        window.set_size(width - 1, height - 1);
-
-        Ok((OverlayWindow { window, config }, events, glfw, gl))
+        // window.set_size(width - 1, height - 1);
+        joko_config.write().overlay_window_config = config;
+        Ok((
+            OverlayWindow {
+                window,
+                joko_config,
+            },
+            events,
+            glfw,
+            gl,
+        ))
     }
 
     pub fn set_framebuffer_size(&mut self, width: u32, height: u32) {
-        if self.config.framebuffer_width != width || self.config.framebuffer_height != height {
-            trace!(
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        if owconfig.framebuffer_width != width || owconfig.framebuffer_height != height {
+            debug!(
                 "setting frame buffer size to width: {} and height: {}",
-                width,
-                height
+                width, height
             );
-            self.config.framebuffer_height = height;
-            self.config.framebuffer_width = width;
+            owconfig.framebuffer_height = height;
+            owconfig.framebuffer_width = width;
             self.window.set_size(width as i32, height as i32);
         }
     }
 
     pub fn set_inner_position(&mut self, xpos: i32, ypos: i32) {
-        if self.config.window_pos_x != xpos || self.config.window_pos_y != ypos {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        if owconfig.window_pos_x != xpos || owconfig.window_pos_y != ypos {
             trace!(
                 "setting window inner position to x: {} and y: {}",
                 xpos,
                 ypos
             );
-            self.config.window_pos_x = xpos;
-            self.config.window_pos_y = ypos;
+            owconfig.window_pos_x = xpos;
+            owconfig.window_pos_y = ypos;
             self.window.set_pos(xpos, ypos);
         }
     }
 
     pub fn set_decorations(&mut self, decorated: bool) {
-        if self.config.decorated != decorated {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        if owconfig.decorated != decorated {
             trace!("setting decorated: {}", decorated);
-            self.config.decorated = decorated;
+            owconfig.decorated = decorated;
             self.window.set_decorated(decorated);
         }
     }
     pub fn set_passthrough(&mut self, passthrough: bool) {
-        if passthrough != self.config.passthrough {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        if passthrough != owconfig.passthrough {
             trace!("setting passthrough: {}", passthrough);
-            self.config.passthrough = passthrough;
+            owconfig.passthrough = passthrough;
             self.window.set_mouse_passthrough(passthrough);
         }
     }
+    pub fn set_always_on_top(&mut self, top: bool) {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        if top != owconfig.always_on_top {
+            trace!("setting always_on_top: {}", top);
+            owconfig.always_on_top = top;
+            self.window.set_floating(top);
+        }
+    }
+    pub fn force_set_framebuffer_size(&mut self, width: u32, height: u32) {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        debug!(
+            "setting frame buffer size to width: {} and height: {}",
+            width, height
+        );
+        owconfig.framebuffer_height = height;
+        owconfig.framebuffer_width = width;
+        self.window.set_size(width as i32, height as i32);
+    }
 
+    pub fn force_set_inner_position(&mut self, xpos: i32, ypos: i32) {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        trace!(
+            "setting window inner position to x: {} and y: {}",
+            xpos,
+            ypos
+        );
+        owconfig.window_pos_x = xpos;
+        owconfig.window_pos_y = ypos;
+        self.window.set_pos(xpos, ypos);
+    }
+
+    pub fn force_set_decorations(&mut self, decorated: bool) {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        trace!("setting decorated: {}", decorated);
+        owconfig.decorated = decorated;
+        self.window.set_decorated(decorated);
+    }
+    pub fn force_set_passthrough(&mut self, passthrough: bool) {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
+        trace!("setting passthrough: {}", passthrough);
+        owconfig.passthrough = passthrough;
+        self.window.set_mouse_passthrough(passthrough);
+    }
+    pub fn force_set_always_on_top(&mut self, top: bool) {
+        self.window.set_floating(top);
+    }
     pub fn get_live_inner_size(&mut self) -> (i32, i32) {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
         let (width, height) = self.window.get_framebuffer_size();
-        if width as u32 != self.config.framebuffer_width {
+        if width as u32 != owconfig.framebuffer_width {
             log::error!(
                 "framebuffer width mismatch with live data. config_width: {}, live_width: {}",
-                self.config.framebuffer_width,
+                owconfig.framebuffer_width,
                 width
             );
-            self.config.framebuffer_width = width as u32;
+            owconfig.framebuffer_width = width as u32;
         }
-        if height as u32 != self.config.framebuffer_height {
+        if height as u32 != owconfig.framebuffer_height {
             log::error!(
                 "framebuffer height mismatch with live data. config.height: {}, live_height: {}",
-                self.config.framebuffer_height,
+                owconfig.framebuffer_height,
                 height
             );
-            self.config.framebuffer_height = height as u32;
+            owconfig.framebuffer_height = height as u32;
         }
         (width, height)
     }
 
     pub fn get_live_inner_position(&mut self) -> (i32, i32) {
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
         let (x, y) = self.window.get_pos();
-        if x != self.config.window_pos_x {
+        if x != owconfig.window_pos_x {
             log::error!(
                 "framebuffer width mismatch with live data. config_width: {}, live_width: {}",
-                self.config.window_pos_x,
+                owconfig.window_pos_x,
                 x
             );
-            self.config.window_pos_x = x;
+            owconfig.window_pos_x = x;
         }
-        if y != self.config.window_pos_y {
+        if y != owconfig.window_pos_y {
             log::error!(
                 "framebuffer height mismatch with live data. config.height: {}, live_height: {}",
-                self.config.window_pos_y,
+                owconfig.window_pos_y,
                 y
             );
-            self.config.window_pos_y = y;
+            owconfig.window_pos_y = y;
         }
         (x, y)
     }
@@ -178,16 +253,16 @@ impl OverlayWindow {
     pub fn get_live_windim(&mut self) -> WindowDimensions {
         self.get_live_inner_position();
         self.get_live_inner_size();
+        let mut jc = self.joko_config.write();
+        let owconfig = &mut jc.overlay_window_config;
         WindowDimensions {
-            x: self.config.window_pos_x,
-            y: self.config.window_pos_y,
-            width: self.config.framebuffer_width as i32,
-            height: (self.config.framebuffer_height as i32),
+            x: owconfig.window_pos_x,
+            y: owconfig.window_pos_y,
+            width: owconfig.framebuffer_width as i32,
+            height: (owconfig.framebuffer_height as i32),
         }
     }
-    pub fn set_always_on_top(&mut self, top: bool) {
-        self.window.set_floating(top);
-    }
+
     pub fn swap_buffers(&mut self) {
         use glfw::Context;
         self.window.swap_buffers();
