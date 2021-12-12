@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    client::{am::AssetManager, gui::config_window::ConfigWindow, tc::TextureClient},
+    client::{am::AssetPaths, gui::config_window::ConfigWindow, tc::TextureClient},
     config::JokoConfig,
     core::{
         input::{
@@ -30,7 +30,7 @@ pub mod tc;
 pub struct JokoClient {
     pub tc: TextureClient,
     pub ctx: egui::CtxRef,
-    pub am: AssetManager,
+    pub am: Arc<RwLock<AssetPaths>>,
     pub config_window: ConfigWindow,
     pub handle: tokio::runtime::Handle,
     pub quit_signal_sender: flume::Sender<()>,
@@ -56,7 +56,7 @@ impl JokoClient {
                 quit_signal_receiver.await.unwrap();
             })
         });
-        let am = AssetManager::new(assets_path);
+        let am = AssetPaths::new(assets_path);
         let mut ctx = egui::CtxRef::default();
         {
             // initializing the first screen_rect because until there's a resize event, egui won't get any input about screen_size and will use something ridiculous like 10,000 x 10,000 as screen rect
@@ -71,15 +71,15 @@ impl JokoClient {
                 )),
                 ..Default::default()
             };
-
+            ctx.set_style(config.read().style.clone());
             ctx.begin_frame(input);
             let _ = ctx.end_frame();
         }
         Ok(Self {
             tc: TextureClient::new(handle.clone()),
             ctx,
-            config_window: ConfigWindow::new(config),
-            am,
+            config_window: ConfigWindow::new(config, am.config_file_path.clone()),
+            am: Arc::new(RwLock::new(am)),
             handle,
             quit_signal_sender,
             commands_sender,
@@ -268,6 +268,19 @@ pub fn handle_events(
                             None
                         }
                     }
+                    glfw::Key::LeftControl | glfw::Key::RightControl => {
+                        input.modifiers.ctrl = glfw_to_egui_action(a);
+                        None
+                    }
+                    glfw::Key::LeftAlt | glfw::Key::RightAlt => {
+                        input.modifiers.alt = glfw_to_egui_action(a);
+                        None
+                    }
+                    glfw::Key::LeftShift | glfw::Key::RightShift => {
+                        input.modifiers.shift = glfw_to_egui_action(a);
+                        None
+                    }
+
                     _ => None,
                 }
                 .or_else(|| {

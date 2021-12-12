@@ -2,7 +2,6 @@ pub mod app;
 pub mod client;
 pub mod config;
 pub mod core;
-
 use rfd::{MessageButtons, MessageDialog, MessageLevel};
 
 #[macro_export]

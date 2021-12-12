@@ -11,13 +11,13 @@ use std::{
 use anyhow::Context;
 
 use log::{trace, LevelFilter};
-use parking_lot::RwLock;
+use parking_lot::{Once, RwLock};
 
 use crate::{
     client::am::{ASSETS_FOLDER_NAME, LOG_FILE_NAME},
     config::JokoConfig,
 };
-
+static PANICKED: Once = Once::new();
 pub struct JokoApp {
     pub core: Option<JokoCore>,
     pub client: Option<JokoClient>,
@@ -129,21 +129,38 @@ pub fn setup() -> anyhow::Result<(Arc<RwLock<JokoConfig>>, PathBuf)> {
         log_file_path.clone(),
     )
     .context("failed to log initialize")?;
+
     std::panic::set_hook(Box::new(move |info| {
         log::error!("{:#?}", info);
-        let _ = notify_rust::Notification::new()
-            .summary("Jokolay Crash Error")
-            .body(&format!("crashed due to: {:?}.", info))
-            .timeout(notify_rust::Timeout::Never)
-            .show();
-        let _ = notify_rust::Notification::new()
-            .summary("Jokolay")
-            .body(&format!(
-                "Jokolay crashed. logfile at '{:?}'.",
-                log_file_path
-            ))
-            .timeout(notify_rust::Timeout::Never)
-            .show();
+        PANICKED.call_once(|| {
+            if rfd::MessageDialog::new()
+        .set_buttons(rfd::MessageButtons::YesNo)
+        .set_level(rfd::MessageLevel::Error)
+        .set_title("Jokolay Crash")
+        .set_description(&format!("Jokolay has crashed due to error: {:?}. the logs are at {:?}.\nif you want me to open the jokolay logs folder, press YES. otherwise, press NO", info.payload(), log_file_path))
+        .show()
+        {
+            if let Some(parent) = log_file_path.parent() {
+                let _ = open::that_in_background(parent);
+            } else {
+                log::error!("couldn't get parent of log_file_path in panic hook");
+            }
+        }
+        })
+
+        // let _ = notify_rust::Notification::new()
+        //     .summary("Jokolay Crash Error")
+        //     .body(&format!("crashed due to: {:?}.", info))
+        //     .timeout(notify_rust::Timeout::Never)
+        //     .show();
+        // let _ = notify_rust::Notification::new()
+        //     .summary("Jokolay")
+        //     .body(&format!(
+        //         "Jokolay crashed. logfile at '{:?}'.",
+        //         log_file_path
+        //     ))
+        //     .timeout(notify_rust::Timeout::Never)
+        //     .show();
     }));
     let config = Arc::new(RwLock::new(config));
     Ok((config, assets_path))
