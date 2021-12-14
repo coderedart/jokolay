@@ -4,7 +4,6 @@ use glfw::{Glfw, WindowEvent};
 
 use crate::core::{input::glfw_input::GlfwInput, window::OverlayWindow};
 
-pub mod dq_input;
 pub mod glfw_input;
 pub mod rdev_input;
 

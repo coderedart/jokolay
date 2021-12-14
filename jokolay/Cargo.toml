@@ -33,7 +33,6 @@ bytemuck = "1.7.2"
 egui = { version = "0.15.0", default-features = false, features = ["persistence", "convert_bytemuck", "multi_threaded", "default_fonts"] }
 glm = { version = "0.15.0", package = "nalgebra-glm" }
 image = { version = "0.23.14", default-features = false, features = ["png"] }
-device_query = "0.2.8"
 copypasta = {version = "0.7.1", default-features = false, features = ["x11"]}
 log = "0.4.14"
 simplelog = "0.11.0"
