@@ -152,31 +152,31 @@ pub enum TrailDataDeserializeError {
     InvalidVersion { version: u32 },
 }
 impl Trail {
-    pub fn from_json_trail(
-        jt: crate::jsonpack::json_trail::Trail,
-        cat: String,
-        images_dir_name: &str,
-        trails_dir_name: &str,
-    ) -> Self {
-        let mut xt = Self {
-            alpha: jt.alpha,
-            anim_speed: jt.anim_speed,
-            color: jt.color,
-            category: cat,
-            guid: Some(jt.id.into()),
-            trail_scale: jt.scale,
-            texture: jt
-                .image
-                .map(|hash| format!("{}{}.png", images_dir_name, &hash)),
-            trail_data_file: format!("{}{}.trl", trails_dir_name, jt.tbin),
-            ..Default::default()
-        };
-        if let Some(fade_range) = jt.fade_range {
-            xt.fade_far = Some(fade_range[1] as i32);
-            xt.fade_near = Some(fade_range[0] as i32);
-        }
-        xt
-    }
+    // pub fn from_json_trail(
+    //     jt: crate::json::trail::Trail,
+    //     cat: String,
+    //     images_dir_name: &str,
+    //     trails_dir_name: &str,
+    // ) -> Self {
+    //     let mut xt = Self {
+    //         alpha: jt.alpha,
+    //         anim_speed: jt.anim_speed,
+    //         color: jt.color,
+    //         category: cat,
+    //         guid: Some(jt.id.into()),
+    //         trail_scale: jt.scale,
+    //         texture: jt
+    //             .image
+    //             .map(|hash| format!("{}{}.png", images_dir_name, &hash)),
+    //         trail_data_file: format!("{}{}.trl", trails_dir_name, jt.tbin),
+    //         ..Default::default()
+    //     };
+    //     if let Some(fade_range) = jt.fade_range {
+    //         xt.fade_far = Some(fade_range[1] as i32);
+    //         xt.fade_near = Some(fade_range[0] as i32);
+    //     }
+    //     xt
+    // }
     pub fn inherit_if_none(&mut self, other: &MarkerTemplate) {
         if self.texture.is_none() {
             self.texture = other.icon_file.clone();

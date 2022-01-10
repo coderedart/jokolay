@@ -9,13 +9,15 @@ use egui::{Color32, TextureId};
 use flume::Receiver;
 use guillotiere::*;
 use image::GenericImageView;
-use jokotypes::{ImageHash, UOMap};
+use jokotypes::{UOMap};
+
 
 use crate::{
     client::tc::atlas::AllocatedTexture,
     core::painter::{opengl::texture::TextureServer, RenderCommand},
 };
 
+pub type ImageHash = u64;
 /// struct to simulate a texture array, and manage it as a dynamic atlas. sending commands to a texture manager in core
 #[derive(Clone)]
 pub struct TextureClient {
@@ -88,7 +90,7 @@ impl TextureClient {
                             let pixels = i.to_rgba8().to_vec();
                             let hash = xxhash_rust::xxh3::xxh3_64(&pixels);
                             s.send_async(TextureLoadStatus::Success(
-                                hash.into(),
+                                hash,
                                 width,
                                 height,
                                 pixels,
@@ -116,7 +118,7 @@ impl TextureClient {
         });
         self.async_tex_loads.insert(copy_path, r);
     }
-    pub fn update_egui(&mut self, t: Arc<egui::Texture>) {
+    pub fn update_egui(&mut self, t: Arc<egui::FontImage>) {
         if Some(t.version) != self.egui_texture_version {
             self.egui_texture_version = Some(t.version);
             self.deallocate_tex(TextureId::Egui);
@@ -189,7 +191,7 @@ impl TextureClient {
             }
         }
     }
-    fn get_pixels(t: Arc<egui::Texture>) -> Vec<u8> {
+    fn get_pixels(t: Arc<egui::FontImage>) -> Vec<u8> {
         let mut pixels = Vec::new();
         for &alpha in &t.pixels {
             let rgba = Color32::from_white_alpha(alpha);
@@ -198,7 +200,7 @@ impl TextureClient {
         }
         pixels
     }
-    pub fn tick(&mut self, t: Arc<egui::Texture>) {
+    pub fn tick(&mut self, t: Arc<egui::FontImage>) {
         self.update_egui(t);
         let mut delete_set = vec![];
         let mut upload_jobs = vec![];

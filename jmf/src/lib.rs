@@ -1,4 +1,5 @@
 pub mod internal;
-pub mod jsonpack;
+pub mod json;
 pub mod manager;
 pub mod xmlpack;
+

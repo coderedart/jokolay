@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 # halfbrown = "*"
 hashbrown = {version = "*", features = ["serde"]}
-uuid = { version = "1.0.0-alpha.1", git = "https://github.com/uuid-rs/uuid.git", features = ["serde", "v4"] }
+uuid = { version = "1.0.0-alpha.1", git = "https://github.com/uuid-rs/uuid.git", features = ["serde", "v4", "v3"] }
 derive_more = "*"
 serde = {version = "1", features = ["derive"]}
+md-5 = "0.10.0"

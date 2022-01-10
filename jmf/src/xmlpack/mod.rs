@@ -9,6 +9,7 @@ pub mod xml_pack;
 pub mod xml_pack_entry;
 pub mod xml_route;
 pub mod xml_trail;
+pub mod rapid;
 pub const MARKER_SCHEMA_XSD: &str = include_str!("xmlfile_schema.xsd");
 
 /// the struct we use for inheritance from category/other markers.

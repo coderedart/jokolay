@@ -64,7 +64,8 @@ pub struct UTStamp(i64);
     Display,
 )]
 #[serde(transparent)]
-pub struct CategoryID(Uuid);
+pub struct CategoryID(u16);
+
 #[derive(
     Debug,
     Copy,
@@ -101,7 +102,7 @@ pub struct MapID(u16);
     Display,
 )]
 #[serde(transparent)]
-pub struct MarkerID(Uuid);
+pub struct MarkerID(u16);
 
 #[derive(
     Debug,
@@ -120,7 +121,7 @@ pub struct MarkerID(Uuid);
     Display,
 )]
 #[serde(transparent)]
-pub struct TrailID(Uuid);
+pub struct TrailID(u16);
 
 #[derive(
     Debug,
@@ -139,7 +140,7 @@ pub struct TrailID(Uuid);
     Display,
 )]
 #[serde(transparent)]
-pub struct ImageHash(u64);
+pub struct ImageID(u16);
 
 #[derive(
     Debug,
@@ -158,7 +159,7 @@ pub struct ImageHash(u64);
     Display,
 )]
 #[serde(transparent)]
-pub struct PackID(Uuid);
+pub struct TBinID(u16);
 
 #[derive(
     Debug,
@@ -177,7 +178,8 @@ pub struct PackID(Uuid);
     Display,
 )]
 #[serde(transparent)]
-pub struct TrailHash(u64);
+pub struct PackID(u16);
+
 
 impl<'a, K: Eq + Hash, V> Default for UOMap<K, V> {
     fn default() -> Self {

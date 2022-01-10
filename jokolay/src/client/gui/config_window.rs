@@ -38,7 +38,7 @@ impl ConfigWindow {
                 egui::CollapsingHeader::new("Overlay Window Settings").show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label("average fps: ");
-                        ui.label(self.average_fps);
+                        // ui.label(self.average_fps);
                     });
                     // Vsync
                     {

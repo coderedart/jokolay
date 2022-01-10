@@ -393,108 +393,108 @@ impl From<&PoiOrTrail> for POI {
     }
 }
 impl POI {
-    pub fn from_json_marker(
-        jm: crate::jsonpack::json_marker::Marker,
-        map_id: u16,
-        cat: String,
-        images_dir_name: &str,
-        id_names_map: &UOMap<CategoryID, String>,
-    ) -> Self {
-        let mut xm = Self {
-            xpos: jm.position[0],
-            ypos: jm.position[1],
-            zpos: jm.position[2],
-            map_id,
-            alpha: jm.alpha,
-            category: cat,
-            color: jm.color,
-            guid: Some(jm.id.into()),
-            in_game_visibility: jm.in_game_visibility,
-            icon_file: jm
-                .image
-                .map(|hash| format!("{}{}.png", images_dir_name, hash)),
-            icon_size: jm.scale,
-            keep_on_map_edge: jm.keep_on_map_edge,
-            map_display_size: jm.map_display_size,
-            map_fade_out_scale_level: jm.map_fade_out_scale_level,
-            map_visibility: jm.map_visibility,
-            max_size: jm.max_size,
-            min_size: jm.min_size,
-            mini_map_visibility: jm.mini_map_visibility,
-            scale_on_map_with_zoom: jm.scale_on_map_with_zoom,
+    // pub fn from_json_marker(
+    //     jm: crate::json::Marker,
+    //     map_id: u16,
+    //     cat: String,
+    //     images_dir_name: &str,
+    //     id_names_map: &UOMap<CategoryID, String>,
+    // ) -> Self {
+    //     let mut xm = Self {
+    //         xpos: jm.position[0],
+    //         ypos: jm.position[1],
+    //         zpos: jm.position[2],
+    //         map_id,
+    //         alpha: jm.alpha.map(f) ,
+    //         category: cat,
+    //         color: jm.color,
+    //         guid: Some(jm.id.into()),
+    //         in_game_visibility: jm.in_game_visibility,
+    //         icon_file: jm
+    //             .image
+    //             .map(|hash| format!("{}{}.png", images_dir_name, hash)),
+    //         icon_size: jm.scale,
+    //         keep_on_map_edge: jm.keep_on_map_edge,
+    //         map_display_size: jm.map_display_size,
+    //         map_fade_out_scale_level: jm.map_fade_out_scale_level,
+    //         map_visibility: jm.map_visibility,
+    //         max_size: jm.max_size,
+    //         min_size: jm.min_size,
+    //         mini_map_visibility: jm.mini_map_visibility,
+    //         scale_on_map_with_zoom: jm.scale_on_map_with_zoom,
 
-            ..Default::default()
-        };
+    //         ..Default::default()
+    //     };
 
-        if let Some(ac) = jm.achievement {
-            xm.achievement_id = Some(ac.id);
-            xm.achievement_bit = ac.bit;
-        }
-        if let Some(d) = jm.dynamic_props {
-            if let Some(t) = d.trigger {
-                xm.auto_trigger = t.auto_trigger;
-                xm.trigger_range = Some(t.range);
-                xm.toggle_cateogry = t.toggle_cat.map(|id| {
-                    id_names_map
-                        .get(&id)
-                        .expect("failed to get full name from id of cat")
-                        .clone()
-                });
-                if let Some(b) = t.behavior {
-                    match b {
-                        crate::jsonpack::json_marker::Behavior::AlwaysVisible => {
-                            xm.behavior = Some(Behavior::AlwaysVisible)
-                        }
-                        crate::jsonpack::json_marker::Behavior::ReappearOnMapChange => {
-                            xm.behavior = Some(Behavior::ReappearOnMapChange)
-                        }
-                        crate::jsonpack::json_marker::Behavior::ReappearOnDailyReset => {
-                            xm.behavior = Some(Behavior::ReappearOnDailyReset)
-                        }
-                        crate::jsonpack::json_marker::Behavior::OnlyVisibleBeforeActivation => {
-                            xm.behavior = Some(Behavior::OnlyVisibleBeforeActivation)
-                        }
-                        crate::jsonpack::json_marker::Behavior::ReappearAfterTimer {
-                            reset_length,
-                        } => {
-                            xm.behavior = Some(Behavior::ReappearAfterTimer);
-                            xm.reset_length = Some(reset_length);
-                        }
-                        crate::jsonpack::json_marker::Behavior::ReappearOnMapReset {
-                            map_cycle_length: _,
-                            map_cycle_offset_after_reset: _,
-                        } => {
-                            xm.behavior = Some(Behavior::ReappearOnMapReset);
-                            // unimplemented!("attributes map_cycle_length and map_reset_offset not yet implemented");
-                        }
-                        crate::jsonpack::json_marker::Behavior::OncePerInstance => {
-                            xm.behavior = Some(Behavior::OncePerInstance)
-                        }
-                        crate::jsonpack::json_marker::Behavior::DailyPerChar => {
-                            xm.behavior = Some(Behavior::DailyPerChar)
-                        }
-                        crate::jsonpack::json_marker::Behavior::OncePerInstancePerChar => {
-                            xm.behavior = Some(Behavior::OncePerInstancePerChar)
-                        }
-                        crate::jsonpack::json_marker::Behavior::WvWObjective => {
-                            xm.behavior = Some(Behavior::WvWObjective)
-                        }
-                    }
-                }
-                xm.has_countdown = t.count_down;
-            }
-            if let Some(info) = d.info {
-                xm.info = Some(info.text);
-                xm.info_range = Some(info.range);
-            }
-        }
-        if let Some(fade_range) = jm.fade_range {
-            xm.fade_near = Some(fade_range[0] as i32);
-            xm.fade_far = Some(fade_range[1] as i32);
-        }
+    //     if let Some(ac) = jm.achievement {
+    //         xm.achievement_id = Some(ac.id);
+    //         xm.achievement_bit = ac.bit;
+    //     }
+    //     if let Some(d) = jm.dynamic_props {
+    //         if let Some(t) = d.trigger {
+    //             xm.auto_trigger = t.auto_trigger;
+    //             xm.trigger_range = Some(t.range);
+    //             xm.toggle_cateogry = t.toggle_cat.map(|id| {
+    //                 id_names_map
+    //                     .get(&id)
+    //                     .expect("failed to get full name from id of cat")
+    //                     .clone()
+    //             });
+    //             if let Some(b) = t.behavior {
+    //                 match b {
+    //                     crate::json::json_marker::Behavior::AlwaysVisible => {
+    //                         xm.behavior = Some(Behavior::AlwaysVisible)
+    //                     }
+    //                     crate::json::json_marker::Behavior::ReappearOnMapChange => {
+    //                         xm.behavior = Some(Behavior::ReappearOnMapChange)
+    //                     }
+    //                     crate::json::json_marker::Behavior::ReappearOnDailyReset => {
+    //                         xm.behavior = Some(Behavior::ReappearOnDailyReset)
+    //                     }
+    //                     crate::json::json_marker::Behavior::OnlyVisibleBeforeActivation => {
+    //                         xm.behavior = Some(Behavior::OnlyVisibleBeforeActivation)
+    //                     }
+    //                     crate::json::json_marker::Behavior::ReappearAfterTimer {
+    //                         reset_length,
+    //                     } => {
+    //                         xm.behavior = Some(Behavior::ReappearAfterTimer);
+    //                         xm.reset_length = Some(reset_length);
+    //                     }
+    //                     crate::json::json_marker::Behavior::ReappearOnMapReset {
+    //                         map_cycle_length: _,
+    //                         map_cycle_offset_after_reset: _,
+    //                     } => {
+    //                         xm.behavior = Some(Behavior::ReappearOnMapReset);
+    //                         // unimplemented!("attributes map_cycle_length and map_reset_offset not yet implemented");
+    //                     }
+    //                     crate::json::json_marker::Behavior::OncePerInstance => {
+    //                         xm.behavior = Some(Behavior::OncePerInstance)
+    //                     }
+    //                     crate::json::json_marker::Behavior::DailyPerChar => {
+    //                         xm.behavior = Some(Behavior::DailyPerChar)
+    //                     }
+    //                     crate::json::json_marker::Behavior::OncePerInstancePerChar => {
+    //                         xm.behavior = Some(Behavior::OncePerInstancePerChar)
+    //                     }
+    //                     crate::json::json_marker::Behavior::WvWObjective => {
+    //                         xm.behavior = Some(Behavior::WvWObjective)
+    //                     }
+    //                 }
+    //             }
+    //             xm.has_countdown = t.count_down;
+    //         }
+    //         if let Some(info) = d.info {
+    //             xm.info = Some(info.text);
+    //             xm.info_range = Some(info.range);
+    //         }
+    //     }
+    //     if let Some(fade_range) = jm.fade_range {
+    //         xm.fade_near = Some(fade_range[0] as i32);
+    //         xm.fade_far = Some(fade_range[1] as i32);
+    //     }
 
-        xm
-    }
+    //     xm
+    // }
     pub fn inherit_if_none(&mut self, other: &MarkerTemplate) {
         if self.map_display_size.is_none() {
             self.map_display_size = other.map_display_size;

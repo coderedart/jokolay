@@ -1,5 +1,4 @@
-use jokotypes::ImageHash;
-
+pub type ImageHash = u64;
 // use crate::core::painter::opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
 pub struct MarkerRenderData {
