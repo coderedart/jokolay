@@ -2,14 +2,13 @@ pub mod atlas;
 
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::Arc, collections::HashMap,
 };
 
 use egui::{Color32, TextureId};
 use flume::Receiver;
 use guillotiere::*;
 use image::GenericImageView;
-use jokotypes::{UOMap};
 
 
 use crate::{
@@ -24,13 +23,13 @@ pub struct TextureClient {
     /// This will track the each layer of texture as a rectangle, and can be used to check which has enough free space to fit in our incoming texture
     layers: Vec<AtlasAllocator>,
     /// This will map textures to a egui texture id after allocating them. the primary atlas map.
-    pub eid_tex_map: UOMap<egui::TextureId, AllocatedTexture>,
+    pub eid_tex_map: HashMap<egui::TextureId, AllocatedTexture>,
     /// This takes the allocated tex AND its egui id to map it to a path (if its from web, it will be a temp file)
-    pub fs_eid_map: UOMap<PathBuf, (egui::TextureId, AllocatedTexture)>,
+    pub fs_eid_map: HashMap<PathBuf, (egui::TextureId, AllocatedTexture)>,
     /// handle to tokio runtime to spawn async texture loads
     pub handle: tokio::runtime::Handle,
     /// The async texture loading status
-    pub async_tex_loads: UOMap<PathBuf, Receiver<TextureLoadStatus>>,
+    pub async_tex_loads: HashMap<PathBuf, Receiver<TextureLoadStatus>>,
     /// The Texture Commands buffer to send to server
     pub tex_commands: Option<Vec<RenderCommand>>,
     pub egui_texture_version: Option<u64>,
@@ -57,7 +56,7 @@ impl TextureClient {
                 Self::WIDTH as i32,
                 Self::HEIGHT as i32,
             ))],
-            eid_tex_map: UOMap::default(),
+            eid_tex_map: HashMap::default(),
             fs_eid_map: Default::default(),
             async_tex_loads: Default::default(),
             tex_commands: Default::default(),

@@ -1,4 +1,5 @@
-use jokotypes::UOMap;
+
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
@@ -11,14 +12,14 @@ use super::xml_marker::Behavior;
 #[skip_serializing_none]
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct XMLMarkerCategory {
-    /// name will be how we merge/check for consistencies when they are declared in multiple Marker Files and we try to merge them all into a Category Selection Tree.
-    pub name: String,
-    /// this is what will be shown in the user facing menu when selecting to enable/disable this Category of markers to draw.
-    #[serde(rename = "DisplayName")]
-    pub display_name: String,
-    /// If it's value is 1, the category will act as a separator in the marker category filter and won't have an [x] toggle
+     /// this is what will be shown in the user facing menu when selecting to enable/disable this Category of markers to draw.
+     #[serde(rename = "DisplayName")]
+     pub display_name: String,
+     /// If it's value is 1, the category will act as a separator in the marker category filter and won't have an [x] toggle
     #[serde(rename = "IsSeparator")]
-    pub is_separator: Option<bool>,
+    pub is_separator: Option<u8>,
+    /// name will be how we merge/check for consistencies when they are declared in multiple Marker Files and we try to merge them all into a Category Selection Tree.
+    pub name: String,    
     /// These are all the direct sub categories
     #[serde(rename = "MarkerCategory")]
     pub children: Option<Vec<XMLMarkerCategory>>,
@@ -27,7 +28,7 @@ pub struct XMLMarkerCategory {
     pub achievement_id: Option<u32>,
     pub alpha: Option<f32>,
     #[serde(rename = "autoTrigger")]
-    pub auto_trigger: Option<bool>,
+    pub auto_trigger: Option<u8>,
     pub behavior: Option<Behavior>,
     #[serde(default)]
     #[serde_as(as = "Option<serde_with::hex::Hex>")]
@@ -36,11 +37,11 @@ pub struct XMLMarkerCategory {
     pub fade_far: Option<i32>,
     #[serde(rename = "fadeNear")]
     pub fade_near: Option<i32>,
-    pub has_countdown: Option<bool>,
+    pub has_countdown: Option<u8>,
     #[serde(rename = "heightOffset")]
     pub height_offset: Option<f32>,
     #[serde(rename = "inGameVisibility")]
-    pub in_game_visibility: Option<bool>,
+    pub in_game_visibility: Option<u8>,
     #[serde(rename = "iconFile")]
     pub icon_file: Option<String>,
     #[serde(rename = "iconSize")]
@@ -48,22 +49,22 @@ pub struct XMLMarkerCategory {
     pub info: Option<String>,
     pub info_range: Option<f32>,
     #[serde(rename = "keepOnMapEdge")]
-    pub keep_on_map_edge: Option<bool>,
+    pub keep_on_map_edge: Option<u8>,
     #[serde(rename = "mapDisplaySize")]
     pub map_display_size: Option<u16>,
     #[serde(rename = "mapFadeoutScaleLevel")]
     pub map_fade_out_scale_level: Option<f32>,
     #[serde(rename = "mapVisibility")]
-    pub map_visibility: Option<bool>,
+    pub map_visibility: Option<u8>,
     #[serde(rename = "maxSize")]
     pub max_size: Option<u16>,
     #[serde(rename = "minSize")]
     pub min_size: Option<u16>,
     #[serde(rename = "miniMapVisibility")]
-    pub mini_map_visibility: Option<bool>,
+    pub mini_map_visibility: Option<u8>,
     pub reset_length: Option<u32>,
     #[serde(rename = "scaleOnMapWithZoom")]
-    pub scale_on_map_with_zoom: Option<bool>,
+    pub scale_on_map_with_zoom: Option<u8>,
     #[serde(rename = "toggleCategory")]
     pub toggle_cateogry: Option<String>,
     #[serde(rename = "triggerRange")]
@@ -144,7 +145,7 @@ impl XMLMarkerCategory {
 pub fn parse_join_mc(
     cats: Vec<XMLMarkerCategory>,
     prefix: &str,
-    global_mc: &mut UOMap<String, XMLMarkerCategory>,
+    global_mc: &mut BTreeMap<String, XMLMarkerCategory>,
 ) {
     for mut mc in cats {
         // this checks if this is the root/top of the category tree.

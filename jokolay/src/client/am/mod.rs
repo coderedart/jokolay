@@ -1,7 +1,7 @@
 use anyhow::Context;
-use jokotypes::UOMap;
 use num_derive::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::create_dir_all;
 use std::path::Path;
 use std::{fs::File, path::PathBuf};
@@ -11,7 +11,7 @@ use url::Url;
 #[derive(Debug, Clone)]
 pub struct AssetManager {
     pub all_paths: Vec<PathBuf>,
-    pub web_img_cache_map: UOMap<Url, usize>,
+    pub web_img_cache_map: HashMap<Url, usize>,
 }
 
 #[derive(
@@ -128,7 +128,7 @@ impl AssetManager {
             web_img_cache_map: Default::default(),
         }
     }
-    pub fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> UOMap<Url, usize> {
+    pub fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> HashMap<Url, usize> {
         todo!()
     }
     pub fn get_id_from_file_path(&self, path: &Path) -> anyhow::Result<usize> {

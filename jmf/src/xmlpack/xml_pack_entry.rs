@@ -1,11 +1,10 @@
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::Arc, collections::BTreeMap,
 };
 
 use image::GenericImageView;
-use jokotypes::*;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
 use tokio_stream::StreamExt;
@@ -13,13 +12,13 @@ use uuid::Uuid;
 
 use crate::{
     json::{
-        category::{CatDescription, CatSelectionTree},
+        category::{Cat, CatTree},
         marker::{Achievement, Behavior, Dynamic, Info, Marker, Trigger},
         trail::Trail,
         *,
     },
     xmlpack::{
-        xml_category::parse_join_mc,
+        xml_category::{parse_join_mc, XMLMarkerCategory},
         xml_file::{OverlayData, XmlFile},
         xml_trail::{TrailData, TrailDataDeserializeError},
         MarkerTemplate,
@@ -32,11 +31,11 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct XmlPackEntries {
     /// images with their relative path as keys, and the values are width, height, full path, name, hash
-    pub images: UOMap<String, XmlPackImageEntry>,
+    pub images: BTreeMap<String, XmlPackImageEntry>,
     /// xml file contents that have the OverlayData tag as root
-    pub xml_files: UOMap<PathBuf, XmlFile>,
+    pub xml_files: BTreeMap<PathBuf, XmlFile>,
     /// Trl files
-    pub trl_files: UOMap<String, TrailData>,
+    pub trl_files: BTreeMap<String, TrailData>,
     pub unrecognized_files: Vec<PathBuf>,
 }
 #[derive(Debug, Clone)]
@@ -45,15 +44,14 @@ pub struct XmlPackImageEntry {
     pub height: u16,
     pub path: PathBuf,
     pub name: String,
-    pub hash: ImageID,
 }
 impl XmlPackEntries {
     /// creates a new pack from the folder given. on hard errors, it will just return the error. fix all errors and then try again.
     pub async fn new(pack_folder: &Path) -> (XmlPackEntries, Vec<XmlPackLoadError>) {
         let mut contents = async_walkdir::WalkDir::new(pack_folder);
-        let mut images = UOMap::default();
-        let mut xml_files = UOMap::default();
-        let mut trl_files = UOMap::default();
+        let mut images = BTreeMap::default();
+        let mut xml_files = BTreeMap::default();
+        let mut trl_files = BTreeMap::default();
         let mut unrecognized_files = vec![];
         let mut errors = vec![];
         // for each entry in the marker pack folder, check the file type and put the contents into a respective containers
@@ -169,7 +167,6 @@ impl XmlPackEntries {
                                 height: img.height() as u16,
                                 path,
                                 name,
-                                hash: todo!(),
                             },
                         );
                     }
@@ -208,8 +205,8 @@ impl XmlPackEntries {
     /// if this succeeds, we can probably convert it into a json pack.
     pub fn validate_pack(&mut self) -> Vec<XmlPackValidationErrors> {
         let mut validation_errors: Vec<XmlPackValidationErrors> = vec![];
-        let mut cats = UOMap::default();
-        let mut id_set: UOMap<Uuid, Arc<PathBuf>> = UOMap::default();
+        let mut cats: BTreeMap<String, XMLMarkerCategory> = BTreeMap::default();
+        let mut id_set: BTreeMap<Uuid, Arc<PathBuf>> = BTreeMap::default();
 
         for (_p, xf) in self.xml_files.iter() {
             if let Some(ref mc) = xf.od.categories {
@@ -342,15 +339,15 @@ impl XmlPackEntries {
     //     // let mut jpack = SinglePack::default();
     //     // // give new id for a new pack
     //     // jpack.pack_description.id = Uuid::new_v4();
-    //     let mut jpack_cats: UOMap<CategoryID, CatDescription> = UOMap::default();
-    //     let mut jpack_trls = UOMap::default();
-    //     let mut jpack_trl_descriptions = UOMap::default();
-    //     let mut jpack_image_descriptions = UOMap::default();
-    //     let mut jpack_images = UOMap::default();
+    //     let mut jpack_cats: BTreeMap<CategoryID, CatDescription> = BTreeMap::default();
+    //     let mut jpack_trls = BTreeMap::default();
+    //     let mut jpack_trl_descriptions = BTreeMap::default();
+    //     let mut jpack_image_descriptions = BTreeMap::default();
+    //     let mut jpack_images = BTreeMap::default();
     //     // templates which will be used by markers to inherit from. templates will inherit attributes from parent cats.
-    //     let mut templates = UOMap::default();
+    //     let mut templates = BTreeMap::default();
     //     // map which will have the id of the category referenced by its "full name"
-    //     let mut names_id_map = UOMap::default();
+    //     let mut names_id_map = BTreeMap::default();
     //     // A Cat Selection Tree which will be constructed from the hierarchial xml categories.
     //     let mut cat_selection_tree = vec![];
     //     // for progress
@@ -599,13 +596,13 @@ impl XmlPackEntries {
     // / cat_selection_tree represents the `Tree` of category selection ui so to speak. and also serves as the representation of we will convert into xml categories
     //
     //     fn insert_cat_recursive_json_pack(
-    //         jcats: &mut UOMap<CategoryID, JsonCat>,
+    //         jcats: &mut BTreeMap<CategoryID, JsonCat>,
     //         xcats: &[super::xml_category::XMLMarkerCategory],
     //         xml_prefix: &str,
     //         parent_template: &MarkerTemplate,
-    //         templates: &mut UOMap<CategoryID, MarkerTemplate>,
-    //         names_id_map: &mut UOMap<String, CategoryID>,
-    //         cat_selection_tree: &mut Vec<CatSelectionTree>,
+    //         templates: &mut BTreeMap<CategoryID, MarkerTemplate>,
+    //         names_id_map: &mut BTreeMap<String, CategoryID>,
+    //         cat_selection_tree: &mut Vec<CatTree>,
     //     ) {
     //         for xc in xcats {
     //             let id = cat_selection_tree
@@ -623,7 +620,7 @@ impl XmlPackEntries {
     //                 if let Some(prev) = jcats.insert(id, cat) {
     //                     panic!("{:?}", prev);
     //                 }
-    //                 cat_selection_tree.push(CatSelectionTree {
+    //                 cat_selection_tree.push(CatTree {
     //                     name: xc.display_name.clone(),
     //                     id,
     //                     children: vec![],

@@ -34,3 +34,16 @@ pub struct SerializeOverlayData {
     #[serde(rename = "POIs")]
     pub pois: Option<SerializePOIs>,
 }
+
+pub fn deserialize_od(src_xml: &str) -> Result<OverlayData, quick_xml::DeError> {
+    
+    let mut de = quick_xml::de::Deserializer::from_reader(std::io::Cursor::new(src_xml));
+     if let Err(e) = serde_path_to_error::deserialize::<'_, _, OverlayData>(&mut de) {
+         dbg!(e);
+     }
+     quick_xml::de::from_str(src_xml)
+}
+
+pub fn serialize_od(od: &OverlayData) -> Result<String, quick_xml::DeError> {
+    quick_xml::se::to_string(od)
+}

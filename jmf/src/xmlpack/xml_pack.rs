@@ -1,8 +1,6 @@
 use std::{io::Write, path::Path};
 
 use super::{xml_category::XMLMarkerCategory, xml_marker::POI, xml_trail::Trail};
-use crate::json::category::{CatSelectionTree, CatDescription};
-use jokotypes::*;
 
 // pub async fn json_to_xml_zip(mut jpack: crate::json::SinglePack, save_path: &Path) {
 //     let tdir = tempfile::tempdir().expect("failed to create temp dir");

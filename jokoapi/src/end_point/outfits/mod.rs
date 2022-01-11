@@ -37,6 +37,7 @@ mod tests {
     use super::Outfits;
 
     #[tokio::test]
+    #[ignore]
     async fn check_outfit() -> anyhow::Result<()> {
         let client = Client::new();
         let result = Outfits::get(client.clone()).await?;

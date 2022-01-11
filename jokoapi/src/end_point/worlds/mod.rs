@@ -36,6 +36,7 @@ mod tests {
     use super::Worlds;
 
     #[tokio::test]
+    #[ignore]
     async fn check_world() {
         let client = Client::new();
         let result = Worlds::get(client.clone()).await.unwrap();

@@ -2,20 +2,18 @@ use std::num::NonZeroU16;
 
 use serde::{Deserialize, Serialize};
 use validator::{Validate};
-use jokotypes::*;
 
-pub const MIN_RANGE: f32 = 0.0;
+
 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Marker {
-    pub id: MarkerID,
     pub position: [f32; 3],
     pub alpha: Option<u8>,
-    pub color: Option<rgb::RGBA8>,
+    pub color: Option<[u8; 4]>,
     pub fade_range: Option<[f32; 2]>,
     pub dynamic_props: Option<Dynamic>,
-    pub image: Option<ImageID>,
+    pub texture: Option<u16>,
     pub flags: Option<MarkerFlags>,
     pub map_display_size: Option<u16>,
     pub map_fade_out_scale_level: Option<f32>,
@@ -49,7 +47,7 @@ pub struct Dynamic {
 pub struct Trigger {
     pub range: f32,
     pub behavior: Option<Behavior>,
-    pub toggle_cat: Option<CategoryID>,
+    pub toggle_cat: Option<u16>,
 }
 
 #[serde_with::skip_serializing_none]
@@ -59,11 +57,9 @@ pub struct Achievement {
     pub bit: Option<u8>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Info {
-    #[validate(length(min = 1))]
     pub text: String,
-    #[validate(range(min = "MIN_RANGE"))]
     pub range: f32,
 }
 
@@ -85,8 +81,4 @@ pub enum Behavior {
     OncePerInstancePerChar,
     WvWObjective,
 }
-impl Default for Behavior {
-    fn default() -> Self {
-        Behavior::AlwaysVisible
-    }
-}
+

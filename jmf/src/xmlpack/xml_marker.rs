@@ -26,7 +26,7 @@ pub struct POI {
     /// How opaque the displayed icon should be. The default is 1.0
     pub alpha: Option<f32>,
     /// Determines if going near the marker triggers it
-    pub auto_trigger: Option<bool>,
+    pub auto_trigger: Option<u8>,
     /// it describes the way the marker will behave when a player presses 'F' over it.
     pub behavior: Option<Behavior>,
     /// This text is used to display the type of the marker. It can contain spaces.
@@ -47,13 +47,13 @@ pub struct POI {
     #[serde(rename = "GUID")]
     pub guid: Option<Uuid>,
     /// Determines if a marker has a countdown timer display when triggered
-    pub has_countdown: Option<bool>,
+    pub has_countdown: Option<u8>,
     /// Specifies how high above the ground the marker is displayed. Default value is 1.5
     #[serde(rename = "heightOffset")]
     pub height_offset: Option<f32>,
     /// if true, the marker/trails belonging to this category will show up in-game, like the markers you're used to. Default value: true.
     #[serde(rename = "inGameVisibility")]
-    pub in_game_visibility: Option<bool>,
+    pub in_game_visibility: Option<u8>,
     /// The icon to be displayed for the marker. If not given, this defaults to the image shown at the start of this article. This should point to a .png file. The overlay looks for the image files both starting from the root directory and the POIs directory for convenience. Make sure you don't use too high resolution (above 128x128) images because the texture atlas used for these is limited in size and it's a needless waste of resources to fill it quickly.Default value: 20
     #[serde(rename = "iconFile")]
     pub icon_file: Option<String>,
@@ -62,7 +62,7 @@ pub struct POI {
     pub icon_size: Option<f32>,
     /// only affects markers, not trails. If true, markers belonging to this category will not disappear as they move out of the minimap's rectangle, but will be kept on the edge like the personal waypoint. Default value: false.
     #[serde(rename = "keepOnMapEdge")]
-    pub keep_on_map_edge: Option<bool>,
+    pub keep_on_map_edge: Option<u8>,
     /// his can be a multiline string, it will show up on screen as a text when the player is inside of infoRange of the marker
     pub info: Option<String>,
     /// This determines how far away from the marker the info string will be visible
@@ -75,7 +75,7 @@ pub struct POI {
     pub map_fade_out_scale_level: Option<f32>,
     /// if true, the marker/trails belonging to this category will show up on the main map. Default value: true.
     #[serde(rename = "mapVisibility")]
-    pub map_visibility: Option<bool>,
+    pub map_visibility: Option<u8>,
     /// Determines the maximum size of a marker on the screen, in pixels.
     #[serde(rename = "maxSize")]
     pub max_size: Option<u16>,
@@ -84,13 +84,13 @@ pub struct POI {
     pub min_size: Option<u16>,
     /// if true, the marker/trails belonging to this category will show up on the minimap. Default value: true.
     #[serde(rename = "miniMapVisibility")]
-    pub mini_map_visibility: Option<bool>,
+    pub mini_map_visibility: Option<u8>,
     /// For behavior 4 this tells how long the marker should be invisible after pressing 'F'. For behavior 5 this will tell how long a map cycle is.
     #[serde(rename = "resetLength")]
     pub reset_length: Option<u32>,
     /// if true, the markers/width of the trails belonging to this category will scale with the zoom level as you zoom in and out. Default value: true.
     #[serde(rename = "scaleOnMapWithZoom")]
-    pub scale_on_map_with_zoom: Option<bool>,
+    pub scale_on_map_with_zoom: Option<u8>,
     /// will toggle the specified category on or off when triggered with the action key. or with auto_trigger/trigger_range
     #[serde(rename = "toggleCategory")]
     pub toggle_cateogry: Option<String>,
@@ -163,7 +163,7 @@ pub enum PoiOrTrail {
         /// How opaque the displayed icon should be. The default is 1.0
         alpha: Option<f32>,
         /// Determines if going near the marker triggers it
-        auto_trigger: Option<bool>,
+        auto_trigger: Option<u8>,
         /// it describes the way the marker will behave when a player presses 'F' over it.
         behavior: Option<Behavior>,
         /// This text is used to display the type of the marker. It can contain spaces.
@@ -184,13 +184,13 @@ pub enum PoiOrTrail {
         #[serde(rename = "GUID")]
         guid: Option<Uuid>,
         /// Determines if a marker has a countdown timer display when triggered
-        has_countdown: Option<bool>,
+        has_countdown: Option<u8>,
         /// Specifies how high above the ground the marker is displayed. Default value is 1.5
         #[serde(rename = "heightOffset")]
         height_offset: Option<f32>,
         /// if true, the marker/trails belonging to this category will show up in-game, like the markers you're used to. Default value: true.
         #[serde(rename = "inGameVisibility")]
-        in_game_visibility: Option<bool>,
+        in_game_visibility: Option<u8>,
         /// The icon to be displayed for the marker. If not given, this defaults to the image shown at the start of this article. This should point to a .png file. The overlay looks for the image files both starting from the root directory and the POIs directory for convenience. Make sure you don't use too high resolution (above 128x128) images because the texture atlas used for these is limited in size and it's a needless waste of resources to fill it quickly.Default value: 20
         #[serde(rename = "iconFile")]
         icon_file: Option<String>,
@@ -199,7 +199,7 @@ pub enum PoiOrTrail {
         icon_size: Option<f32>,
         /// only affects markers, not trails. If true, markers belonging to this category will not disappear as they move out of the minimap's rectangle, but will be kept on the edge like the personal waypoint. Default value: false.
         #[serde(rename = "keepOnMapEdge")]
-        keep_on_map_edge: Option<bool>,
+        keep_on_map_edge: Option<u8>,
         /// his can be a multiline string, it will show up on screen as a text when the player is inside of infoRange of the marker
         info: Option<String>,
         /// This determines how far away from the marker the info string will be visible
@@ -212,7 +212,7 @@ pub enum PoiOrTrail {
         map_fade_out_scale_level: Option<f32>,
         /// if true, the marker/trails belonging to this category will show up on the main map. Default value: true.
         #[serde(rename = "mapVisibility")]
-        map_visibility: Option<bool>,
+        map_visibility: Option<u8>,
         /// Determines the maximum size of a marker on the screen, in pixels.
         #[serde(rename = "maxSize")]
         max_size: Option<u16>,
@@ -221,13 +221,13 @@ pub enum PoiOrTrail {
         min_size: Option<u16>,
         /// if true, the marker/trails belonging to this category will show up on the minimap. Default value: true.
         #[serde(rename = "miniMapVisibility")]
-        mini_map_visibility: Option<bool>,
+        mini_map_visibility: Option<u8>,
         /// For behavior 4 this tells how long the marker should be invisible after pressing 'F'. For behavior 5 this will tell how long a map cycle is.
         #[serde(rename = "resetLength")]
         reset_length: Option<u32>,
         /// if true, the markers/width of the trails belonging to this category will scale with the zoom level as you zoom in and out. Default value: true.
         #[serde(rename = "scaleOnMapWithZoom")]
-        scale_on_map_with_zoom: Option<bool>,
+        scale_on_map_with_zoom: Option<u8>,
         /// will toggle the specified category on or off when triggered with the action key. or with auto_trigger/trigger_range
         #[serde(rename = "toggleCategory")]
         toggle_cateogry: Option<String>,
