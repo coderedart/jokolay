@@ -25,7 +25,7 @@ fn main() {
             .unwrap();
         }
 
-        let _ = dbg!(jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/tw")));
+        let _ = dbg!(jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tt")).unwrap());
 
         
         

@@ -23,6 +23,7 @@ pub struct MarkerTemplate {
     pub achievement_bit: Option<u8>,
     /// How opaque the displayed icon should be. The default is 1.0
     pub alpha: Option<f32>,
+    pub anim_speed: Option<f32>,
     /// Determines if going near the marker triggers it
     pub auto_trigger: Option<u8>,
     /// it describes the way the marker will behave when a player presses 'F' over it.
@@ -85,9 +86,12 @@ pub struct MarkerTemplate {
     /// if true, the markers/width of the trails belonging to this category will scale with the zoom level as you zoom in and out. Default value: true.
     #[serde(rename = "scaleOnMapWithZoom")]
     pub scale_on_map_with_zoom: Option<u8>,
+    pub trail_data_file: Option<String>,
+    pub texture: Option<String>,
     /// will toggle the specified category on or off when triggered with the action key. or with auto_trigger/trigger_range
     #[serde(rename = "toggleCategory")]
     pub toggle_cateogry: Option<String>,
+    pub trail_scale: Option<f32>,
     /// Determines the range from where the marker is triggered
     pub trigger_range: Option<f32>,
 }
