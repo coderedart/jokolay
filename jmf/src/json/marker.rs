@@ -6,32 +6,33 @@ use validator::{Validate};
 
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Marker {
-    pub position: [f32; 3],
     pub alpha: Option<u8>,
+    pub cat: u16,
     pub color: Option<[u8; 4]>,
     pub fade_range: Option<[f32; 2]>,
     pub dynamic_props: Option<Dynamic>,
     pub texture: Option<u16>,
-    pub flags: Option<MarkerFlags>,
+    pub flags: MarkerFlags,
     pub map_display_size: Option<u16>,
     pub map_fade_out_scale_level: Option<f32>,
     pub max_size: Option<u16>,
     pub min_size: Option<u16>,
+    pub position: [f32; 3],
     pub scale: Option<f32>,
 }
 
 bitflags::bitflags! {
     #[derive(Default, Serialize, Deserialize)]
     pub struct MarkerFlags: u8 {
-        const IN_GAME_VISIBILITY = 0b00000001;
-        const MAP_VISIBILITY = 0b00000010;
-        const MINI_MAP_VISIBILITY = 0b00000100;
-        const MINI_MAP_EDGE_HERD = 0b00001000;
-        const MAP_SCALE = 0b00010000;
-        const AUTO_TRIGGER = 0b00100000;
-        const COUNT_DOWN = 0b01000000;
+        const AUTO_TRIGGER  = 0b00000001;
+        const COUNT_DOWN  = 0b00000010;
+        const IN_GAME_VISIBILITY  = 0b00000100;
+        const MAP_SCALE  = 0b00001000;
+        const MAP_VISIBILITY = 0b00010000;
+        const MINI_MAP_EDGE_HERD = 0b00100000;
+        const MINI_MAP_VISIBILITY = 0b01000000;
     }
 }
 #[serde_with::skip_serializing_none]
@@ -53,14 +54,14 @@ pub struct Trigger {
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Deserialize, Serialize, Copy, Validate)]
 pub struct Achievement {
-    pub id: NonZeroU16,
-    pub bit: Option<u8>,
+    pub id: u16,
+    pub bit: u8,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Info {
     pub text: String,
-    pub range: f32,
+    pub range: Option<f32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Copy)]

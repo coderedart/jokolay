@@ -32,7 +32,7 @@ void remove_duplicate_nodes(rapidxml::xml_node<char> *node)
     }
 }
 
-namespace rapidwrap
+namespace rapid
 {
 
     rust::String rapid_filter(rust::String src_xml)

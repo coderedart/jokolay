@@ -1,7 +1,7 @@
 use crate::xmlpack::MarkerTemplate;
-use jokotypes::*;
 
-use super::xml_trail::Trail;
+
+
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use serde_with::{serde_as, skip_serializing_none};
@@ -20,9 +20,9 @@ pub struct POI {
     #[serde(rename = "MapID")]
     pub map_id: u16,
     /// An ID for an achievement from the GW2 API. Markers with the corresponding achievement ID will be hidden if the ID is marked as "done" for the API key that's entered in TacO.
-    pub achievement_id: Option<u32>,
+    pub achievement_id: Option<u16>,
     /// This is similar to achievementId, but works for partially completed achievements as well, if the achievement has "bits", they can be individually referenced with this.
-    pub achievement_bit: Option<u32>,
+    pub achievement_bit: Option<u8>,
     /// How opaque the displayed icon should be. The default is 1.0
     pub alpha: Option<f32>,
     /// Determines if going near the marker triggers it
@@ -95,6 +95,7 @@ pub struct POI {
     #[serde(rename = "toggleCategory")]
     pub toggle_cateogry: Option<String>,
     /// Determines the range from where the marker is triggered
+    #[serde(rename = "triggerRange")]
     pub trigger_range: Option<f32>,
 }
 
@@ -125,273 +126,7 @@ pub enum Behavior {
     WvWObjective = 9,
 }
 
-/// POIS tag under OverlayData which contains the array of tags POI/Trail
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub struct POIs {
-    #[serde(rename = "$value")]
-    pub tags: Option<Vec<PoiOrTrail>>,
-}
 
-/// POIS tag under OverlayData which contains the array of tags POI/Trail
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub struct SerializePOIs {
-    #[serde(rename = "$value")]
-    pub tags: Option<Vec<SerializePoiOrTrail>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub enum SerializePoiOrTrail {
-    POI { p: POI },
-    Trail { t: Trail },
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub enum PoiOrTrail {
-    POI {
-        /// position of the marker in world space.
-        xpos: f32,
-        ypos: f32,
-        zpos: f32,
-        /// Describes which map the marker is located on.
-        #[serde(rename = "MapID")]
-        map_id: u16,
-        /// An ID for an achievement from the GW2 API. Markers with the corresponding achievement ID will be hidden if the ID is marked as "done" for the API key that's entered in TacO.
-        achievement_id: Option<u32>,
-        /// This is similar to achievementId, but works for partially completed achievements as well, if the achievement has "bits", they can be individually referenced with this.
-        achievement_bit: Option<u32>,
-        /// How opaque the displayed icon should be. The default is 1.0
-        alpha: Option<f32>,
-        /// Determines if going near the marker triggers it
-        auto_trigger: Option<u8>,
-        /// it describes the way the marker will behave when a player presses 'F' over it.
-        behavior: Option<Behavior>,
-        /// This text is used to display the type of the marker. It can contain spaces.
-        #[serde(rename = "type")]
-        category: String,
-        /// hex value. The color tint of the marker
-        #[serde_as(as = "Option<serde_with::hex::Hex>")]
-        #[serde(default)]
-        color: Option<[u8; 4]>,
-        /// Determines how far the marker will completely disappear. If below 0, the marker won't disappear at any distance. Default is -1. FadeFar needs to be higher than fadeNear for sane results. This value is in game units (inches).
-        #[serde(rename = "fadeFar")]
-        fade_far: Option<i32>,
-        /// Determines how far the marker will start to fade out. If below 0, the marker won't disappear at any distance. Default is -1. This value is in game units (inches).
-        #[serde(rename = "fadeNear")]
-        fade_near: Option<i32>,
-        /// base64 encoded string of a UUID version 4 variant b, optional. This is a unique identifier for the marker used in tracking activation of markers through the activationdata.xml file. If this doesn't exist for a marker, one will be generated automatically and added on the next export.
-        #[serde(with = "base64_uuid")]
-        #[serde(rename = "GUID")]
-        guid: Option<Uuid>,
-        /// Determines if a marker has a countdown timer display when triggered
-        has_countdown: Option<u8>,
-        /// Specifies how high above the ground the marker is displayed. Default value is 1.5
-        #[serde(rename = "heightOffset")]
-        height_offset: Option<f32>,
-        /// if true, the marker/trails belonging to this category will show up in-game, like the markers you're used to. Default value: true.
-        #[serde(rename = "inGameVisibility")]
-        in_game_visibility: Option<u8>,
-        /// The icon to be displayed for the marker. If not given, this defaults to the image shown at the start of this article. This should point to a .png file. The overlay looks for the image files both starting from the root directory and the POIs directory for convenience. Make sure you don't use too high resolution (above 128x128) images because the texture atlas used for these is limited in size and it's a needless waste of resources to fill it quickly.Default value: 20
-        #[serde(rename = "iconFile")]
-        icon_file: Option<String>,
-        /// The size of the icon in the game world. Default is 1.0 if this is not defined. Note that the "screen edges herd icons" option will limit the size of the displayed images for technical reasons.
-        #[serde(rename = "iconSize")]
-        icon_size: Option<f32>,
-        /// only affects markers, not trails. If true, markers belonging to this category will not disappear as they move out of the minimap's rectangle, but will be kept on the edge like the personal waypoint. Default value: false.
-        #[serde(rename = "keepOnMapEdge")]
-        keep_on_map_edge: Option<u8>,
-        /// his can be a multiline string, it will show up on screen as a text when the player is inside of infoRange of the marker
-        info: Option<String>,
-        /// This determines how far away from the marker the info string will be visible
-        info_range: Option<f32>,
-        /// The size of the marker at normal UI scale, at zoom level 1 on the miniMap, in Pixels. For trails this value can be used to tweak the width
-        #[serde(rename = "mapDisplaySize")]
-        map_display_size: Option<u16>,
-        /// Zooming out farther than this value will result in the marker/trail fading out over the course of 2 zoom levels. Default value is 100, which effectively means no fading.
-        #[serde(rename = "mapFadeoutScaleLevel")]
-        map_fade_out_scale_level: Option<f32>,
-        /// if true, the marker/trails belonging to this category will show up on the main map. Default value: true.
-        #[serde(rename = "mapVisibility")]
-        map_visibility: Option<u8>,
-        /// Determines the maximum size of a marker on the screen, in pixels.
-        #[serde(rename = "maxSize")]
-        max_size: Option<u16>,
-        /// Determines the minimum size of a marker on the screen, in pixels.
-        #[serde(rename = "minSize")]
-        min_size: Option<u16>,
-        /// if true, the marker/trails belonging to this category will show up on the minimap. Default value: true.
-        #[serde(rename = "miniMapVisibility")]
-        mini_map_visibility: Option<u8>,
-        /// For behavior 4 this tells how long the marker should be invisible after pressing 'F'. For behavior 5 this will tell how long a map cycle is.
-        #[serde(rename = "resetLength")]
-        reset_length: Option<u32>,
-        /// if true, the markers/width of the trails belonging to this category will scale with the zoom level as you zoom in and out. Default value: true.
-        #[serde(rename = "scaleOnMapWithZoom")]
-        scale_on_map_with_zoom: Option<u8>,
-        /// will toggle the specified category on or off when triggered with the action key. or with auto_trigger/trigger_range
-        #[serde(rename = "toggleCategory")]
-        toggle_cateogry: Option<String>,
-        /// Determines the range from where the marker is triggered
-        trigger_range: Option<f32>,
-    },
-    Trail {
-        #[serde(rename = "type")]
-        category: String,
-        #[serde(default)]
-        #[serde(with = "super::xml_marker::base64_uuid")]
-        #[serde(rename = "GUID")]
-        guid: Option<Uuid>,
-        #[serde(rename = "trailData")]
-        trail_data_file: String,
-        texture: Option<String>,
-        #[serde(rename = "animSpeed")]
-        anim_speed: Option<f32>,
-        #[serde(rename = "trailScale")]
-        trail_scale: Option<f32>,
-        #[serde(default)]
-        #[serde_as(as = "Option<serde_with::hex::Hex>")]
-        color: Option<[u8; 4]>,
-        alpha: Option<f32>,
-        #[serde(rename = "fadeNear")]
-        fade_near: Option<i32>,
-        #[serde(rename = "fadeFar")]
-        fade_far: Option<i32>,
-    },
-    Route {
-        #[serde(rename = "MapID")]
-        map_id: u32,
-        #[serde(rename = "Name")]
-        name: String,
-        #[serde(rename = "resetposx")]
-        reset_pos_x: Option<f32>,
-        #[serde(rename = "resetposy")]
-        reset_pos_y: Option<f32>,
-        #[serde(rename = "resetposz")]
-        reset_pos_z: Option<f32>,
-
-        #[serde(rename = "resetrange")]
-        reset_range: Option<f32>,
-    },
-}
-impl From<POI> for PoiOrTrail {
-    fn from(p: POI) -> Self {
-        PoiOrTrail::POI {
-            xpos: p.xpos,
-            ypos: p.ypos,
-            zpos: p.zpos,
-            map_id: p.map_id,
-            achievement_id: p.achievement_bit,
-            achievement_bit: p.achievement_id,
-            alpha: p.alpha,
-            auto_trigger: p.auto_trigger,
-            behavior: p.behavior,
-            category: p.category,
-            color: p.color,
-            fade_far: p.fade_far,
-            fade_near: p.fade_near,
-            guid: p.guid,
-            has_countdown: p.has_countdown,
-            height_offset: p.height_offset,
-            in_game_visibility: p.in_game_visibility,
-            icon_file: p.icon_file,
-            icon_size: p.icon_size,
-            keep_on_map_edge: p.keep_on_map_edge,
-            info: p.info,
-            info_range: p.info_range,
-            map_display_size: p.map_display_size,
-            map_fade_out_scale_level: p.map_fade_out_scale_level,
-            map_visibility: p.map_visibility,
-            max_size: p.max_size,
-            min_size: p.min_size,
-            mini_map_visibility: p.mini_map_visibility,
-            reset_length: p.reset_length,
-            scale_on_map_with_zoom: p.scale_on_map_with_zoom,
-            toggle_cateogry: p.toggle_cateogry,
-            trigger_range: p.trigger_range,
-        }
-    }
-}
-impl From<PoiOrTrail> for POI {
-    fn from(poi_enum: PoiOrTrail) -> Self {
-        let mut p = Self::default();
-        match poi_enum {
-            PoiOrTrail::POI {
-                xpos,
-                ypos,
-                zpos,
-                map_id,
-                achievement_id,
-                achievement_bit,
-                alpha,
-                auto_trigger,
-                behavior,
-                category,
-                color,
-                fade_far,
-                fade_near,
-                guid,
-                has_countdown,
-                height_offset,
-                in_game_visibility,
-                icon_file,
-                icon_size,
-                keep_on_map_edge,
-                info,
-                info_range,
-                map_display_size,
-                map_fade_out_scale_level,
-                map_visibility,
-                max_size,
-                min_size,
-                mini_map_visibility,
-                reset_length,
-                scale_on_map_with_zoom,
-                toggle_cateogry,
-                trigger_range,
-            } => {
-                p.xpos = xpos;
-                p.ypos = ypos;
-                p.zpos = zpos;
-                p.map_id = map_id;
-                p.achievement_bit = achievement_bit;
-                p.achievement_id = achievement_id;
-                p.alpha = alpha;
-                p.auto_trigger = auto_trigger;
-                p.behavior = behavior;
-                p.category = category;
-                p.color = color;
-                p.fade_far = fade_far;
-                p.fade_near = fade_near;
-                p.guid = guid;
-                p.has_countdown = has_countdown;
-                p.height_offset = height_offset;
-                p.in_game_visibility = in_game_visibility;
-                p.icon_file = icon_file;
-                p.icon_size = icon_size;
-                p.keep_on_map_edge = keep_on_map_edge;
-                p.info = info;
-                p.info_range = info_range;
-                p.map_display_size = map_display_size;
-                p.map_fade_out_scale_level = map_fade_out_scale_level;
-                p.map_visibility = map_visibility;
-                p.max_size = max_size;
-                p.min_size = min_size;
-                p.mini_map_visibility = mini_map_visibility;
-                p.reset_length = reset_length;
-                p.scale_on_map_with_zoom = scale_on_map_with_zoom;
-                p.toggle_cateogry = toggle_cateogry;
-                p.trigger_range = trigger_range;
-            }
-            _ => unimplemented!(),
-        }
-        p
-    }
-}
-impl From<&PoiOrTrail> for POI {
-    fn from(poi_enum: &PoiOrTrail) -> Self {
-        poi_enum.clone().into()
-    }
-}
 impl POI {
     // pub fn from_json_marker(
     //     jm: crate::json::Marker,

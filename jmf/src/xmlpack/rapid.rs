@@ -8,6 +8,7 @@ mod ffi {
     }
 }
 
-pub fn rapid_filter_(src_xml: String) -> String {
-    ffi::rapid_filter(src_xml)
-}
+pub use ffi::rapid_filter;
+// pub fn rapid_filter_rust(src_xml: String) -> String {
+//     ffi::rapid_filter(src_xml)
+// }

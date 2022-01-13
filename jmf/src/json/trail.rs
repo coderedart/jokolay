@@ -20,5 +20,6 @@ pub struct Trail {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TBinDescription {
     pub name: String,
+    pub version: u8,
 }
 

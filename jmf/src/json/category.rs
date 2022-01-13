@@ -6,12 +6,17 @@ use serde::{Deserialize, Serialize};
 pub struct Cat {
     pub name: String,
     pub display_name: String,
-    pub is_separator: Option<bool>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_false")]
+    pub is_separator: bool,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub authors: Vec<Author>,
 }
 
+fn is_false(b: &bool) -> bool {
+    !b
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CatTree {
@@ -33,7 +38,7 @@ mod tests {
         let cat_desc = Cat {
             name: "marker category one".to_string(),
             display_name: "One".to_string(),
-            is_separator: None,
+            is_separator: false,
             authors: vec![],
         };
 

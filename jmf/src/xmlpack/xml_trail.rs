@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
 use uuid::Uuid;
 
-use super::xml_marker::PoiOrTrail;
+// use super::xml_marker::PoiOrTrail;
 use crate::xmlpack::MarkerTemplate;
 /**
 In order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
@@ -49,59 +49,60 @@ pub struct Trail {
     #[serde(rename = "fadeFar")]
     pub fade_far: Option<i32>,
 }
-impl From<PoiOrTrail> for Trail {
-    fn from(trail_enum: PoiOrTrail) -> Self {
-        let mut t = Self::default();
-        match trail_enum {
-            PoiOrTrail::Trail {
-                category,
-                guid,
-                trail_data_file,
-                texture,
-                anim_speed,
-                trail_scale,
-                color,
-                alpha,
-                fade_near,
-                fade_far,
-            } => {
-                t.category = category;
-                t.guid = guid;
-                t.trail_data_file = trail_data_file;
-                t.texture = texture;
-                t.anim_speed = anim_speed;
-                t.trail_scale = trail_scale;
-                t.color = color;
-                t.alpha = alpha;
-                t.fade_near = fade_near;
-                t.fade_far = fade_far;
-            }
-            _ => unimplemented!(),
-        }
-        t
-    }
-}
-impl From<&PoiOrTrail> for Trail {
-    fn from(trail_enum: &PoiOrTrail) -> Self {
-        trail_enum.clone().into()
-    }
-}
-impl From<Trail> for PoiOrTrail {
-    fn from(t: Trail) -> Self {
-        PoiOrTrail::Trail {
-            category: t.category,
-            guid: t.guid,
-            trail_data_file: t.trail_data_file,
-            texture: t.texture,
-            anim_speed: t.anim_speed,
-            trail_scale: t.trail_scale,
-            color: t.color,
-            alpha: t.alpha,
-            fade_near: t.fade_near,
-            fade_far: t.fade_far,
-        }
-    }
-}
+
+// impl From<PoiOrTrail> for Trail {
+//     fn from(trail_enum: PoiOrTrail) -> Self {
+//         let mut t = Self::default();
+//         match trail_enum {
+//             PoiOrTrail::Trail {
+//                 category,
+//                 guid,
+//                 trail_data_file,
+//                 texture,
+//                 anim_speed,
+//                 trail_scale,
+//                 color,
+//                 alpha,
+//                 fade_near,
+//                 fade_far,
+//             } => {
+//                 t.category = category;
+//                 t.guid = guid;
+//                 t.trail_data_file = trail_data_file;
+//                 t.texture = texture;
+//                 t.anim_speed = anim_speed;
+//                 t.trail_scale = trail_scale;
+//                 t.color = color;
+//                 t.alpha = alpha;
+//                 t.fade_near = fade_near;
+//                 t.fade_far = fade_far;
+//             }
+//             _ => unimplemented!(),
+//         }
+//         t
+//     }
+// }
+// impl From<&PoiOrTrail> for Trail {
+//     fn from(trail_enum: &PoiOrTrail) -> Self {
+//         trail_enum.clone().into()
+//     }
+// }
+// impl From<Trail> for PoiOrTrail {
+//     fn from(t: Trail) -> Self {
+//         PoiOrTrail::Trail {
+//             category: t.category,
+//             guid: t.guid,
+//             trail_data_file: t.trail_data_file,
+//             texture: t.texture,
+//             anim_speed: t.anim_speed,
+//             trail_scale: t.trail_scale,
+//             color: t.color,
+//             alpha: t.alpha,
+//             fade_near: t.fade_near,
+//             fade_far: t.fade_far,
+//         }
+//     }
+// }
 /// The trail data struct holding the nodes
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct TrailData {

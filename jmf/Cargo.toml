@@ -43,8 +43,8 @@ tempfile = "3"
 # for async, we can remove features to keep it leaner
 tokio = {version = "1", features = ["full"]}
 # for async walk dir returning a stream of dir entries
-async-walkdir = "0"
-tokio-stream = {version = "0", features = ["fs"]}
+# async-walkdir = "0"
+# tokio-stream = {version = "0", features = ["fs"]}
 url = {version = "2", features = ["serde"]}
 # customized errors. optional honestly
 thiserror = "1"
@@ -58,7 +58,8 @@ flume = "0"
 fastrand = "1"
 
 time = {version = "0", features = ["serde-human-readable"]}
-
+elementtree = {version = "*"}
+walkdir = {version = "2"}
 predicates = {version = "2"}
 itertools = {version = "0"}
 validator = {version = "*", features = ["derive"]}
@@ -67,5 +68,6 @@ cxx = "1.0"
 
 [dev-dependencies]
 serde_test = {version = "1"}
+
 [build-dependencies]
 cxx-build = "1.0"
