@@ -234,14 +234,13 @@ pub fn handle_events(
             glfw::WindowEvent::CursorPos(x, y) => {
                 Some(Event::PointerMoved([x as f32, y as f32].into()))
             }
-            glfw::WindowEvent::Scroll(x, y) => {
-                Some(Event::Scroll([
+            glfw::WindowEvent::Scroll(x, y) => Some(Event::Scroll(
+                [
                     x as f32 * jc.input_config.scroll_power,
-                    y as f32 * jc.input_config.scroll_power
-                ].into())
-                )
-                
-            }
+                    y as f32 * jc.input_config.scroll_power,
+                ]
+                .into(),
+            )),
             glfw::WindowEvent::Key(k, scan_code, a, m) => {
                 log::trace!(
                     "key: {:?}, scan_code: {:?}, action: {:?}, modifiers: {:?}",

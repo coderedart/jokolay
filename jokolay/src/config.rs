@@ -1,4 +1,4 @@
-use crate::{ core::window::OverlayWindowConfig};
+use crate::core::window::OverlayWindowConfig;
 use jokolink::MumbleConfig;
 use serde::{Deserialize, Serialize};
 use std::path::Path;

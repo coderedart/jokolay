@@ -1,15 +1,15 @@
 pub mod atlas;
 
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc, collections::HashMap,
+    sync::Arc,
 };
 
 use egui::{Color32, TextureId};
 use flume::Receiver;
 use guillotiere::*;
 use image::GenericImageView;
-
 
 use crate::{
     client::tc::atlas::AllocatedTexture,
@@ -88,14 +88,9 @@ impl TextureClient {
                             let height = i.height();
                             let pixels = i.to_rgba8().to_vec();
                             let hash = xxhash_rust::xxh3::xxh3_64(&pixels);
-                            s.send_async(TextureLoadStatus::Success(
-                                hash,
-                                width,
-                                height,
-                                pixels,
-                            ))
-                            .await
-                            .unwrap();
+                            s.send_async(TextureLoadStatus::Success(hash, width, height, pixels))
+                                .await
+                                .unwrap();
                         }
                         Err(e) => s
                             .send_async(TextureLoadStatus::Failed(format!(

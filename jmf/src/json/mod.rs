@@ -26,9 +26,9 @@ pub struct FullPack {
 }
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Validate)]
 pub struct PackDescription {
-    #[validate(length(min = 1))]
+    // #[validate(length(min = 1))]
     pub name: String,
     pub id: u16,
     pub url: Option<Url>,
@@ -53,7 +53,7 @@ pub struct ImageDescription {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Pack {
     pub pack_description: PackDescription,
     #[serde(default)]
@@ -86,7 +86,6 @@ pub struct PackData {
     pub tbins: BTreeMap<u16, Vec<[f32; 3]>>,
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::json::{Author, ImageDescription};
@@ -103,13 +102,16 @@ mod tests {
         assert_tokens(
             &author,
             &[
-                Token::Struct{ name: "Author", len: 2 },
+                Token::Struct {
+                    name: "Author",
+                    len: 2,
+                },
                 Token::Str("name"),
                 Token::String("me"),
                 Token::Str("email"),
                 Token::Some,
                 Token::String("me@jokolay.com"),
-                Token::StructEnd
+                Token::StructEnd,
             ],
         );
     }
@@ -118,20 +120,23 @@ mod tests {
         let idesc = ImageDescription {
             name: "waypoint".to_string(),
             width: 128,
-            height: 128
+            height: 128,
         };
 
         assert_tokens(
             &idesc,
             &[
-                Token::Struct{ name: "ImageDescription", len: 3 },
+                Token::Struct {
+                    name: "ImageDescription",
+                    len: 3,
+                },
                 Token::Str("name"),
                 Token::String("waypoint"),
                 Token::Str("width"),
                 Token::U16(128),
                 Token::Str("height"),
                 Token::U16(128),
-                Token::StructEnd
+                Token::StructEnd,
             ],
         );
     }

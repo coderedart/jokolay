@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::xmlpack::{xml_marker::Behavior};
+use crate::xmlpack::xml_marker::Behavior;
 
+pub mod load;
+pub mod rapid;
 pub mod xml_category;
 pub mod xml_file;
 pub mod xml_marker;
@@ -9,8 +11,6 @@ pub mod xml_pack;
 pub mod xml_pack_entry;
 pub mod xml_route;
 pub mod xml_trail;
-pub mod load;
-pub mod rapid;
 pub const MARKER_SCHEMA_XSD: &str = include_str!("xmlfile_schema.xsd");
 
 // /// the struct we use for inheritance from category/other markers.
@@ -28,7 +28,7 @@ pub struct MarkerTemplate {
     pub auto_trigger: Option<u8>,
     /// it describes the way the marker will behave when a player presses 'F' over it.
     pub behavior: Option<Behavior>,
-    /// hex value. The color tint of the marker
+    /// hex value. The color tint of the marker. sRGBA8
     #[serde_as(as = "Option<serde_with::hex::Hex>")]
     #[serde(default)]
     pub color: Option<[u8; 4]>,
@@ -40,7 +40,7 @@ pub struct MarkerTemplate {
     pub fade_near: Option<i32>,
     /// Determines if a marker has a countdown timer display when triggered
     pub has_countdown: Option<u8>,
-    /// Specifies how high above the ground the marker is displayed. Default value is 1.5
+    /// Specifies how high above the ground the marker is displayed. Default value is 1.5. in meters
     #[serde(rename = "heightOffset")]
     pub height_offset: Option<f32>,
     /// if true, the marker/trails belonging to this category will show up in-game, like the markers you're used to. Default value: true.
@@ -57,7 +57,7 @@ pub struct MarkerTemplate {
     pub keep_on_map_edge: Option<u8>,
     /// his can be a multiline string, it will show up on screen as a text when the player is inside of infoRange of the marker
     pub info: Option<String>,
-    /// This determines how far away from the marker the info string will be visible
+    /// This determines how far away from the marker the info string will be visible. in meters.
     pub info_range: Option<f32>,
     /// The size of the marker at normal UI scale, at zoom level 1 on the miniMap, in Pixels. For trails this value can be used to tweak the width
     #[serde(rename = "mapDisplaySize")]
@@ -77,7 +77,7 @@ pub struct MarkerTemplate {
     /// if true, the marker/trails belonging to this category will show up on the minimap. Default value: true.
     #[serde(rename = "miniMapVisibility")]
     pub mini_map_visibility: Option<u8>,
-    /// For behavior 4 this tells how long the marker should be invisible after pressing 'F'. For behavior 5 this will tell how long a map cycle is.
+    /// For behavior 4 this tells how long the marker should be invisible after pressing 'F'. For behavior 5 this will tell how long a map cycle is. in seconds.
     #[serde(rename = "resetLength")]
     pub reset_length: Option<u32>,
     /// this will supply data for behavior 5. The data will be given in seconds.
@@ -92,41 +92,41 @@ pub struct MarkerTemplate {
     #[serde(rename = "toggleCategory")]
     pub toggle_cateogry: Option<String>,
     pub trail_scale: Option<f32>,
-    /// Determines the range from where the marker is triggered
+    /// Determines the range from where the marker is triggered. in meters.
     pub trigger_range: Option<f32>,
 }
 
 impl MarkerTemplate {
-//     pub fn new(mc: &XMLMarkerCategory) -> Self {
-//         Self {
-//             achievement_bit: mc.achievement_bit,
-//             achievement_id: mc.achievement_id,
-//             alpha: mc.alpha,
-//             auto_trigger: mc.auto_trigger,
-//             behavior: mc.behavior,
-//             color: mc.color,
-//             fade_far: mc.fade_far,
-//             fade_near: mc.fade_near,
-//             has_countdown: mc.has_countdown,
-//             height_offset: mc.height_offset,
-//             in_game_visibility: mc.in_game_visibility,
-//             icon_file: mc.icon_file.clone(),
-//             icon_size: mc.icon_size,
-//             info: mc.info.clone(),
-//             info_range: mc.info_range,
-//             keep_on_map_edge: mc.keep_on_map_edge,
-//             map_display_size: mc.map_display_size,
-//             map_fade_out_scale_level: mc.map_fade_out_scale_level,
-//             map_visibility: mc.map_visibility,
-//             max_size: mc.max_size,
-//             min_size: mc.min_size,
-//             mini_map_visibility: mc.mini_map_visibility,
-//             reset_length: mc.reset_length,
-//             scale_on_map_with_zoom: mc.scale_on_map_with_zoom,
-//             toggle_cateogry: mc.toggle_cateogry.clone(),
-//             trigger_range: mc.trigger_range,
-//         }
-//     }
+    //     pub fn new(mc: &XMLMarkerCategory) -> Self {
+    //         Self {
+    //             achievement_bit: mc.achievement_bit,
+    //             achievement_id: mc.achievement_id,
+    //             alpha: mc.alpha,
+    //             auto_trigger: mc.auto_trigger,
+    //             behavior: mc.behavior,
+    //             color: mc.color,
+    //             fade_far: mc.fade_far,
+    //             fade_near: mc.fade_near,
+    //             has_countdown: mc.has_countdown,
+    //             height_offset: mc.height_offset,
+    //             in_game_visibility: mc.in_game_visibility,
+    //             icon_file: mc.icon_file.clone(),
+    //             icon_size: mc.icon_size,
+    //             info: mc.info.clone(),
+    //             info_range: mc.info_range,
+    //             keep_on_map_edge: mc.keep_on_map_edge,
+    //             map_display_size: mc.map_display_size,
+    //             map_fade_out_scale_level: mc.map_fade_out_scale_level,
+    //             map_visibility: mc.map_visibility,
+    //             max_size: mc.max_size,
+    //             min_size: mc.min_size,
+    //             mini_map_visibility: mc.mini_map_visibility,
+    //             reset_length: mc.reset_length,
+    //             scale_on_map_with_zoom: mc.scale_on_map_with_zoom,
+    //             toggle_cateogry: mc.toggle_cateogry.clone(),
+    //             trigger_range: mc.trigger_range,
+    //         }
+    //     }
 
     pub fn inherit_from_template(&mut self, other: &MarkerTemplate) {
         if self.map_display_size.is_none() {

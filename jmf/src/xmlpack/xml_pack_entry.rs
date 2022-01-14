@@ -25,7 +25,6 @@
 //     },
 // };
 
-
 // /// The struct to represent a deserialized XML Marker Pack. We can use this intermediate representation to validate the pack.
 // /// NOTE: relative paths will be converted to lowercase because windows is case-insensitive.
 // #[derive(Debug, Clone)]
@@ -679,63 +678,6 @@
 //     ProcessingMarkers(u32, u32),
 //     ProcessingImages(u32, u32),
 //     Completed(Box<Pack>),
-// }
-
-// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-// pub enum XmlPackValidationErrors {
-//     CategoryNotFound {
-//         file_path: Arc<PathBuf>,
-//         id: Option<String>,
-//         category_name: String,
-//     },
-//     ImageNotFound {
-//         file_path: Arc<PathBuf>,
-//         id: Option<Uuid>,
-//         image_path: String,
-//     },
-//     TrlNotFound {
-//         file_path: Arc<PathBuf>,
-//         id: Option<Uuid>,
-//         trl_path: String,
-//     },
-//     DuplicateUUID {
-//         id: String,
-//         first_file_path: Arc<PathBuf>,
-//         second_file_path: Arc<PathBuf>,
-//     },
-// }
-// #[derive(Debug, thiserror::Error)]
-// pub enum XmlPackLoadError {
-//     #[error("io errors")]
-//     IOError(#[from] std::io::Error),
-//     #[error("failed to convert filename to utf-8 str. {0:?}")]
-//     FileNameError(OsString),
-//     #[error("file with no extension. {0}")]
-//     ExtensionLessFile(String),
-//     #[error("strip prefix error. {0:?}, {1:?}.")]
-//     StripPrefixError(PathBuf, PathBuf),
-//     #[error("file stem error {0:?}")]
-//     FileStemError(PathBuf),
-//     #[error("invalid png image: {file_path}")]
-//     InvalidPngImage {
-//         file_path: PathBuf,
-//         image_err: image::ImageError,
-//     },
-//     #[error("xml errors")]
-//     XmlErrors {
-//         roxml_error: roxmltree::Error,
-//         file_path: PathBuf,
-//     },
-//     #[error("Deserialization Error")]
-//     DeError {
-//         file_path: PathBuf,
-//         de_err: serde_path_to_error::Error<quick_xml::DeError>,
-//     },
-//     #[error("Trail Deserialization Error. file_path: {file_path}, error: {t_err}")]
-//     TrailDeError {
-//         file_path: PathBuf,
-//         t_err: TrailDataDeserializeError,
-//     },
 // }
 
 // pub fn validate_path(relative_path: &str, pack_path: &Path) -> Result<bool, std::io::Error> {

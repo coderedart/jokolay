@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, skip_serializing_none};
-use uuid::Uuid;
+// use serde_with::{serde_as, skip_serializing_none};
+// use uuid::Uuid;
 
 // use super::xml_marker::PoiOrTrail;
-use crate::xmlpack::MarkerTemplate;
+// use crate::xmlpack::MarkerTemplate;
 /**
 In order to get an exported trail to show up in TacO, it needs to be added to a marker pack just like a marker.
 Trails are described by the <Trail> tag and uses the same category system as the markers.
@@ -23,32 +23,32 @@ The texture tag points to the texture that should scroll on the trail.
 The animSpeed tag is a float value that modifies the speed of the animation on a trail.
 There's also a trailScale tag that is a float value that modifies how stretched the texture will look on the trail.
 **/
-#[serde_as]
-#[skip_serializing_none]
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
-pub struct Trail {
-    #[serde(rename = "type")]
-    pub category: String,
-    #[serde(default)]
-    #[serde(with = "super::xml_marker::base64_uuid")]
-    #[serde(rename = "GUID")]
-    pub guid: Option<Uuid>,
-    #[serde(rename = "trailData")]
-    pub trail_data_file: String,
-    pub texture: Option<String>,
-    #[serde(rename = "animSpeed")]
-    pub anim_speed: Option<f32>,
-    #[serde(rename = "trailScale")]
-    pub trail_scale: Option<f32>,
-    #[serde(default)]
-    #[serde_as(as = "Option<serde_with::hex::Hex>")]
-    pub color: Option<[u8; 4]>,
-    pub alpha: Option<f32>,
-    #[serde(rename = "fadeNear")]
-    pub fade_near: Option<i32>,
-    #[serde(rename = "fadeFar")]
-    pub fade_far: Option<i32>,
-}
+// #[serde_as]
+// #[skip_serializing_none]
+// #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+// pub struct Trail {
+//     #[serde(rename = "type")]
+//     pub category: String,
+//     #[serde(default)]
+//     #[serde(with = "super::xml_marker::base64_uuid")]
+//     #[serde(rename = "GUID")]
+//     pub guid: Option<Uuid>,
+//     #[serde(rename = "trailData")]
+//     pub trail_data_file: String,
+//     pub texture: Option<String>,
+//     #[serde(rename = "animSpeed")]
+//     pub anim_speed: Option<f32>,
+//     #[serde(rename = "trailScale")]
+//     pub trail_scale: Option<f32>,
+//     #[serde(default)]
+//     #[serde_as(as = "Option<serde_with::hex::Hex>")]
+//     pub color: Option<[u8; 4]>,
+//     pub alpha: Option<f32>,
+//     #[serde(rename = "fadeNear")]
+//     pub fade_near: Option<i32>,
+//     #[serde(rename = "fadeFar")]
+//     pub fade_far: Option<i32>,
+// }
 
 // impl From<PoiOrTrail> for Trail {
 //     fn from(trail_enum: PoiOrTrail) -> Self {
@@ -152,52 +152,52 @@ pub enum TrailDataDeserializeError {
     #[error("invalid version: {version}")]
     InvalidVersion { version: u32 },
 }
-impl Trail {
-    // pub fn from_json_trail(
-    //     jt: crate::json::trail::Trail,
-    //     cat: String,
-    //     images_dir_name: &str,
-    //     trails_dir_name: &str,
-    // ) -> Self {
-    //     let mut xt = Self {
-    //         alpha: jt.alpha,
-    //         anim_speed: jt.anim_speed,
-    //         color: jt.color,
-    //         category: cat,
-    //         guid: Some(jt.id.into()),
-    //         trail_scale: jt.scale,
-    //         texture: jt
-    //             .image
-    //             .map(|hash| format!("{}{}.png", images_dir_name, &hash)),
-    //         trail_data_file: format!("{}{}.trl", trails_dir_name, jt.tbin),
-    //         ..Default::default()
-    //     };
-    //     if let Some(fade_range) = jt.fade_range {
-    //         xt.fade_far = Some(fade_range[1] as i32);
-    //         xt.fade_near = Some(fade_range[0] as i32);
-    //     }
-    //     xt
-    // }
-    pub fn inherit_if_none(&mut self, other: &MarkerTemplate) {
-        if self.texture.is_none() {
-            self.texture = other.icon_file.clone();
-        }
-        if self.trail_scale.is_none() {
-            self.trail_scale = other.icon_size;
-        }
-        if self.alpha.is_none() {
-            self.alpha = other.alpha;
-        }
+// impl Trail {
+//     // pub fn from_json_trail(
+//     //     jt: crate::json::trail::Trail,
+//     //     cat: String,
+//     //     images_dir_name: &str,
+//     //     trails_dir_name: &str,
+//     // ) -> Self {
+//     //     let mut xt = Self {
+//     //         alpha: jt.alpha,
+//     //         anim_speed: jt.anim_speed,
+//     //         color: jt.color,
+//     //         category: cat,
+//     //         guid: Some(jt.id.into()),
+//     //         trail_scale: jt.scale,
+//     //         texture: jt
+//     //             .image
+//     //             .map(|hash| format!("{}{}.png", images_dir_name, &hash)),
+//     //         trail_data_file: format!("{}{}.trl", trails_dir_name, jt.tbin),
+//     //         ..Default::default()
+//     //     };
+//     //     if let Some(fade_range) = jt.fade_range {
+//     //         xt.fade_far = Some(fade_range[1] as i32);
+//     //         xt.fade_near = Some(fade_range[0] as i32);
+//     //     }
+//     //     xt
+//     // }
+//     pub fn inherit_if_none(&mut self, other: &MarkerTemplate) {
+//         if self.texture.is_none() {
+//             self.texture = other.icon_file.clone();
+//         }
+//         if self.trail_scale.is_none() {
+//             self.trail_scale = other.icon_size;
+//         }
+//         if self.alpha.is_none() {
+//             self.alpha = other.alpha;
+//         }
 
-        if self.fade_near.is_none() {
-            self.fade_near = other.fade_near;
-        }
-        if self.fade_far.is_none() {
-            self.fade_far = other.fade_far;
-        }
+//         if self.fade_near.is_none() {
+//             self.fade_near = other.fade_near;
+//         }
+//         if self.fade_far.is_none() {
+//             self.fade_far = other.fade_far;
+//         }
 
-        if self.color.is_none() {
-            self.color = other.color;
-        }
-    }
-}
+//         if self.color.is_none() {
+//             self.color = other.color;
+//         }
+//     }
+// }

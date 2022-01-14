@@ -2,20 +2,20 @@ pub type ImageHash = u64;
 // use crate::core::painter::opengl::buffer::{VertexBufferLayout, VertexBufferLayoutTrait};
 
 pub struct MarkerRenderData {
-    pub position: glm::Vec3,// where to draw on screen with project matrix
-    pub alpha: f32, // pass to fragment shader
-    pub color: [u8; 4], // pass to fragment shader
-    pub fade_range: glm::Vec2, // affects alpha
-    pub texture: ImageHash, // affects size of quad in world
+    pub position: glm::Vec3,      // where to draw on screen with project matrix
+    pub alpha: f32,               // pass to fragment shader
+    pub color: [u8; 4],           // pass to fragment shader
+    pub fade_range: glm::Vec2,    // affects alpha
+    pub texture: ImageHash,       // affects size of quad in world
     pub in_game_visibility: bool, // alpha = 0 if false in world
-    pub keep_on_map_edge: bool, // need to change position smh
-    pub map_display_size: u16, // scale of map. affects map icon
+    pub keep_on_map_edge: bool,   // need to change position smh
+    pub map_display_size: u16,    // scale of map. affects map icon
     pub map_fade_out_scale_level: f32, // affects alpha map icon
-    pub map_visibility: bool, // affects alpha map icon
-    pub max_size: u16, // affects size of quad in world
-    pub min_size: u16, // affects size of quad in world
+    pub map_visibility: bool,     // affects alpha map icon
+    pub max_size: u16,            // affects size of quad in world
+    pub min_size: u16,            // affects size of quad in world
     pub mini_map_visibility: bool, // affects alpha minimap icon
-    pub scale: f32, // affects size of quad in world
+    pub scale: f32,               // affects size of quad in world
     pub scale_on_map_with_zoom: bool, // affects size of map icon
 }
 // /// Marker Vertex contains the vertex position in clip space, tex coords.

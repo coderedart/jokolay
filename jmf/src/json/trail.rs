@@ -2,8 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::json::marker::Achievement;
 
-
-
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Trail {
@@ -20,14 +18,10 @@ pub struct Trail {
     pub scale: Option<f32>,
     pub texture: Option<u16>,
     pub tbin: u16,
-
 }
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TBinDescription {
     pub name: String,
     pub version: u8,
 }
-

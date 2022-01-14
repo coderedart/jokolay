@@ -26,7 +26,6 @@ pub struct CatTree {
     pub children: Vec<CatTree>,
 }
 
-
 #[cfg(test)]
 mod tests {
     use serde_test::*;
@@ -45,41 +44,61 @@ mod tests {
         assert_tokens(
             &cat_desc,
             &[
-                Token::Struct{ name: "Cat", len: 2 },
+                Token::Struct {
+                    name: "Cat",
+                    len: 2,
+                },
                 Token::Str("name"),
                 Token::String("marker category one"),
                 Token::Str("display_name"),
                 Token::String("One"),
-                Token::StructEnd
+                Token::StructEnd,
             ],
         );
     }
     #[test]
     fn serde_cat_tree() {
-        
         let cat_tree = CatTree {
             id: 1,
-            children: vec![CatTree {id: 2, children: vec![]}, CatTree {id: 3, children: vec![]}],
+            children: vec![
+                CatTree {
+                    id: 2,
+                    children: vec![],
+                },
+                CatTree {
+                    id: 3,
+                    children: vec![],
+                },
+            ],
         };
 
         assert_tokens(
             &cat_tree,
             &[
-                Token::Struct{ name: "CatTree", len: 2 },
+                Token::Struct {
+                    name: "CatTree",
+                    len: 2,
+                },
                 Token::Str("id"),
                 Token::U16(1),
                 Token::Str("children"),
-                Token::Seq {len: Some(2)},
-                Token::Struct{ name: "CatTree", len: 1 },
+                Token::Seq { len: Some(2) },
+                Token::Struct {
+                    name: "CatTree",
+                    len: 1,
+                },
                 Token::Str("id"),
                 Token::U16(2),
                 Token::StructEnd,
-                Token::Struct{ name: "CatTree", len: 1 },
+                Token::Struct {
+                    name: "CatTree",
+                    len: 1,
+                },
                 Token::Str("id"),
                 Token::U16(3),
                 Token::StructEnd,
                 Token::SeqEnd,
-                Token::StructEnd
+                Token::StructEnd,
             ],
         );
     }

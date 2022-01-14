@@ -1,4 +1,4 @@
-
+use std::io::Write;
 
 fn main() {
     {
@@ -25,12 +25,15 @@ fn main() {
             .unwrap();
         }
 
-        let _ = dbg!(jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tt")).unwrap());
-
-        
-        
+        let (pack, errors) =
+            jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tw"));
+        log::warn!("{:#?}", &errors);
+        std::fs::File::create("./assets/packs/pack.json")
+            .unwrap()
+            .write_all(serde_json::to_string(&pack.unwrap()).unwrap().as_bytes())
+            .unwrap();
     }
 }
 // pub fn main() {
-    
+
 // }

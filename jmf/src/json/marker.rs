@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-use validator::{Validate};
-
-
+use validator::Validate;
 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -80,4 +78,3 @@ pub enum Behavior {
     OncePerInstancePerChar,
     WvWObjective,
 }
-
