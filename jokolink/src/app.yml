@@ -14,15 +14,15 @@ args:
         possible_values: [error, warn, info, debug, trace]
         takes_value: true
     
-    - filelog:
+    - log_level:
         short: l
         help: max logging level to logfile
         possible_values: [error, warn, info, debug, trace]
         takes_value: true
     
-    - logfile:
+    - logfile_dir:
         short: f
-        help: the filepath to logfile.
+        help: the directory to store logfiles.
         takes_value: true
 
     - mumble:

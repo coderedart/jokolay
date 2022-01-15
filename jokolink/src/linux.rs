@@ -1,4 +1,4 @@
-use log::error;
+use tracing::*;
 
 use std::{
     fs::File,
@@ -27,7 +27,7 @@ impl MumbleSource {
     ) -> anyhow::Result<[u8; USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<isize>()]> {
         let mfile = &mut self.mumble_src;
         mfile.seek(SeekFrom::Start(0)).map_err(|e| {
-            log::error!(
+            error!(
                 "failed to seek to start on mumble file due to error: {:?}",
                 &e
             );
@@ -35,7 +35,7 @@ impl MumbleSource {
         })?;
         let mut buffer = [0u8; USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<isize>()];
         mfile.read(&mut buffer).map_err(|e| {
-            log::error!(
+            error!(
                 "failed to read to buffer from mumble file due to error: {:?}",
                 &e
             );
@@ -49,7 +49,7 @@ impl MumbleSource {
         let mut link = MumbleLink::default();
         let buffer = self.get_link_buffer()?;
         link.update_from_slice(&buffer).map_err(|e| {
-            log::error!(
+            error!(
                 "failed to update mumble from buffer slice due to error: {:?}",
                 &e
             );

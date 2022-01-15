@@ -8,13 +8,9 @@
 //! It can multiple accessing data of multiple MumbleLinks, and allows multiple clients
 //! to request the data.
 
-use log::{error, LevelFilter};
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::File,
-    path::PathBuf,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
+use tracing::*;
 
 #[cfg(target_os = "windows")]
 use crate::mlink::CMumbleLink;
@@ -27,31 +23,6 @@ pub mod cli;
 pub mod linux;
 #[cfg(target_os = "windows")]
 pub mod win;
-
-/// initializes global logging backend that is used by log macros
-/// Takes in a filter for stdout/stderr, a filter for logfile and finally the path to logfile
-pub fn log_init(
-    term_filter: LevelFilter,
-    file_filter: LevelFilter,
-    file_path: PathBuf,
-) -> anyhow::Result<()> {
-    use simplelog::*;
-
-    CombinedLogger::init(vec![
-        TermLogger::new(
-            term_filter,
-            Config::default(),
-            TerminalMode::Mixed,
-            ColorChoice::Auto,
-        ),
-        WriteLogger::new(file_filter, Config::default(), File::create(file_path)?),
-    ])
-    .map_err(|e| {
-        eprintln!("failed to initialize logs due to error: {:?}", &e);
-        e
-    })?;
-    Ok(())
-}
 
 /// This is used to update the link from the mumble source. when src is none, the link is usually a default. check if its valid before using
 #[derive(Debug)]
@@ -127,7 +98,7 @@ impl MumbleManager {
             None => {
                 if self.last_updated().elapsed() > Duration::from_secs(1) {
                     self.src = MumbleSource::new(&self.config.link_name);
-                    log::warn!("mumble link is not initalized");
+                    warn!("mumble link is not initalized");
                     self.last_update = Instant::now();
                 }
             }
@@ -141,7 +112,7 @@ impl MumbleManager {
 #[derive(Debug)]
 pub struct MumbleSource {
     #[cfg(target_os = "linux")]
-    pub mumble_src: File,
+    pub mumble_src: std::fs::File,
     #[cfg(target_os = "windows")]
     pub mumble_src: *const CMumbleLink,
 }

@@ -9,7 +9,7 @@ use crate::{
     MumbleSource, WindowDimensions,
 };
 use anyhow::bail;
-use log::error;
+use tracing::*;
 use winapi::{
     shared::{
         minwindef::{BOOL, FALSE, LPARAM, LPDWORD},
@@ -147,7 +147,7 @@ impl MumbleSource {
     pub fn get_link(&mut self) -> anyhow::Result<MumbleLink> {
         let mut link = MumbleLink::default();
         link.update(self.mumble_src).map_err(|e| {
-            log::error!("mumble link updated failed due to {:?}", &e);
+            error!("mumble link updated failed due to {:?}", &e);
             e
         })?;
         Ok(link)
@@ -163,7 +163,7 @@ pub fn get_gw2_window_handle(link_ptr: *const CMumbleLink) -> anyhow::Result<isi
         let result: BOOL = EnumWindows(Some(get_handle_by_pid), (&mut pid) as *mut HWND as LPARAM);
         // check if successful
         if result != 0 {
-            log::error!("couldn't find gw2 window. error code: {}", GetLastError());
+            error!("couldn't find gw2 window. error code: {}", GetLastError());
             anyhow::bail!("couldn't find gw2 window");
         }
         Ok(pid as isize)
@@ -177,7 +177,7 @@ pub fn get_gw2_pid(link_ptr: *const CMumbleLink) -> u32 {
 pub fn get_xid(link_ptr: *const CMumbleLink) -> anyhow::Result<isize> {
     // no point in getting xid if mumble is not valid -_-
     if !CMumbleLink::is_valid(link_ptr) {
-        log::error!("mumble not init. so getting xid is a failure");
+        error!("mumble not init. so getting xid is a failure");
         anyhow::bail!("mumble not init");
     }
 
@@ -189,7 +189,7 @@ pub fn get_xid(link_ptr: *const CMumbleLink) -> anyhow::Result<isize> {
         let xid: HANDLE = GetPropA(window_handle as HWND, atom_string_ptr) as HANDLE;
         // check if the xid is actually null, in which case we have failed
         if xid.is_null() {
-            log::error!("xid is NULL");
+            error!("xid is NULL");
             bail!("xid is NULL");
         }
 
@@ -205,7 +205,7 @@ pub fn is_pid_alive(pid: u32) -> Option<bool> {
             pid,
         );
         if process_handle == NULL {
-            log::error!(
+            error!(
                 "failed to get handle for process id: {} due to error {:?}",
                 pid,
                 GetLastError()
@@ -217,7 +217,7 @@ pub fn is_pid_alive(pid: u32) -> Option<bool> {
         CloseHandle(process_handle);
 
         if result == 0 {
-            log::error!(
+            error!(
                 "failed to get exit code for process due to error: {:?}",
                 GetLastError()
             );
