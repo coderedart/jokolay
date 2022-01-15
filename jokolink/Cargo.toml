@@ -9,24 +9,35 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
-serde = {version = "1", features = ["derive"]}
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 widestring = "0"
-winapi = { version = "0", features = ["std","winbase", "handleapi", "minwinbase", "ntdef", "winnt", "memoryapi", "winerror", "errhandlingapi", "winuser", "windef"] }
+# winapi = { version = "0", features = [
+#     "std",
+#     "winbase",
+#     "handleapi",
+#     "minwinbase",
+#     "ntdef",
+#     "winnt",
+#     "memoryapi",
+#     "winerror",
+#     "errhandlingapi",
+#     "winuser",
+#     "windef",
+# ] }
 bytemuck = "1"
-clap = {version = "2.34.0", features = ["default", "yaml"] }
+clap = { version = "2.34.0", features = ["default", "yaml"] }
 bitflags = "1"
 num-derive = "0"
 num-traits = "0"
-tracing-appender = {version = "0", optional = true}
-tracing-subscriber = {version = "0", optional = true}
-
+tracing-appender = { version = "0" }
+tracing-subscriber = { version = "0" }
 tracing = "0"
-
-[features]
-default = []
-app = ["tracing-appender", "tracing-subscriber"]
-
-[[bin]]
-name = "jokolink"
-required-features = ["app"]
+git-version = "0"
+windows = { version = "0", features = [
+    "Win32_System_Memory",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading"
+] }

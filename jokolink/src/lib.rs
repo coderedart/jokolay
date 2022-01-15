@@ -17,8 +17,6 @@ use crate::mlink::CMumbleLink;
 use crate::mlink::MumbleLink;
 pub mod mlink;
 
-#[cfg(target_os = "windows")]
-pub mod cli;
 #[cfg(target_os = "linux")]
 pub mod linux;
 #[cfg(target_os = "windows")]

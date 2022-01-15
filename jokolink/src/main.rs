@@ -2,20 +2,20 @@ use tracing::*;
 use tracing_appender::non_blocking::WorkerGuard;
 #[cfg(target_os = "windows")]
 fn main() -> anyhow::Result<()> {
+    use std::io::Write;
     use std::time::Instant;
-    use std::{io::Write, path::PathBuf};
     // use std::io::BufWriter;
     use jokolink::mlink::{CMumbleLink, USEFUL_C_MUMBLE_LINK_SIZE};
     use jokolink::win::{create_link_shared_mem, get_xid};
     use std::io::{Seek, SeekFrom};
     // get all the cmd line args and initialize logs.
-    let (mumble_link_key, mumble_refresh_interval, gw2_check_interval, guard) =
-        jokolink::cli::create_app();
+    let (mumble_link_key, mumble_refresh_interval, gw2_check_interval, _guard) = create_app();
+
     let key: &str = &mumble_link_key;
 
     // create shared memory using the mumble link key
     let link = create_link_shared_mem(key);
-    debug!("created shared memory. pointer: {:?}", link);
+    info!("created shared memory. pointer: {:?}", link);
 
     // check that we created shared memory successfully or panic. get ptr to shared memory
     let link_ptr = link.map_err(|e| {
@@ -28,10 +28,10 @@ fn main() -> anyhow::Result<()> {
 
     // create a shared memory file in /dev/shm/mumble_link_key_name so that jokolay can mumble stuff from there.
     let shmpath: PathBuf = ["z:\\", "dev", "shm", key].iter().collect();
-    debug!("the path to destination shm file: {:?}", &shmpath);
+    info!("the path to destination shm file: {:?}", &shmpath);
 
     let shm = std::fs::File::create(&shmpath);
-    debug!("shm file created. File: {:?}", &shm);
+    info!("shm file created. File: {:?}", &shm);
     let mut shm = shm.map_err(|e| {
         error!(
             "unable to create the shared memory file in /dev/shm due to error: {:?}",
@@ -43,18 +43,22 @@ fn main() -> anyhow::Result<()> {
     // variable to hold the xid.
     let mut xid = None;
 
-    // buffer to hold mumble link and xid of gw2 window data.
-    let mut buffer = [0u8; USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<isize>()];
+    // buffer to hold mumble link and xid of gw2 window data + jokolink counter
+    let mut buffer = [0u8; USEFUL_C_MUMBLE_LINK_SIZE
+        + std::mem::size_of::<isize>()
+        + std::mem::size_of::<usize>()];
 
     // use a timer to check how long has it been since last timer reset
     let mut timer = Instant::now();
-
+    let mut counter = 0_usize;
     loop {
         // copy the bytes from mumble link into shared memory file
         CMumbleLink::copy_raw_bytes_into(link_ptr, &mut buffer[..USEFUL_C_MUMBLE_LINK_SIZE]);
-        // we sleep for 10 milliseconds to avoid reading mumblelink too many times. we will read it around 100 times per second
+        // we sleep for a few milliseconds to avoid reading mumblelink too many times. we will read it around 100 to 200 times per second
         std::thread::sleep(mumble_refresh_interval);
-
+        buffer[(USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<usize>())..]
+            .copy_from_slice(&counter.to_ne_bytes());
+        counter += 1;
         // every 5 seconds
         if timer.elapsed() > gw2_check_interval {
             // reset the timer
@@ -71,14 +75,14 @@ fn main() -> anyhow::Result<()> {
                         .ok();
                     // successfully got xid
                     if let Some(id) = xid {
-                        debug!("mumble link is initialized. got xid");
-                        debug!("Mumble Link data: {:?}", unsafe { *link_ptr });
+                        info!("mumble link is initialized. got xid");
+                        info!("Mumble Link data: {:?}", unsafe { *link_ptr });
                         buffer[USEFUL_C_MUMBLE_LINK_SIZE..].copy_from_slice(&id.to_ne_bytes());
-                        debug!("xid of gw2 window: {:?}", xid);
+                        info!("xid of gw2 window: {:?}", xid);
                     }
                 }
             } else {
-                debug!("the MumbleLink is not init yet. ");
+                info!("the MumbleLink is not init yet. ");
             }
         }
 
@@ -150,15 +154,35 @@ pub fn create_app() -> (String, Duration, Duration, WorkerGuard) {
         .expect("could not parse gw2 check alive option"),
     );
 
-    debug!(
+    let guard =
+        log_init(log_level, &logfile_dir, Path::new("jokolink.log")).expect("failed to init log");
+    info!("Application Name: {}", env!("CARGO_PKG_NAME"));
+    info!("Application Version: {}", env!("CARGO_PKG_VERSION"));
+    info!("Application Authors: {}", env!("CARGO_PKG_AUTHORS"));
+    info!(
+        "Application Repository Link: {}",
+        env!("CARGO_PKG_REPOSITORY")
+    );
+    info!("Application License: {}", env!("CARGO_PKG_LICENSE"));
+
+    info!("git version details: {}", git_version::git_version!());
+
+    info!(
         "the file log lvl: {:?}, the logfile directory: {:?}",
         log_level, &logfile_dir
     );
-    let guard =
-        log_init(log_level, &logfile_dir, Path::new("jokolink.log")).expect("failed to init log");
-    debug!("created app and initialized logging");
+    info!("created app and initialized logging");
     let key = m.value_of("mumble").unwrap_or("MumbleLink").to_string();
-    debug!("the mumble link name: {}", &key);
+    info!("the mumble link name: {}", &key);
+    info!(
+        "the mumble refresh interval in milliseconds: {:#?}",
+        refresh_inverval
+    );
+    info!(
+        "the gw2 exit check interval in seconds: {:#?}",
+        gw2_check_interval
+    );
+
     (key, refresh_inverval, gw2_check_interval, guard)
 }
 const MUMBLE_REFRESH_INTERVAL: u64 = 5;

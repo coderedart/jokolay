@@ -8,9 +8,6 @@
 # the mumble link name
 link_name=MumbleLink
 
-# the log level of jokolink for terminal. valid options are "trace, debug, info, warn, error"
-jl_tlog=debug
-
 # the log lvl of jokolink for file. same options as above
 jl_flog=debug
 
@@ -26,5 +23,5 @@ mumble_interval=5
 gw2_check_alive=5
 # 
 # this command will use $WINE from lutris and use the above options to run jokolink in bg
-$WINE "./jokolink.exe" -t $jl_tlog -l $jl_flog -m $link_name -f $jl_logfile -i $mumble_interval -g $gw2_check_alive & 
+$WINE "./jokolink.exe" -l $jl_flog -m $link_name -f $jl_logfile -i $mumble_interval -g $gw2_check_alive & 
 

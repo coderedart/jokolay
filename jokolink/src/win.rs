@@ -10,46 +10,52 @@ use crate::{
 };
 use anyhow::bail;
 use tracing::*;
-use winapi::{
-    shared::{
-        minwindef::{BOOL, FALSE, LPARAM, LPDWORD},
-        ntdef::{HANDLE, NULL},
-        windef::{HWND, LPRECT, RECT},
-    },
-    um::{
-        errhandlingapi::GetLastError,
-        handleapi::{CloseHandle, INVALID_HANDLE_VALUE},
-        memoryapi::{MapViewOfFile, FILE_MAP_ALL_ACCESS},
-        minwinbase::{SECURITY_ATTRIBUTES, STILL_ACTIVE},
-        processthreadsapi::{GetExitCodeProcess, OpenProcess},
-        winbase::CreateFileMappingA,
-        winnt::{PAGE_READWRITE, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION},
-        winuser::{EnumWindows, GetPropA, GetWindowRect, GetWindowThreadProcessId},
+// use winapi::{
+//     shared::{
+//         minwindef::{BOOL, FALSE, LPARAM, LPDWORD},
+//         ntdef::{HANDLE, NULL},
+//         windef::{HWND, LPRECT, RECT},
+//     },
+//     um::{
+//         errhandlingapi::GetLastError,
+//         handleapi::{CloseHandle, INVALID_HANDLE_VALUE},
+//         memoryapi::{MapViewOfFile, FILE_MAP_ALL_ACCESS},
+//         minwinbase::{SECURITY_ATTRIBUTES, STILL_ACTIVE},
+//         processthreadsapi::{GetExitCodeProcess, OpenProcess},
+//         winbase::CreateFileMappingA,
+//         winnt::{PAGE_READWRITE, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION},
+//         winuser::{EnumWindows, GetPropA, GetWindowRect, GetWindowThreadProcessId},
+//     },
+// };
+use windows::{
+    runtime::Handle,
+    Win32::{
+        Foundation::*,
+        System::{Memory::*, Threading::*},
+        UI::WindowsAndMessaging::*,
     },
 };
-
 /// This function creates shared memory for mumble link using Key as the link name
 pub fn create_link_shared_mem(key: &str) -> anyhow::Result<*const CMumbleLink> {
     // prepare the key as a cstr to pass to windows functions
     let key_cstr = std::ffi::CString::new(key)?;
-    let key_cstr_ptr = key_cstr.as_ptr();
     unsafe {
         // create a Mumble Link shared memory file
         // the file handle will need not be stored because when process exits, the handle will be dropped by windows
 
         let file_handle = CreateFileMappingA(
             INVALID_HANDLE_VALUE,
-            NULL as *mut SECURITY_ATTRIBUTES,
+            std::ptr::null_mut(),
             PAGE_READWRITE,
             0,
             C_MUMBLE_LINK_SIZE as u32,
-            key_cstr_ptr,
+            PSTR(key_cstr.as_ptr() as _),
         );
 
         // if failed to create shared memory
-        if file_handle == NULL {
+        if file_handle.is_invalid() {
             anyhow::bail!(
-                "could not create file map handle, error code: {}",
+                "could not create file map handle, error code: {:#?}",
                 GetLastError()
             );
         }
@@ -58,8 +64,11 @@ pub fn create_link_shared_mem(key: &str) -> anyhow::Result<*const CMumbleLink> {
         let cml_ptr = MapViewOfFile(file_handle, FILE_MAP_ALL_ACCESS, 0, 0, C_MUMBLE_LINK_SIZE);
 
         // check if we were successful
-        if cml_ptr == NULL {
-            anyhow::bail!("could not map view of file, error code: {}", GetLastError());
+        if cml_ptr.is_null() {
+            anyhow::bail!(
+                "could not map view of file, error code: {:#?}",
+                GetLastError()
+            );
         }
         Ok(cml_ptr as *const CMumbleLink)
     }
@@ -72,21 +81,20 @@ unsafe extern "system" fn get_handle_by_pid(window_handle: HWND, gw2_pid: LPARAM
     // make a varible to hold the process id of a window handle given to us.
     let mut handle_pid: u32 = 0;
     // get the process id of the handle and then store it in the handle_pid variable.
-    GetWindowThreadProcessId(window_handle, (&mut handle_pid) as LPDWORD);
+    GetWindowThreadProcessId(window_handle, (&mut handle_pid) as *mut u32);
     // if handle_pid is null, it means we failed to get the pid. so, we return true so that enumWindows can call us again with the handle to the next window.
     if handle_pid == 0 {
-        return 1;
+        return BOOL(1);
     }
-    let handle_pid = handle_pid as HWND;
-    // gw2_pid is a long pointer TO a HWND. we cast gw2_pid from isize to a * mut HWND.
-    let gw2_pid = gw2_pid as *mut HWND;
+    // gw2_pid is a long pointer TO a HWND. we cast gw2_pid from isize to a * mut isize.
+    let gw2_pid = gw2_pid.0 as *mut isize;
     // we check if the pid which gw2_pid references is equal to handle_pid
-    if *gw2_pid == handle_pid {
+    if *gw2_pid == handle_pid as isize {
         // we now assign the window_handle to the memory pointed by gw2_pid pointer.
-        *gw2_pid = window_handle as HWND;
-        return 0;
+        *gw2_pid = window_handle.0;
+        return BOOL(0);
     }
-    return 1;
+    BOOL(1)
 }
 
 pub fn get_win_pos_dim(link_ptr: *const CMumbleLink) -> anyhow::Result<WindowDimensions> {
@@ -95,21 +103,28 @@ pub fn get_win_pos_dim(link_ptr: *const CMumbleLink) -> anyhow::Result<WindowDim
             anyhow::bail!("the MumbleLink is not init yet. so, getting window position is not valid operation");
         }
         let context = (*link_ptr).context.as_ptr() as *const CMumbleContext;
-        let mut pid: isize = (*context).process_id as isize;
+        // right now this is gw2's process id from mumble link, but we pass in the pointer to this into get_handle_by_pid function which will check this pid AND if it matches the window
+        // it will deref the pointer and assign the window handle to this variable.
+        let mut window_handle: isize = (*context).process_id as isize;
 
-        let result: BOOL = EnumWindows(Some(get_handle_by_pid), &mut pid as *mut isize as LPARAM);
-        if result != 0 {
-            anyhow::bail!("couldn't find gw2 window. error code: {}", GetLastError());
+        let result: BOOL = EnumWindows(
+            Some(get_handle_by_pid),
+            LPARAM((&mut window_handle as *mut isize) as isize),
+        );
+        if result.as_bool() {
+            anyhow::bail!(
+                "couldn't find gw2 window. error code: {:#?}",
+                GetLastError()
+            );
         }
-
         let mut rect: RECT = RECT {
             left: 0,
             top: 0,
             right: 0,
             bottom: 0,
         };
-        let status = GetWindowRect(pid as isize as HWND, &mut rect as LPRECT);
-        if status == 0 {
+        let status = GetWindowRect(HWND(window_handle), &mut rect as *mut RECT);
+        if !status.as_bool() {
             anyhow::bail!("could not get gw2 window size");
         }
         Ok(WindowDimensions {
@@ -157,13 +172,19 @@ pub fn get_gw2_window_handle(link_ptr: *const CMumbleLink) -> anyhow::Result<isi
     unsafe {
         // get pid from mumble link
 
-        let mut pid = get_gw2_pid(link_ptr) as HWND;
+        let mut pid = get_gw2_pid(link_ptr) as isize;
 
         // enumerate windows and get the handle and assign it to the pid variable if the process id of the handle actually matches the pid
-        let result: BOOL = EnumWindows(Some(get_handle_by_pid), (&mut pid) as *mut HWND as LPARAM);
+        let result: BOOL = EnumWindows(
+            Some(get_handle_by_pid),
+            LPARAM(((&mut pid) as *mut isize) as isize),
+        );
         // check if successful
-        if result != 0 {
-            error!("couldn't find gw2 window. error code: {}", GetLastError());
+        if result.as_bool() {
+            error!(
+                "couldn't find gw2 window. error code: {:#?}",
+                GetLastError()
+            );
             anyhow::bail!("couldn't find gw2 window");
         }
         Ok(pid as isize)
@@ -185,26 +206,25 @@ pub fn get_xid(link_ptr: *const CMumbleLink) -> anyhow::Result<isize> {
         let window_handle = get_gw2_window_handle(link_ptr)?;
         // get the x11 window id from the win32 window handle
         let atom_string = std::ffi::CString::new("__wine_x11_whole_window")?;
-        let atom_string_ptr = atom_string.as_ptr();
-        let xid: HANDLE = GetPropA(window_handle as HWND, atom_string_ptr) as HANDLE;
+        let xid = GetPropA(HWND(window_handle), PSTR(atom_string.as_ptr() as _));
         // check if the xid is actually null, in which case we have failed
-        if xid.is_null() {
+        if xid.is_invalid() {
             error!("xid is NULL");
             bail!("xid is NULL");
         }
 
-        Ok(xid as isize)
+        Ok(xid.0)
     }
 }
 
 pub fn is_pid_alive(pid: u32) -> Option<bool> {
     unsafe {
-        let process_handle: HANDLE = OpenProcess(
+        let process_handle = OpenProcess(
             PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION,
-            FALSE,
+            false,
             pid,
         );
-        if process_handle == NULL {
+        if process_handle.is_invalid() {
             error!(
                 "failed to get handle for process id: {} due to error {:?}",
                 pid,
@@ -216,7 +236,7 @@ pub fn is_pid_alive(pid: u32) -> Option<bool> {
         let result = GetExitCodeProcess(process_handle, &mut exit_code as *mut u32);
         CloseHandle(process_handle);
 
-        if result == 0 {
+        if !result.as_bool() {
             error!(
                 "failed to get exit code for process due to error: {:?}",
                 GetLastError()
@@ -224,10 +244,10 @@ pub fn is_pid_alive(pid: u32) -> Option<bool> {
             return None;
         }
 
-        if exit_code == STILL_ACTIVE {
-            return Some(true);
+        if exit_code == STATUS_PENDING.0 as u32 {
+            Some(true)
         } else {
-            return Some(false);
+            Some(false)
         }
     }
 }
