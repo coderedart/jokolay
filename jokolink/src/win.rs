@@ -217,10 +217,10 @@ pub fn get_xid(link_ptr: *const CMumbleLink) -> anyhow::Result<isize> {
     }
 }
 
-pub fn is_pid_alive(pid: u32) -> Option<bool> {
+pub fn get_process_handle(pid: u32) -> Option<HANDLE> {
     unsafe {
         let process_handle = OpenProcess(
-            PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION,
+            PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
             false,
             pid,
         );
@@ -231,23 +231,55 @@ pub fn is_pid_alive(pid: u32) -> Option<bool> {
                 GetLastError()
             );
             return None;
-        }
-        let mut exit_code = 0u32;
-        let result = GetExitCodeProcess(process_handle, &mut exit_code as *mut u32);
-        CloseHandle(process_handle);
-
-        if !result.as_bool() {
-            error!(
-                "failed to get exit code for process due to error: {:?}",
-                GetLastError()
-            );
-            return None;
-        }
-
-        if exit_code == STATUS_PENDING.0 as u32 {
-            Some(true)
         } else {
-            Some(false)
+            Some(process_handle)
         }
+    }
+}
+pub fn check_process_alive(process_handle: HANDLE) -> Option<bool> {
+    // let mut exit_code = 0u32;
+    // let result = unsafe { GetExitCodeProcess(process_handle, &mut exit_code as *mut u32) };
+    // if !result.as_bool() {
+    //     error!(
+    //         "failed to get exit code for process due to error: {:?}",
+    //         unsafe { GetLastError() }
+    //     );
+    //     return None;
+    // }
+    // if exit_code == STATUS_PENDING.0 as u32 {
+    //     Some(true)
+    // } else {
+    //     Some(false)
+    // }
+
+    // this is slightly faster than using the GetExitCodeProcess method. 
+    // GetExitCodeProcess takes around 3 us on average with lowest being 2.5 us.
+    // WaitForSingleObject takes around 2 us on average withe lowest being 1.5 us.
+    let result = unsafe { WaitForSingleObject(process_handle, 0) };
+
+    if result == WAIT_ABANDONED {
+        Some(false)
+    } else if result == WAIT_OBJECT_0 {
+        Some(false)
+    } else if result == WAIT_TIMEOUT.0 {
+        Some(true)
+    } else if result == WAIT_FAILED.0 {
+        None
+    } else {
+        None
+    }
+}
+pub fn close_process_handle(process_handle: HANDLE) {
+    unsafe {
+        CloseHandle(process_handle);
+    }
+}
+pub fn is_pid_alive(pid: u32) -> Option<bool> {
+    if let Some(process_handle) = get_process_handle(pid) {
+        let alive = check_process_alive(process_handle);
+        close_process_handle(process_handle);
+        return alive;
+    } else {
+        None
     }
 }

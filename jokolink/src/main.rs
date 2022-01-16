@@ -15,7 +15,7 @@ fn fake_main() -> anyhow::Result<()> {
     use std::time::Instant;
     // use std::io::BufWriter;
     use jokolink::mlink::{CMumbleLink, USEFUL_C_MUMBLE_LINK_SIZE};
-    use jokolink::win::{create_link_shared_mem, get_xid};
+    use jokolink::win::{create_link_shared_mem, get_xid, get_process_handle};
     use std::io::{Seek, SeekFrom};
     // get all the cmd line args and initialize logs.
     let yml = clap::load_yaml!("app.yml");
@@ -24,7 +24,7 @@ fn fake_main() -> anyhow::Result<()> {
         .expect("could not parse log_level option");
     let logfile_dir = PathBuf::from_str(m.value_of("logfile_dir").unwrap_or("."))
         .expect("could not parse logfile_dir option");
-    let guard =
+    let _guard =
         log_init(log_level, &logfile_dir, Path::new("jokolink.log")).expect("failed to init log");
         let mumble_key = m.value_of("mumble").unwrap_or("MumbleLink").to_string();
     let dest_path = PathBuf::from_str(m.value_of("dest_path").unwrap_or("Z:\\dev\\shm\\MumbleLink")).unwrap();
@@ -87,9 +87,9 @@ fn fake_main() -> anyhow::Result<()> {
     })?;
 
     // create a shared memory file in /dev/shm/mumble_link_key_name so that jokolay can mumble stuff from there.
-    let shmpath: PathBuf = info!("creating the path to destination shm file: {:?}", &dest_path);
+    info!("creating the path to destination shm file: {:?}", &dest_path);
 
-    let shm = std::fs::File::create(&shmpath);
+    let shm = std::fs::File::create(&dest_path);
     info!("shm file created. File: {:?}", &shm);
     let mut shm = shm.map_err(|e| {
         error!(
@@ -101,6 +101,7 @@ fn fake_main() -> anyhow::Result<()> {
 
     // variable to hold the xid.
     let mut xid = None;
+    let mut process_handle = None;
 
     // buffer to hold mumble link and xid of gw2 window data + jokolink counter
     let mut buffer = [0u8; USEFUL_C_MUMBLE_LINK_SIZE
@@ -111,10 +112,10 @@ fn fake_main() -> anyhow::Result<()> {
     let mut timer = Instant::now();
     let mut counter = 0_usize;
     loop {
+        
         // copy the bytes from mumble link into shared memory file
         CMumbleLink::copy_raw_bytes_into(link_ptr, &mut buffer[..USEFUL_C_MUMBLE_LINK_SIZE]);
-        // we sleep for a few milliseconds to avoid reading mumblelink too many times. we will read it around 100 to 200 times per second
-        std::thread::sleep(refresh_inverval);
+ 
         buffer[(USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<usize>())..]
             .copy_from_slice(&counter.to_ne_bytes());
         counter += 1;
@@ -140,16 +141,25 @@ fn fake_main() -> anyhow::Result<()> {
                         info!("xid of gw2 window: {:?}", xid);
                     }
                 }
-                if let Some(alive) =
-                    jokolink::win::is_pid_alive(jokolink::win::get_gw2_pid(link_ptr))
-                {
-                    if !alive {
-                        error!("gw2 is not running anymore. exiting...");
-                        return Ok(());
+                if let Some(ph) = process_handle {
+                    let t = std::time::Instant::now();
+                    if let Some(alive) =
+                        jokolink::win::check_process_alive(ph)
+                    {
+                        if !alive {
+                            error!("gw2 is not running anymore. exiting...");
+                            jokolink::win::close_process_handle(ph);
+                            return Ok(());
+                        }
+                    } else {
+                        bail!("failed to get gw2's alive status");
                     }
+                    info!("{:#?}", t.elapsed());
                 } else {
-                    bail!("failed to get gw2's alive status");
+                    info!("trying to get process handle");
+                    process_handle = get_process_handle(jokolink::win::get_gw2_pid(link_ptr));
                 }
+                
             } else {
                 info!("the MumbleLink is not init yet. ");
             }
@@ -159,6 +169,9 @@ fn fake_main() -> anyhow::Result<()> {
         shm.write(&buffer).context("could not write to shared memory file due to error")?;
         // seek back so that we will write to file again from start
         shm.seek(SeekFrom::Start(0)).context("could not seek to start of shared memory file due to error")?;
+
+               // we sleep for a few milliseconds to avoid reading mumblelink too many times. we will read it around 100 to 200 times per second
+               std::thread::sleep(refresh_inverval);
     }
 }
 
@@ -190,4 +203,4 @@ use clap::App;
 use std::{path::PathBuf, str::FromStr, time::Duration};
 
 const MUMBLE_REFRESH_INTERVAL: u64 = 5;
-const GW2_EXIT_CHECK_INTERVAL: u64 = 5;
+const GW2_EXIT_CHECK_INTERVAL: u64 = 1;

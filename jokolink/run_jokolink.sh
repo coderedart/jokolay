@@ -19,9 +19,14 @@ jl_logfile_dir=.
 mumble_interval=5
 
 # the interval to check if gw2 is still running and if so quit. only useful if running outside of lutris, where we will forever be running if not for this check
-# in seconds, each 5 seconds, link will check if gw2 is alive and if it is not, link will quit. usually, lutris will close us forcefully long before
-gw2_check_alive=5
+# in seconds, each 1 seconds, link will check if gw2 is alive and if it is not, link will quit. if lutris doesn't force close the link, we can use this as a backup to quit 
+# when gw2 closes. this also serves as the interval to check for mumble initialize or gw2's xid at the start. this is very cheap, so its fine to set it to a second.
 
+gw2_check_alive=1
+
+# usually, drive Z is sym linked in lutris/wine to our linux root "/" . we use /dev/shm, but specify the path in "windows" style of backward slashes while escaping them
+# you can change MumbleLink to something else like "Alt1" or "Alt2" etc.. for multi boxing, while keeping the link_name same for all of them. we can later modify the script
+# to have multiple choices of this variable and choose one based on the arguments to the script itself. we can use the same script for all the gw2 instances with just the argument being different
 dest_file_path='z:\\dev\\shm\\MumbleLink'
 # 
 # this command will use $WINE from lutris and use the above options to run jokolink in bg
