@@ -8,12 +8,6 @@ author: Red Artist <redartofcode@gmail.com>
 # All Args must be defined in the 'args:' list where the name of the arg, is the
 # key to a Hash object
 args:
-    - termlog:
-        short: t
-        help: max logging level to terminal stdout/stderr
-        possible_values: [error, warn, info, debug, trace]
-        takes_value: true
-    
     - log_level:
         short: l
         help: max logging level to logfile
@@ -21,8 +15,8 @@ args:
         takes_value: true
     
     - logfile_dir:
-        short: f
-        help: the directory to store logfiles.
+        short: d
+        help: the directory to store logs.
         takes_value: true
 
     - mumble:
@@ -40,4 +34,7 @@ args:
         help: how often jokolink checks if gw2 is alive (and quits if gw2 is not alive) in seconds
         takes_value: true
     
+    - dest_path:
+        short: f
+        help: where jokolik writes the mumble data to. usually, we want a file under /dev/shm, which maps to Z:\\dev\shm
 
