@@ -10,28 +10,11 @@ use crate::{
 };
 use anyhow::bail;
 use tracing::*;
-// use winapi::{
-//     shared::{
-//         minwindef::{BOOL, FALSE, LPARAM, LPDWORD},
-//         ntdef::{HANDLE, NULL},
-//         windef::{HWND, LPRECT, RECT},
-//     },
-//     um::{
-//         errhandlingapi::GetLastError,
-//         handleapi::{CloseHandle, INVALID_HANDLE_VALUE},
-//         memoryapi::{MapViewOfFile, FILE_MAP_ALL_ACCESS},
-//         minwinbase::{SECURITY_ATTRIBUTES, STILL_ACTIVE},
-//         processthreadsapi::{GetExitCodeProcess, OpenProcess},
-//         winbase::CreateFileMappingA,
-//         winnt::{PAGE_READWRITE, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION},
-//         winuser::{EnumWindows, GetPropA, GetWindowRect, GetWindowThreadProcessId},
-//     },
-// };
-use windows::Win32::{
+use windows::{Win32::{
     Foundation::*,
     System::{Memory::*, Threading::*},
     UI::WindowsAndMessaging::*,
-};
+}, runtime::Handle};
 /// This function creates shared memory for mumble link using Key as the link name
 pub fn create_link_shared_mem(key: &str) -> anyhow::Result<*const CMumbleLink> {
     // prepare the key as a cstr to pass to windows functions

@@ -16,7 +16,6 @@ glow = { version = "*", git = "https://github.com/coderedart/glow.git" }
 # glow = {version =  "*", path = "../glow"}
 # jokolink = {version  = "*", path =  "../jokolink"}
 jokolink = {version = "*", path = "../jokolink"}
-jokotypes = {version = "*", path = "../jokotypes"}
 jmf = {version = "*", path = "../jmf"}
 quick-xml = { version = "0.22.0", features = ["serialize"] }
 #serde-xml-rs = "0.5.0"
@@ -41,15 +40,15 @@ anyhow = "1.0.44"
 rayon = "1.5.1"
 bus = "2.2.3"
 guillotiere = {version = "*", features = ["serialization"]}
-raw-window-handle = "0.3.4"
+raw-window-handle = "0.4.2"
 serde_json = "1.0.68"
 zip-extensions = "0.6.1"
 zip = "0.5.13"
 tempfile = "3.2.0"
 git2 = "0.13.22"
-rfd = "0.6.1"
+rfd = "0.6.4"
 open = "2.0.1"
-notify-rust = "4.5.3"
+notify-rust = "4.5.5"
 # heim = {version = "0.1.0-rc.1", features = ["full"]} # need async for this one
 raw-cpuid = "10.2.0"
 tokio = {version = "1.12.0", features = ["full"]}

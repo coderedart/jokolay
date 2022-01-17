@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-jokotypes = {version = "*", path = "../jokotypes"}
 # roxml gives nicer errors which we can use to help point out the issues in imported packs
 roxmltree = "0"
 # roxml doesn't have serde or ability of writing xml, so we use quick-xml
