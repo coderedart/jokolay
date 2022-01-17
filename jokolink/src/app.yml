@@ -37,4 +37,5 @@ args:
     - dest_path:
         short: f
         help: where jokolik writes the mumble data to. usually, we want a file under /dev/shm, which maps to Z:\\dev\shm
+        takes_value: true
 

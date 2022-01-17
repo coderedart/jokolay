@@ -27,13 +27,10 @@ use tracing::*;
 //         winuser::{EnumWindows, GetPropA, GetWindowRect, GetWindowThreadProcessId},
 //     },
 // };
-use windows::{
-    runtime::Handle,
-    Win32::{
-        Foundation::*,
-        System::{Memory::*, Threading::*},
-        UI::WindowsAndMessaging::*,
-    },
+use windows::Win32::{
+    Foundation::*,
+    System::{Memory::*, Threading::*},
+    UI::WindowsAndMessaging::*,
 };
 /// This function creates shared memory for mumble link using Key as the link name
 pub fn create_link_shared_mem(key: &str) -> anyhow::Result<*const CMumbleLink> {
@@ -230,7 +227,7 @@ pub fn get_process_handle(pid: u32) -> Option<HANDLE> {
                 pid,
                 GetLastError()
             );
-            return None;
+            None
         } else {
             Some(process_handle)
         }
@@ -252,19 +249,15 @@ pub fn check_process_alive(process_handle: HANDLE) -> Option<bool> {
     //     Some(false)
     // }
 
-    // this is slightly faster than using the GetExitCodeProcess method. 
+    // this is slightly faster than using the GetExitCodeProcess method.
     // GetExitCodeProcess takes around 3 us on average with lowest being 2.5 us.
     // WaitForSingleObject takes around 2 us on average withe lowest being 1.5 us.
     let result = unsafe { WaitForSingleObject(process_handle, 0) };
 
-    if result == WAIT_ABANDONED {
+    if result == WAIT_ABANDONED || result == WAIT_OBJECT_0 {
         Some(false)
-    } else if result == WAIT_OBJECT_0 {
-        Some(false)
-    } else if result == WAIT_TIMEOUT.0 {
+    } else if result == WAIT_TIMEOUT {
         Some(true)
-    } else if result == WAIT_FAILED.0 {
-        None
     } else {
         None
     }
@@ -278,7 +271,7 @@ pub fn is_pid_alive(pid: u32) -> Option<bool> {
     if let Some(process_handle) = get_process_handle(pid) {
         let alive = check_process_alive(process_handle);
         close_process_handle(process_handle);
-        return alive;
+        alive
     } else {
         None
     }

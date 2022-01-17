@@ -1,7 +1,5 @@
 use std::io::Write;
 
-use jmf::json::Pack;
-
 fn main() {
     {
         {
