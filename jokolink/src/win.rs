@@ -10,11 +10,14 @@ use crate::{
 };
 use anyhow::bail;
 use tracing::*;
-use windows::{Win32::{
-    Foundation::*,
-    System::{Memory::*, Threading::*},
-    UI::WindowsAndMessaging::*,
-}, runtime::Handle};
+use windows::{
+    runtime::Handle,
+    Win32::{
+        Foundation::*,
+        System::{Memory::*, Threading::*},
+        UI::WindowsAndMessaging::*,
+    },
+};
 /// This function creates shared memory for mumble link using Key as the link name
 pub fn create_link_shared_mem(key: &str) -> anyhow::Result<*const CMumbleLink> {
     // prepare the key as a cstr to pass to windows functions

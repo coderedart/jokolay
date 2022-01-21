@@ -413,7 +413,7 @@ pub enum Behavior {
 //         let b64_str = String::deserialize(deserializer)?;
 //         let result = base64::decode(&b64_str)
 //             .map_err(|e| {
-//                 log::warn!(
+//                 tracing::warn!(
 //                     "failed to parse uuid from decoded base64 due to error: {:?}. string: '{}'",
 //                     &e,
 //                     &b64_str
@@ -430,7 +430,7 @@ pub enum Behavior {
 //     //     if let Ok(base64_id) = base64::decode(&id) {
 //     //         Ok(Uuid::from_slice(&base64_id)
 //     //             .map_err(|e| {
-//     //                 log::warn!(
+//     //                 tracing::warn!(
 //     //                     "failed to parse uuid from decoded base64 due to error: {:?}. string: {}",
 //     //                     &e,
 //     //                     &id

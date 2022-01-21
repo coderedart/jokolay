@@ -1,5 +1,4 @@
 use anyhow::Context;
-use num_derive::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::create_dir_all;
@@ -14,39 +13,12 @@ pub struct AssetManager {
     pub web_img_cache_map: HashMap<Url, usize>,
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Hash,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    FromPrimitive,
-    ToPrimitive,
-    Serialize,
-    Deserialize,
-)]
-#[repr(usize)]
-pub enum AssetPaths {
-    Assets = 0,
-    MarkerPacks = 1,
-    Log = 2,
-    Config = 3,
-    EguiCache = 4,
-    WebImgCache = 5,
-    WebImgMap = 6,
-    DefaultMarkerImg = 7,
-    DefaultTrailImg = 8,
-    UnknownImg = 9,
-}
 
 impl AssetManager {
     pub fn new(assets: PathBuf) -> Self {
         let assets_path = assets;
         if !assets_path.exists() {
-            log::warn!("assets path doesn't exist. trying to create it.");
+            tracing::warn!("assets path doesn't exist. trying to create it.");
 
             create_dir_all(&assets_path).unwrap_or_else(|_| {
                 panic!(
@@ -57,7 +29,7 @@ impl AssetManager {
         }
         let markers_path = assets_path.join(MARKER_PACK_FOLDER_NAME);
         if !markers_path.exists() {
-            log::warn!("marker packs path doesn't exist. trying to create it.");
+            tracing::warn!("marker packs path doesn't exist. trying to create it.");
             create_dir_all(&markers_path).unwrap_or_else(|_| {
                 panic!(
                     "failed to create markers path: {:?}",
@@ -71,7 +43,7 @@ impl AssetManager {
 
         let web_img_cache_folder = assets_path.join(WEB_IMAGE_CACHE_FOLDER_NAME);
         if !web_img_cache_folder.exists() {
-            log::warn!("web image cache folder path doesn't exist. trying to create it.");
+            tracing::warn!("web image cache folder path doesn't exist. trying to create it.");
             create_dir_all(&web_img_cache_folder).unwrap_or_else(|_| {
                 panic!(
                     "failed to create web image cache folder: {:?}",
@@ -82,7 +54,7 @@ impl AssetManager {
         let web_img_cache_map_file = web_img_cache_folder.join(WEB_IMAGE_CACHE_MAP_FILE_NAME);
         let marker_png_path = assets_path.join(MARKER_IMG_NAME);
         if !marker_png_path.exists() {
-            log::warn!("marker img doesn't exist. trying to create it with default texture.");
+            tracing::warn!("marker img doesn't exist. trying to create it with default texture.");
             let marker_img = image::load_from_memory(MARKER_TEXTURE)
                 .expect("failed to create image from default MARKER_TEXTURE");
             marker_img
@@ -91,7 +63,7 @@ impl AssetManager {
         }
         let trail_png_path = assets_path.join(TRAIL_IMG_NAME);
         if !trail_png_path.exists() {
-            log::warn!("trail img doesn't exist. trying to create it with default texture.");
+            tracing::warn!("trail img doesn't exist. trying to create it with default texture.");
             let trail_img = image::load_from_memory(TRAIL_TEXTURE)
                 .expect("failed to create image from default TRAIL_TEXTURE");
             trail_img
@@ -100,7 +72,7 @@ impl AssetManager {
         }
         let unknown_png_path = assets_path.join(UNKNOWN_IMG_NAME);
         if !unknown_png_path.exists() {
-            log::warn!(
+            tracing::warn!(
                 "unknown (question) img doesn't exist. trying to create it with default texture."
             );
             let unknown_img = image::load_from_memory(QUESTION_TEXTURE)

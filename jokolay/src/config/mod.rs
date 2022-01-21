@@ -1,4 +1,3 @@
-use crate::core::window::OverlayWindowConfig;
 use jokolink::MumbleConfig;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -6,6 +5,8 @@ use std::path::Path;
 use egui::CtxRef;
 
 use tokio::{fs::File, io::AsyncWriteExt};
+
+use crate::config::window::OverlayWindowConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -63,6 +64,32 @@ impl Default for InputConfig {
     fn default() -> Self {
         Self {
             scroll_power: Self::SCROLL_POWER,
+        }
+    }
+}
+
+mod window {
+    use glm::U16Vec2;
+    use serde::{Deserialize, Serialize};
+
+    /// Overlay Window Configuration. lightweight and Copy. so, we can pass this around to functions that need the window size/postion
+    #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+    pub struct OverlayWindowConfig {
+        /// framebuffer size in pixels
+        pub framebuffer_size: U16Vec2,
+        /// vsync mode
+        pub vsync: u32,
+    }
+    impl OverlayWindowConfig {
+        pub const FRAMEBUFFER_SIZE: U16Vec2 = U16Vec2::new(800, 600);
+        pub const VSYNC: u32 = 1;
+    }
+    impl Default for OverlayWindowConfig {
+        fn default() -> Self {
+            Self {
+                framebuffer_size: Self::FRAMEBUFFER_SIZE,
+                vsync: Self::VSYNC,
+            }
         }
     }
 }

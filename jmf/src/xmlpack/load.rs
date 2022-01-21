@@ -1216,7 +1216,7 @@ fn parse_markers_trails(
                         m.achievement = Some(achievement);
                     }
 
-                    if let Some(tex) = template.icon_file {
+                    if let Some(tex) = template.texture {
                         m.texture = image_path_id.get(&tex.to_lowercase()).copied();
                         if m.texture.is_none() {
                             errors.push(ErrorWithLocation {
@@ -1226,6 +1226,7 @@ fn parse_markers_trails(
                             });
                         }
                     }
+
                     for trail_id in 0..u16::MAX {
                         let id: u32 = (map_id << 16) | (trail_id as u32);
                         if let std::collections::btree_map::Entry::Vacant(e) = trails.entry(id) {

@@ -1,35 +1,41 @@
 use std::io::Write;
 
+use tracing::info;
+
 fn main() {
     {
-        {
-            use simplelog::*;
-            let config = ConfigBuilder::default()
-                .set_location_level(LevelFilter::Error)
-                .add_filter_ignore_str("oxipng")
-                .build();
+        let _guard = {
+            let file_path = std::path::Path::new(".").join("jmf.log");
+            let writer =
+                std::io::BufWriter::new(std::fs::File::create(&file_path).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to create logfile at path: {:#?} due to error: {:#?}",
+                        &file_path, &e
+                    )
+                }));
+            let (nb, guard) = tracing_appender::non_blocking(writer);
+            tracing_subscriber::fmt().with_writer(nb).init();
 
-            CombinedLogger::init(vec![
-                TermLogger::new(
-                    log::LevelFilter::Debug,
-                    config.clone(),
-                    TerminalMode::Mixed,
-                    ColorChoice::Auto,
-                ),
-                WriteLogger::new(
-                    log::LevelFilter::Trace,
-                    config,
-                    std::fs::File::create("./jmf.log").unwrap(),
-                ),
-            ])
-            .unwrap();
-        }
+            info!("Application Name: {}", env!("CARGO_PKG_NAME"));
+            info!("Application Version: {}", env!("CARGO_PKG_VERSION"));
+            info!("Application Authors: {}", env!("CARGO_PKG_AUTHORS"));
+            info!(
+                "Application Repository Link: {}",
+                env!("CARGO_PKG_REPOSITORY")
+            );
+            info!("Application License: {}", env!("CARGO_PKG_LICENSE"));
+
+            info!("git version details: {}", git_version::git_version!());
+
+            info!("created app and initialized logging");
+            guard
+        };
 
         let (pack, errors) =
             jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tw"));
         std::thread::sleep(std::time::Duration::from_secs(5));
 
-        log::warn!("{:#?}", &errors);
+        tracing::warn!("{:#?}", &errors);
         std::fs::File::create("./assets/packs/pack.json")
             .unwrap()
             .write_all(serde_json::to_string(&pack.unwrap()).unwrap().as_bytes())
@@ -39,6 +45,3 @@ fn main() {
         // std::thread::sleep(std::time::Duration::from_secs(30));
     }
 }
-// pub fn main() {
-
-// }

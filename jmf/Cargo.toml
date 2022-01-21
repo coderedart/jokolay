@@ -31,9 +31,10 @@ image = { version = "0", default-features = false, features = ["png"] }
 oxipng = "5"
 # for hashing images/trails
 xxhash-rust = {version = "0", features = ["xxh3"] }
-
-log = "0"
-simplelog = "0"
+tracing-appender = { version = "0" }
+tracing-subscriber = { version = "0" }
+tracing = "0"
+git-version = "0"
 # for easier extraction to folers and compression of folders into zip files (.taco format alias)
 zip-extensions = "0"
 zip = "0"

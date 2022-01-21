@@ -316,7 +316,7 @@
 //                                 }
 //                             }
 //                             route @ crate::xmlpack::xml_marker::PoiOrTrail::Route { .. } => {
-//                                 log::warn!("ignoring a route. {:?} in file: {:?}", route, &xf_path);
+//                                 tracing::warn!("ignoring a route. {:?} in file: {:?}", route, &xf_path);
 //                             }
 //                         }
 //                     }
@@ -483,7 +483,7 @@
 //     //                             };
 //     //                             let map_markers = &mut cat.map_markers.get_mut(&map_id).unwrap().markers;
 //     //                             if let Some(prev_marker) = map_markers.get(&m.id) {
-//     //                                 log::warn!("prev marker and current marker have same id: {:?} {:?}", prev_marker, &m);
+//     //                                 tracing::warn!("prev marker and current marker have same id: {:?} {:?}", prev_marker, &m);
 //     //                                 m.id = Uuid::new_v4().into();
 //     //                             }
 //     //                             map_markers.insert(m.id, m);
@@ -533,7 +533,7 @@
 //     //                                 };
 //     //                                 let map_markers = cat.map_markers.get_mut(&map_id).unwrap();
 //     //                             if let Some(prev_trail) = map_markers.trails.get(&t.id) {
-//     //                                 log::warn!("prev trail {:?} and current trail {:?} have the same id", prev_trail, &t);
+//     //                                 tracing::warn!("prev trail {:?} and current trail {:?} have the same id", prev_trail, &t);
 //     //                                 t.id = Uuid::new_v4().into();
 //     //                             }
 //     //                             map_markers.trails.insert(t.id, t);
