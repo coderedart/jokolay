@@ -1,9 +1,11 @@
+
 [workspace]
 resolver = "2"
+
 members = [
     "jokolay",
     "jokolink",
     "jmf",
     "jokoapi",
-    "jokotypes"
 ]
+default-members = ["jokolay"]
