@@ -10,7 +10,7 @@ keywords = ["GuildWars2", "GW2", "Overlay"]
 resolver = "2"
 
 [dependencies]
-glfw = { version = "*", git = "https://github.com/coderedart/glfw-rs.git" }
+glfw = { version = "*", git = "https://github.com/coderedart/glfw-rs.git", features = ["all"] }
 # glfw = {version =  "*", path = "../glfw-rs"}
 # jokolink = {version  = "*", path =  "../jokolink"}
 jokolink = {version = "*", path = "../jokolink"}
@@ -26,12 +26,12 @@ serde_repr = "0.1.7"
 # num-derive = "0.3.3"
 # num-traits = "0.2.14"
 bytemuck = "1.7.2"
-egui = { version = "0.16.1", default-features = false, features = ["persistence", "convert_bytemuck", "multi_threaded", "default_fonts"] }
+egui = { version = "*", git = "https://github.com/emilk/egui.git", default-features = false, features = ["persistence", "convert_bytemuck", "multi_threaded", "default_fonts"] }
 glm = { version = "0.16.0", package = "nalgebra-glm", features = ["serde-serialize"] }
 image = { version = "0.23.14", default-features = false, features = ["png"] }
 copypasta = {version = "0.7.1", default-features = false, features = ["x11"]}
 fastrand = "1.5.0"
-anyhow = "1.0.44"
+anyhow = { version = "1.0.44", features = ["backtrace"]}
 # rayon = "1.5.1"
 # bus = "2.2.3"
 guillotiere = {version = "*", features = ["serialization"]}
@@ -62,7 +62,10 @@ rdev = "0.5.1"
 time = "0.3.6"
 tap = "1.0.1"
 circular-queue = "0.2.6"
-
+erupt = { version = "*", git = "https://gitlab.com/Friz64/erupt.git", rev = "a8c27e7" , features = ["bytemuck", "surface", "loading"]}
+erupt-bootstrap = {version = "*", git = "https://gitlab.com/Friz64/erupt-bootstrap.git", rev = "f3fbf32" }
+#erupt = {version = "*", features = ["bytemuck", "surface", "loading"]}
+# wgpu = "0.12.0"
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.9.0", features = ["all-extensions"] }
 

@@ -25,8 +25,8 @@ mod windows;
 /// we will cache a few attributes to avoid calling into system for high frequency variables like
 #[derive(Debug)]
 pub struct OverlayWindow {
-    window: glfw::Window,
-    glfw: Glfw,
+    pub window: glfw::Window,
+    pub glfw: Glfw,
     _rdev_thread: (std::thread::JoinHandle<()>, Arc<AtomicBool>),
     rdev_events: flume::Receiver<rdev::Event>,
     pub events: Receiver<(f64, WindowEvent)>,
