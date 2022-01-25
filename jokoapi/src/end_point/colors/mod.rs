@@ -51,6 +51,7 @@ mod tests {
     use super::Colors;
 
     #[tokio::test]
+    #[ignore]
     async fn check_color() -> anyhow::Result<()> {
         let client = Client::new();
         let result = Colors::get(client.clone()).await?;

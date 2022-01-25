@@ -36,6 +36,7 @@ mod tests {
     use super::Quaggans;
 
     #[tokio::test]
+    #[ignore]
     async fn check_quaggan() {
         let client = Client::new();
         let result = Quaggans::get(client.clone()).await.unwrap();

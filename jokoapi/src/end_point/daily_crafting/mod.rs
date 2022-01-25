@@ -33,6 +33,7 @@ mod tests {
     use super::Dailycrafting;
 
     #[tokio::test]
+    #[ignore]
     async fn check_dailycrafting() -> anyhow::Result<()> {
         let client = Client::new();
         let result = Dailycrafting::get(client.clone()).await?;

@@ -7,6 +7,7 @@ use bitflags::bitflags;
 use num_derive::FromPrimitive;
 use num_derive::ToPrimitive;
 use serde::{Deserialize, Serialize};
+use tracing::*;
 
 /// As the CMumbleLink has all the fields multiple
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -27,7 +28,7 @@ impl MumbleLink {
         let cmlink = match unsafe { link_ptr.as_ref() } {
             Some(cmlink) => cmlink,
             None => {
-                log::error!("link_ptr.as_ref returned None when trying to update MumbleLink. ptr is null. something is very wrong");
+                error!("link_ptr.as_ref returned None when trying to update MumbleLink. ptr is null. something is very wrong");
                 bail!("link_ptr.as_ref return None")
             }
         };
@@ -115,7 +116,7 @@ impl CMumbleContext {
         match UIState::from_bits(self.ui_state) {
             Some(state) => Ok(state),
             None => {
-                log::error!(
+                error!(
                     "ui_state is in an invalid bitset state. ui_state uint32_t: {}",
                     self.ui_state
                 );
@@ -134,7 +135,7 @@ impl CMumbleContext {
     /// contains sockaddr_in or sockaddr_in6
     pub fn get_map_ip(&self) -> anyhow::Result<Ipv4Addr> {
         if self.server_address[0] != 2 {
-            log::error!(
+            error!(
                 "ip addr first byte is not 2. server_address byte array: {:?}",
                 self.server_address
             );
@@ -155,7 +156,7 @@ impl CMumbleContext {
         match Mount::from_u8(self.mount_index) {
             Some(m) => Ok(m),
             None => {
-                log::error!(
+                error!(
                     "invalid mount state in CMumbleContext. {}",
                     self.mount_index
                 );
@@ -243,7 +244,7 @@ impl CIdentity {
         match UISize::from_u32(self.uisz) {
             Some(u) => Ok(u),
             None => {
-                log::error!(
+                error!(
                     "could not convert uisz to UISize enum. value: {}",
                     self.uisz
                 );
@@ -256,7 +257,7 @@ impl CIdentity {
         match Race::from_u32(self.uisz) {
             Some(r) => Ok(r),
             None => {
-                log::error!("could not convert race to Race enum. value: {}", self.race);
+                error!("could not convert race to Race enum. value: {}", self.race);
                 bail!("context.race does not map to any enum value");
             }
         }
@@ -264,21 +265,21 @@ impl CIdentity {
     pub fn update(&mut self, link_ptr: *const CMumbleLink) -> anyhow::Result<()> {
         use widestring::U16CStr;
         let id = U16CStr::from_slice_truncate(unsafe { &(*link_ptr).identity }).map_err(|e| {
-            log::error!(
+            error!(
                 "could not decode CMumbleIdentity to valid wstr due to error: {:?}",
                 &e
             );
             e
         })?;
         let id = id.to_string().map_err(|e| {
-            log::error!(
+            error!(
                 "could not decode CMumbleIdentity to valid string due to error: {:?}",
                 &e
             );
             e
         })?;
         *self = serde_json::from_str::<CIdentity>(&id).map_err(|e| {
-            log::error!(
+            error!(
                 "could not decode CMumbleIdentity as json to str due to error: {:?}",
                 &e
             );

@@ -1,114 +1,47 @@
-use std::{io::Write, path::PathBuf, str::FromStr};
+use std::io::Write;
 
-use jmf::xmlpack::xml_pack_entry::XmlPackEntries;
-use log::{trace, warn};
+use tracing::info;
 
 fn main() {
     {
-        {
-            use simplelog::*;
-            let config = ConfigBuilder::default()
-                .set_location_level(LevelFilter::Error)
-                .add_filter_ignore_str("oxipng")
-                .build();
+        let _guard = {
+            let file_path = std::path::Path::new(".").join("jmf.log");
+            let writer =
+                std::io::BufWriter::new(std::fs::File::create(&file_path).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to create logfile at path: {:#?} due to error: {:#?}",
+                        &file_path, &e
+                    )
+                }));
+            let (nb, guard) = tracing_appender::non_blocking(writer);
+            tracing_subscriber::fmt().with_writer(nb).init();
 
-            CombinedLogger::init(vec![
-                TermLogger::new(
-                    log::LevelFilter::Debug,
-                    config.clone(),
-                    TerminalMode::Mixed,
-                    ColorChoice::Auto,
-                ),
-                WriteLogger::new(
-                    log::LevelFilter::Trace,
-                    config,
-                    std::fs::File::create("./jmf.log").unwrap(),
-                ),
-            ])
+            info!("Application Name: {}", env!("CARGO_PKG_NAME"));
+            info!("Application Version: {}", env!("CARGO_PKG_VERSION"));
+            info!("Application Authors: {}", env!("CARGO_PKG_AUTHORS"));
+            info!(
+                "Application Repository Link: {}",
+                env!("CARGO_PKG_REPOSITORY")
+            );
+            info!("Application License: {}", env!("CARGO_PKG_LICENSE"));
+
+            info!("git version details: {}", git_version::git_version!());
+
+            info!("created app and initialized logging");
+            guard
+        };
+
+        let (pack, errors) =
+            jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tw"));
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        tracing::warn!("{:#?}", &errors);
+        std::fs::File::create("./assets/packs/pack.json")
+            .unwrap()
+            .write_all(serde_json::to_string(&pack.unwrap()).unwrap().as_bytes())
             .unwrap();
-        }
-
-        // let pack_dir = rfd::AsyncFileDialog::new()
-        //     .pick_folder()
-        //     .await
-        //     .unwrap()
-        //     .path()
-        //     .to_path_buf();
-        // let quit_signal = Arc::new(AtomicBool::new(true));
-        // std::thread::spawn(|| {
-        //     let meter = self_meter::Meter::new(std::time::Duration::from_secs(1)).unwrap();
-        //     while quit_signal.load(std::sync::atomic::Ordering::Relaxed) {
-        //         meter.scan().unwrap();
-        //         if let Some(report) = meter.report() {
-
-        //         }
-        //     }
-        // });
-        let pack_dir = PathBuf::from_str("./assets/tw").unwrap();
-        let time = std::time::Instant::now();
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        trace!("starting deserializing: {:?}", &pack_dir);
-        let (mut pack, errors) = rt.block_on(XmlPackEntries::new(&pack_dir));
-        trace!("{:?}", errors);
-        trace!("deserialized: {:?}", time.elapsed());
-
-        let time = std::time::Instant::now();
-        let mut validation_errors = pack.validate_pack();
-        trace!("validated {:?}", time.elapsed());
-        validation_errors.sort();
-        warn!("{:#?}", &validation_errors);
-        trace!("validation errors count: {}", validation_errors.len());
-        trace!(
-            "starting json_pack conversion {}",
-            time::OffsetDateTime::now_utc().time()
-        );
-
-        let (status_sender, status_receiver) = flume::unbounded();
-        let handle = std::thread::spawn(move || pack.to_json_pack(status_sender, false));
-        let mut jpack = None;
-        for status in status_receiver.iter() {
-            match status {
-                jmf::xmlpack::xml_pack_entry::ToJsonPackStatus::Started => {
-                    log::trace!("started");
-                }
-                jmf::xmlpack::xml_pack_entry::ToJsonPackStatus::ProcessingCategories(
-                    current,
-                    total,
-                ) => {
-                    log::trace!("categories: current: {},total: {}", current, total);
-                }
-                jmf::xmlpack::xml_pack_entry::ToJsonPackStatus::ProcessingMarkers(
-                    current,
-                    total,
-                ) => {
-                    log::trace!("markers: current: {},total: {}", current, total);
-                }
-                jmf::xmlpack::xml_pack_entry::ToJsonPackStatus::ProcessingImages(
-                    current,
-                    total,
-                ) => {
-                    log::trace!("images: current: {},total: {}", current, total);
-                }
-                jmf::xmlpack::xml_pack_entry::ToJsonPackStatus::Completed(p) => jpack = Some(p),
-            }
-        }
-        handle.join().unwrap();
-        if let Some(jpack) = jpack {
-            let pack = *jpack;
-
-            // rt.block_on(pack.save_to_folder(&save_folder)).unwrap();
-            let spack = serde_json::to_string(&pack).unwrap();
-            std::fs::File::create("./assets/tw_data.json")
-                .unwrap()
-                .write_all(spack.as_bytes())
-                .unwrap();
-            // warn!("serialisation done: {:?}", time::OffsetDateTime::now_utc().time());
-            // let _dspack: SinglePack = serde_json::from_str(&spack).unwrap();
-            // let save_path = std::path::Path::new("./assets/reactif_repeat.zip");
-            // rt.block_on(json_to_xml_zip(pack, save_path));
-        }
+        // let pack_file = std::io::BufReader::new( std::fs::File::open("./assets/packs/pack.json").unwrap());
+        // let pack: Pack = serde_json::from_reader(pack_file).unwrap();
+        // std::thread::sleep(std::time::Duration::from_secs(30));
     }
 }

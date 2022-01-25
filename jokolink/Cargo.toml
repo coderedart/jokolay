@@ -1,23 +1,32 @@
 [package]
 name = "jokolink"
-description = "A crate to extract info from Guild Wars 2 MumbleLink and share it via sockets"
+description = "A crate to copy MumbleLink of Guild Wars 2 by running in wine and copying it to linux filesystem for native access by linux apps"
 license = "MIT"
 repository = "https://github.com/coderedart/jokolink.git"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["coderedart <redartofcode@gmail.com>"]
-edition = "2018"
-
+edition = "2021"
 
 [dependencies]
 anyhow = "1"
-serde = {version = "1", features = ["derive"]}
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 widestring = "0"
-winapi = { version = "0", features = ["std","winbase", "handleapi", "minwinbase", "ntdef", "winnt", "memoryapi", "winerror", "errhandlingapi", "winuser", "windef"] }
 bytemuck = "1"
-log = "0"
-simplelog = "0"
-clap = {version = "2", features = ["default", "yaml"] }
+clap = { version = "3", features = ["default", "yaml"] }
 bitflags = "1"
 num-derive = "0"
 num-traits = "0"
+tracing-appender = { version = "0" }
+tracing-subscriber = { version = "0" }
+tracing = "0"
+git-version = "0"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0", features = [
+    "Win32_System_Memory",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading"
+] }

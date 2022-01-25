@@ -58,6 +58,7 @@ mod tests {
     use super::Items;
 
     #[tokio::test]
+    #[ignore]
     async fn check_item() {
         let client = Client::new();
         let result = Items::get(client.clone()).await.unwrap();
