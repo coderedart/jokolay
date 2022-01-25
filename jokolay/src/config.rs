@@ -1,7 +1,7 @@
 use crate::{client::mm::MarkerConfig, core::window::OverlayWindowConfig};
 use jokolink::MumbleConfig;
 use serde::{Deserialize, Serialize};
-use std::{io::Write, path::Path};
+use std::path::Path;
 
 use egui::CtxRef;
 
@@ -17,7 +17,6 @@ pub struct JokoConfig {
     pub auto_attach_to_gw2: bool,
     pub file_log_level: String,
     pub term_log_level: String,
-    pub style: egui::Style,
 }
 
 impl Default for JokoConfig {
@@ -33,23 +32,22 @@ impl Default for JokoConfig {
             auto_attach_to_gw2: true,
             file_log_level,
             term_log_level,
-            style: egui::Style::default(),
         }
     }
 }
-impl JokoConfig {
-    pub fn save_config(&self, path: &Path) -> anyhow::Result<()> {
-        let mut config_file = std::fs::File::create(path)?;
-        let config_string = serde_json::to_string_pretty(self)?;
-        config_file.write_all(config_string.as_bytes())?;
-        Ok(())
-    }
-}
+
 pub async fn save_egui_memory(ctx: CtxRef, path: &Path) -> anyhow::Result<()> {
     let mut egui_cache = File::create(path).await?;
     let memory = ctx.memory().clone();
     let string = serde_json::to_string_pretty(&memory)?;
     egui_cache.write_all(string.as_bytes()).await?;
+    Ok(())
+}
+
+pub async fn save_config(config: &JokoConfig, path: &Path) -> anyhow::Result<()> {
+    let mut config_file = File::create(path).await?;
+    let config_string = serde_json::to_string_pretty(config)?;
+    config_file.write_all(config_string.as_bytes()).await?;
     Ok(())
 }
 

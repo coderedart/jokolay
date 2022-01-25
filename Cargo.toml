@@ -7,8 +7,3 @@ members = [
     "jokoapi",
     "jokotypes"
 ]
-
-
-
-[profile.release]
-lto = true

@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use egui::{CollapsingHeader, CtxRef, DragValue, Pos2};
 use parking_lot::RwLock;
@@ -15,25 +15,23 @@ use crate::{
 pub struct ConfigWindow {
     pub name: &'static str,
     pub config: Arc<RwLock<JokoConfig>>,
-    pub config_path: PathBuf,
     pub cursor_position: Pos2,
     pub average_fps: u16,
 }
 
 impl ConfigWindow {
-    pub fn new(config: Arc<RwLock<JokoConfig>>, config_path: PathBuf) -> Self {
+    pub fn new(config: Arc<RwLock<JokoConfig>>) -> Self {
         Self {
             name: "Configuration Window",
             config,
             cursor_position: Pos2::default(),
             average_fps: 0,
-            config_path,
         }
     }
     pub fn tick(&mut self, ctx: CtxRef, cfc: &mut CoreFrameCommands, new_frame_rate: u16) {
         self.average_fps = new_frame_rate;
         let mut joko_config = self.config.write();
-        // let mut changed = false;
+        let mut changed = false;
         egui::Window::new(self.name)
             .scroll2([true, true])
             .show(&ctx, |ui| {
@@ -44,13 +42,15 @@ impl ConfigWindow {
                     });
                     // Vsync
                     {
-                         ui
+                         if ui
                             .add(DragValue::new(&mut joko_config.overlay_window_config.vsync))
-                            .on_hover_text("vsync frame interval. 0 = unlimited fps. 1 = match refresh rate of monitor (i.e.vsync). 2 = present frame every 2 refreshes...");
+                            .on_hover_text("vsync frame interval. 0 = unlimited fps. 1 = present frame at every refresh of screen (i.e.vsync). 2 = present frame every 2 refreshes...")
+                            .changed() {
+                                changed = true;
+                            }
                     }
                     // transparent
-                    ui.checkbox(&mut joko_config.overlay_window_config.transparency, "transparent")
-                    .on_hover_text("only works when starting jokolay. can't change while running");
+                    ui.checkbox(&mut joko_config.overlay_window_config.transparency, "transparent").on_hover_text("only works when starting jokolay. can't change while running");
                     // decorations
                     ui.checkbox(&mut joko_config.overlay_window_config.decorated, "decorations");
                     // passthrough
@@ -77,10 +77,8 @@ impl ConfigWindow {
                             .push(WindowCommand::ApplyConfig);
                     }
 
-                    if ui.button("reset window").clicked() {
+                    if ui.button("reset").clicked() {
                         joko_config.overlay_window_config = OverlayWindowConfig::default();
-                        cfc.window_commads
-                            .push(WindowCommand::ApplyConfig);
                     }
                 });
                 CollapsingHeader::new("Guild Wars 2 Settings").show(ui, |ui| {
@@ -99,14 +97,6 @@ impl ConfigWindow {
                 egui::CollapsingHeader::new("style settings").show(ui, |ui| {
                     ctx.style_ui(ui);
                 });
-                if ui.button("save config to file").clicked() {
-                    joko_config.style = (*ctx.style()).clone();
-                    let jc = joko_config.clone();
-                    let path = self.config_path.clone();
-                    std::thread::spawn(move || {
-                        jc.save_config(&path).unwrap();
-                    });
-                }
             });
     }
 }

@@ -331,9 +331,3 @@ impl<'a, K: std::hash::Hash + std::cmp::Eq, V> IntoIterator for &'a mut UOMap<K,
         IterMut(self.0.iter_mut())
     }
 }
-
-impl<K: Eq + Clone + std::hash::Hash> UOSet<K> {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}

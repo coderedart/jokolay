@@ -50,14 +50,8 @@ pub struct ActivationData {
     #[serde(skip_serializing_if = "UOMap::is_empty")]
     pub activation_times: UOMap<MarkerID, UTStamp>,
     #[serde(default)]
-    #[serde(skip_serializing_if = "UOSet::is_empty")]
-    pub activated_cats: UOSet<CategoryID>,
-}
-
-impl ActivationData {
-    pub fn is_empty(&self) -> bool {
-        self.activated_cats.is_empty() && self.activation_times.is_empty()
-    }
+    #[serde(skip_serializing_if = "UOMap::is_empty")]
+    pub activated_cats: UOMap<CategoryID, bool>,
 }
 
 #[serde_as]
