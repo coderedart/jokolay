@@ -227,7 +227,7 @@ impl OverlayWindow {
         glfw.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
         glfw.window_hint(glfw::WindowHint::MousePassthrough(true));
 
-        glfw.window_hint(glfw::WindowHint::Decorated(false));
+        // glfw.window_hint(glfw::WindowHint::Decorated(false));
     }
 
     pub fn tick(&mut self) -> anyhow::Result<RawInput> {

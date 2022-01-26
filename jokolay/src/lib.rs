@@ -5,7 +5,7 @@ use anyhow::Context;
 pub mod config;
 pub mod core;
 
-pub fn log_initialize(assets_dir: &Path) -> anyhow::Result<WorkerGuard> {
+pub fn log_initialize(assets_dir: &Path, log_level: tracing::level_filters::LevelFilter) -> anyhow::Result<WorkerGuard> {
 
         // let file_appender = tracing_appender::rolling::never(log_directory, log_file_name);
         let file_path = assets_dir.join("jokolay.log");
@@ -19,7 +19,7 @@ pub fn log_initialize(assets_dir: &Path) -> anyhow::Result<WorkerGuard> {
             .without_time()
 
             .with_writer(nb)
-            .with_max_level(tracing::level_filters::LevelFilter::DEBUG)
+            .with_max_level(log_level)
             .init();
 
     info!("Application Name: {}", env!("CARGO_PKG_NAME"));
