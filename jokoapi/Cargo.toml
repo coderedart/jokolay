@@ -6,7 +6,7 @@ repository = "https://github.com/coderedart/jokoapi.git"
 license = "MIT"
 authors = ["coderedart <redartofcode@gmail.com>"]
 keywords = ["GuildWars2", "GW2", "API"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
