@@ -62,8 +62,8 @@ rdev = "0.5.1"
 time = "0.3.6"
 tap = "1.0.1"
 circular-queue = "0.2.6"
-erupt = { version = "*", git = "https://gitlab.com/Friz64/erupt.git", rev = "a8c27e7" , features = ["bytemuck", "surface", "loading"]}
-erupt-bootstrap = {version = "*", git = "https://gitlab.com/Friz64/erupt-bootstrap.git", rev = "f3fbf32" }
+erupt = { version = "*", features = ["bytemuck", "surface", "loading"]}
+erupt-bootstrap = {version = "0.2"  }
 #erupt = {version = "*", features = ["bytemuck", "surface", "loading"]}
 # wgpu = "0.12.0"
 [target.'cfg(unix)'.dependencies]
