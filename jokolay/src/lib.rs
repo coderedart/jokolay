@@ -17,7 +17,6 @@ pub fn log_initialize(assets_dir: &Path, log_level: tracing::level_filters::Leve
         tracing_subscriber::fmt()
             .with_ansi(false)
             .without_time()
-
             .with_writer(nb)
             .with_max_level(log_level)
             .init();
