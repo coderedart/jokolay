@@ -77,7 +77,10 @@ impl Drop for SurfaceCtx {
     }
 }
 impl SurfaceCtx {
-    pub fn tick(&mut self, render_pass: vk::RenderPass) -> anyhow::Result<erupt_bootstrap::AcquiredFrame> {
+    pub fn tick(
+        &mut self,
+        render_pass: vk::RenderPass,
+    ) -> anyhow::Result<erupt_bootstrap::AcquiredFrame> {
         unsafe {
             let current_frame = self
                 .swapchain
@@ -147,10 +150,13 @@ impl SurfaceCtx {
                         .result()?;
                     self.frame_buffers.push((iv, fb));
                 }
-                dbg!(self.swapchain.format(), self.swapchain.images().len(), self.swapchain.frames_in_flight());
+                dbg!(
+                    self.swapchain.format(),
+                    self.swapchain.images().len(),
+                    self.swapchain.frames_in_flight()
+                );
             }
             Ok(current_frame)
-
         }
     }
 }
@@ -164,8 +170,9 @@ impl Drop for Renderer {
             info!("freed cmd buffers");
             self.vtx.device.destroy_command_pool(self.cmd_pool, None);
             info!("deleted cmd pool");
-
-            info!("destroyed vulkan instance");
+            for &s in &self.synctx {
+                self.vtx.device.destroy_semaphore(s, None);
+            }
         }
     }
 }
@@ -272,7 +279,7 @@ impl Renderer {
 
             let mut options = erupt_bootstrap::swapchain::SwapchainOptions::new();
             options
-                .composite_alpha(vk::CompositeAlphaFlagBitsKHR::PRE_MULTIPLIED_KHR)
+                // .composite_alpha(vk::CompositeAlphaFlagBitsKHR::PRE_MULTIPLIED_KHR)
                 .format_preference(&[vk::SurfaceFormatKHRBuilder::new()
                     .format(vk::Format::B8G8R8A8_SRGB)
                     .color_space(vk::ColorSpaceKHR::SRGB_NONLINEAR_KHR)
@@ -295,8 +302,9 @@ impl Renderer {
                 debug_messenger: Arc::new(debug_messenger),
             });
 
-            let cmd_pool_create_info =
-                vk::CommandPoolCreateInfoBuilder::new().queue_family_index(queue_family);
+            let cmd_pool_create_info = vk::CommandPoolCreateInfoBuilder::new()
+                .queue_family_index(queue_family)
+                .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
             let cmd_pool = vtx
                 .device
                 .create_command_pool(&cmd_pool_create_info, None)
@@ -307,9 +315,12 @@ impl Renderer {
                 .command_buffer_count(swapchain.frames_in_flight() as u32);
             let cmd_buffers = vtx.device.allocate_command_buffers(&alloc_info).result()?;
             let mut synctx = vec![];
-            for _ in  0..swapchain.frames_in_flight() {
-                
-                synctx.push(vtx.device.create_semaphore(&vk::SemaphoreCreateInfo::default(), None).result()?);
+            for _ in 0..swapchain.frames_in_flight() {
+                synctx.push(
+                    vtx.device
+                        .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)
+                        .result()?,
+                );
             }
             let stx = SurfaceCtx {
                 invalidate_count_frames_reset: 0,
@@ -322,7 +333,6 @@ impl Renderer {
             };
             let egui_state = EguiState::new(vtx.clone(), &stx)?;
 
-            
             let renderer = Self {
                 stx,
                 egui_state,
@@ -341,13 +351,41 @@ impl Renderer {
             let cb = self.cmd_buffers[frame.frame_index];
             let fb = self.stx.frame_buffers[frame.image_index].1;
 
-            dev.begin_command_buffer(cb, &vk::CommandBufferBeginInfoBuilder::new()).result()?;
-            self.egui_state.tick(cb, fb, vk::Rect2D { offset: vk::Offset2D { x: 0, y: 0 }, extent: vk::Extent2D { width: 800, height: 600 }})?;
+            dev.begin_command_buffer(cb, &vk::CommandBufferBeginInfoBuilder::new())
+                .result()?;
+            self.egui_state.tick(
+                cb,
+                fb,
+                vk::Rect2D {
+                    offset: vk::Offset2D { x: 0, y: 0 },
+                    extent: vk::Extent2D {
+                        width: 800,
+                        height: 600,
+                    },
+                },
+            )?;
             dev.end_command_buffer(cb).result()?;
-            dev.queue_submit(*self.vtx.queue, &[vk::SubmitInfoBuilder::new().command_buffers(&[cb])
-            .wait_semaphores(&[frame.ready])
-            .signal_semaphores(&[self.synctx[frame.frame_index]])], frame.complete).result()?;
-            if let Err(e) = self.stx.swapchain.queue_present(&dev, *self.vtx.queue, self.synctx[frame.frame_index], frame.image_index).result() {
+            dev.queue_submit(
+                *self.vtx.queue,
+                &[vk::SubmitInfoBuilder::new()
+                    .command_buffers(&[cb])
+                    .wait_semaphores(&[frame.ready])
+                    .wait_dst_stage_mask(&[vk::PipelineStageFlags::ALL_GRAPHICS])
+                    .signal_semaphores(&[self.synctx[frame.frame_index]])],
+                frame.complete,
+            )
+            .result()?;
+            if let Err(e) = self
+                .stx
+                .swapchain
+                .queue_present(
+                    &dev,
+                    *self.vtx.queue,
+                    self.synctx[frame.frame_index],
+                    frame.image_index,
+                )
+                .result()
+            {
                 dbg!(e, "queue present failed");
             }
         }

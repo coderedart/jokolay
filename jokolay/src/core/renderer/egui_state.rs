@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use erupt::{vk, DeviceLoader};
-
+use erupt::vk;
 use tracing::info;
 
 use crate::core::renderer::{SurfaceCtx, VulkanCtx};
@@ -12,9 +11,10 @@ pub struct EguiState {
     pub render_pass: vk::RenderPass,
 }
 
-impl EguiState {
-    pub fn destroy(&mut self) {
+impl Drop for EguiState {
+    fn drop(&mut self) {
         unsafe {
+            info!("destroying egui render pass");
             self.vtx.device.destroy_render_pass(self.render_pass, None);
         }
     }
@@ -106,23 +106,19 @@ impl EguiState {
         unsafe {
             let mut clear_values = [vk::ClearValue::default()];
             clear_values[0].color = vk::ClearColorValue {
-                float32: [0.0, 0.0, 0.0, 0.0]
+                float32: [0.0, 0.0, 0.0, 0.0],
             };
             let render_pass_begin_info = vk::RenderPassBeginInfoBuilder::new()
                 .framebuffer(fb)
                 .render_pass(self.render_pass)
                 .clear_values(&clear_values)
-                .render_area(
-                    render_area
-                );
+                .render_area(render_area);
             self.vtx.device.cmd_begin_render_pass(
                 cb,
                 &render_pass_begin_info,
                 vk::SubpassContents::INLINE,
             );
-            self.vtx
-                .device
-                .cmd_end_render_pass(cb);
+            self.vtx.device.cmd_end_render_pass(cb);
         }
         Ok(())
     }

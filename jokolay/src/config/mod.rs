@@ -2,7 +2,6 @@ use jokolink::MumbleConfig;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-
 use tokio::{fs::File, io::AsyncWriteExt};
 
 use crate::config::window::OverlayWindowConfig;
