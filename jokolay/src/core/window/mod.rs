@@ -27,8 +27,8 @@ mod windows;
 pub struct OverlayWindow {
     pub window: glfw::Window,
     pub glfw: Glfw,
-    _rdev_thread: (std::thread::JoinHandle<()>, Arc<AtomicBool>),
-    rdev_events: flume::Receiver<rdev::Event>,
+    // _rdev_thread: (std::thread::JoinHandle<()>, Arc<AtomicBool>),
+    // rdev_events: flume::Receiver<inputbot::KeybdKey>,
     pub events: Receiver<(f64, WindowEvent)>,
     pub window_state: WindowState,
 }
@@ -41,7 +41,7 @@ pub struct WindowState {
     pub framebuffer_size: U32Vec2,
     pub scale: Vec2,
     pub latest_local_events: CircularQueue<WindowEvent>,
-    pub latest_global_events: CircularQueue<rdev::Event>,
+    // pub latest_global_events: CircularQueue<inputbot::KeybdKey>,
     pub cursor_position: Vec2,
     pub present_time: time::OffsetDateTime,
     pub glfw_time: f64,
@@ -58,7 +58,7 @@ impl Default for WindowState {
             framebuffer_size: Default::default(),
             scale: Default::default(),
             latest_local_events: CircularQueue::with_capacity(10),
-            latest_global_events: CircularQueue::with_capacity(10),
+            // latest_global_events: CircularQueue::with_capacity(10),
             cursor_position: Default::default(),
             present_time: OffsetDateTime::now_utc(),
             glfw_time: Default::default(),
@@ -140,19 +140,24 @@ impl OverlayWindow {
             .get_cursor_pos()
             .pipe(|cp| Vec2::new(cp.0 as f32, cp.1 as f32));
         let glfw_time = glfw.get_time();
-        let (sender, receiver) = flume::bounded(500);
-        let rdev_thread_signaller = Arc::new(AtomicBool::new(false));
-        let rdev_thread_signaller_copy = rdev_thread_signaller.clone();
-        let rdev_thread_handle = std::thread::spawn(move || {
-            if let Err(e) = rdev::listen(move |ev| {
-                let _ = sender.send(ev);
-                if rdev_thread_signaller_copy.load(std::sync::atomic::Ordering::Relaxed) {
-                    panic!("rdev_thread_signaller is true")
-                }
-            }) {
-                error!("failed to start rdev listener due to error: {:#?}", e);
-            }
-        });
+        // let (sender, receiver) = flume::bounded(500);
+        // let rdev_thread_signaller = Arc::new(AtomicBool::new(false));
+        // let rdev_thread_signaller_copy = rdev_thread_signaller.clone();
+        // let rdev_thread_handle = std::thread::spawn(move || {
+        //     inputbot::init_device();
+        //     inputbot::KeybdKey::bind_all(move |ev| {
+        //         dbg!(&ev);
+        //         let _ = sender.try_send(ev);
+        //         if rdev_thread_signaller_copy.load(std::sync::atomic::Ordering::Relaxed) {
+        //             panic!("rdev_thread_signaller is true");
+        //         }
+        //     });
+        //
+        //     inputbot::handle_input_events();
+        //     // {
+        //     //     error!("failed to start rdev listener due to error: {:#?}", e);
+        //     // }
+        // });
         let window_state = WindowState {
             size,
             position,
@@ -169,8 +174,8 @@ impl OverlayWindow {
             events,
             glfw,
             window_state,
-            _rdev_thread: (rdev_thread_handle, rdev_thread_signaller),
-            rdev_events: receiver,
+            // _rdev_thread: (rdev_thread_handle, rdev_thread_signaller),
+            // rdev_events: receiver,
         })
     }
 
@@ -235,7 +240,7 @@ impl OverlayWindow {
         let cursor_position = self
             .window
             .get_cursor_pos()
-            .pipe(|cp| Vec2::new(cp.0 as f32, cp.1 as f32));
+            .pipe(|cp| Vec2::new(cp.0 as f32 / self.window_state.scale.x, cp.1 as f32 / self.window_state.scale.y));
         self.window_state.glfw_time = self.glfw.get_time();
         self.window_state.present_time = OffsetDateTime::now_utc();
         let delta = self.window_state.glfw_time - self.window_state.previous_fps_reset;
@@ -248,6 +253,7 @@ impl OverlayWindow {
 
         let mut input = RawInput {
             time: Some(self.window_state.glfw_time),
+            pixels_per_point: Some(2.0),
             ..Default::default()
         };
         if cursor_position != self.window_state.cursor_position {
@@ -257,10 +263,10 @@ impl OverlayWindow {
             ))
         }
         self.window_state.latest_local_events.clear();
-        self.window_state.latest_global_events.clear();
-        for event in self.rdev_events.try_iter() {
-            self.window_state.latest_global_events.push(event);
-        }
+        // self.window_state.latest_global_events.clear();
+        // for event in self.rdev_events.try_iter() {
+        //     self.window_state.latest_global_events.push(event);
+        // }
         for (_, event) in glfw::flush_messages(&self.events) {
             self.window_state.latest_local_events.push(event.clone());
             if let Some(ev) = match event {
@@ -284,9 +290,9 @@ impl OverlayWindow {
                     Some(emb)
                 }
                 glfw::WindowEvent::CursorPos(x, y) => {
-                    Some(Event::PointerMoved([x as f32, y as f32].into()))
+                    Some(Event::PointerMoved([x as f32 / self.window_state.scale.x, y as f32 / self.window_state.scale.y].into()))
                 }
-                glfw::WindowEvent::Scroll(x, y) => Some(Event::Scroll([x as f32, y as f32].into())),
+                glfw::WindowEvent::Scroll(x, y) => Some(Event::Scroll([x as f32 * 20.0, y as f32 * 20.0].into())),
                 glfw::WindowEvent::Key(k, _, a, m) => match k {
                     glfw::Key::C => {
                         if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {

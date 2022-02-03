@@ -1,21 +1,23 @@
-pub mod egui_state;
-pub mod init;
-
+use std::collections::{HashMap, VecDeque};
 use std::ffi::CStr;
 use std::sync::Arc;
 
 use anyhow::Context;
+use egui::{AlphaImage, ColorImage, ImageData, TextureId, TexturesDelta};
+use erupt::{DeviceLoader, EntryLoader, InstanceLoader, vk};
 use erupt::vk::{DebugUtilsMessageSeverityFlagBitsEXT, QueueFlags};
+use erupt::vk::DebugUtilsMessengerEXT;
 use erupt_bootstrap::{DebugMessenger, DeviceBuilder, InstanceBuilder, ValidationLayers};
-
+use erupt_bootstrap::{DeviceMetadata, InstanceMetadata};
+use parking_lot::RwLock;
 use tracing::{debug, error, info, warn};
+use vk_mem_erupt::{Allocation, AllocationCreateFlags, AllocationCreateInfo, AllocatorCreateFlags, MemoryUsage};
 
 use crate::core::renderer::egui_state::EguiState;
 use crate::core::window::OverlayWindow;
 
-use erupt::vk::DebugUtilsMessengerEXT;
-use erupt::{vk, DeviceLoader, EntryLoader, InstanceLoader};
-use erupt_bootstrap::{DeviceMetadata, InstanceMetadata};
+pub mod egui_state;
+mod texture;
 
 pub struct Renderer {
     pub cmd_pool: vk::CommandPool,
@@ -23,11 +25,20 @@ pub struct Renderer {
     pub synctx: Vec<vk::Semaphore>,
     pub egui_state: egui_state::EguiState,
     pub stx: SurfaceCtx,
-    pub vtx: Arc<VulkanCtx>,
+    pub vtx: VulkanCtx,
 }
 
-#[derive(Debug, Clone)]
 pub struct VulkanCtx {
+    pub textures: HashMap<TextureId, (vk::ImageView, vk::Image, Allocation)>,
+    pub delete_queue: VecDeque<(
+        Vec<(vk::ImageView, vk::Image, Allocation)>,
+        Vec<(vk::Buffer, Allocation)>,
+    )>,
+    pub linear_sampler: vk::Sampler,
+    pub allocator: vk_mem_erupt::Allocator,
+    pub frame_resource_index: usize,
+    pub present_frame: usize,
+    pub frames_in_flight: usize,
     pub queue_family: u32,
     pub queue: Arc<vk::Queue>,
     pub device: Arc<DeviceLoader>,
@@ -37,9 +48,26 @@ pub struct VulkanCtx {
     _instance_metadata: Arc<InstanceMetadata>,
     pub device_metadata: Arc<DeviceMetadata>,
 }
-impl Drop for VulkanCtx {
-    fn drop(&mut self) {
+
+impl VulkanCtx {
+    pub fn destroy(&mut self) {
         unsafe {
+            for (v, i, a) in self.textures.values() {
+                self.device.destroy_image_view(*v, None);
+                self.allocator.destroy_image(*i, a);
+            }
+            for (iv, bv) in &self.delete_queue {
+                for (v, i, a) in iv {
+                    self.device.destroy_image_view(*v, None);
+                    self.allocator.destroy_image(*i, a);
+                }
+                for (b, a) in bv {
+                    self.allocator.destroy_buffer(*b, a);
+                }
+            }
+            warn!("{:#?}", self.allocator.build_stats_string(false));
+            self.allocator.destroy();
+            self.device.destroy_sampler(self.linear_sampler, None);
             warn!("destroying device");
             self.device.destroy_device(None);
             if let Some(messenger) = *self.debug_messenger {
@@ -51,40 +79,63 @@ impl Drop for VulkanCtx {
         }
     }
 }
+impl VulkanCtx {
+    pub fn tick(&mut self) -> anyhow::Result<()> {
+        unsafe {
+            self.present_frame += 1;
+            while self.delete_queue.len() > self.frames_in_flight {
+                let (imgs, bufs) = self.delete_queue.pop_front().expect("could not pop front delete queue, despite length being greater than frames in flight");
 
+                {
+                    for (iv, i, a) in imgs {
+                        self.device.destroy_image_view(iv, None);
+                        self.allocator.destroy_image(i, &a);
+                    }
+                    for (b, a) in bufs {
+                        // self.vtx.device.destroy_buffer(iv, None);
+                        self.allocator.destroy_buffer(b, &a);
+                    }
+                }
+            }
+        }
+            Ok(())
+    }
+}
 pub struct SurfaceCtx {
     pub invalidate_count_frames_reset: usize,
     pub frame_buffers: Vec<(vk::ImageView, vk::Framebuffer)>,
     pub old_frame_buffers: Vec<(vk::ImageView, vk::Framebuffer)>,
     pub swapchain: erupt_bootstrap::Swapchain,
     pub surface: vk::SurfaceKHR,
-    pub vtx: Arc<VulkanCtx>,
 }
-impl Drop for SurfaceCtx {
-    fn drop(&mut self) {
+
+impl  SurfaceCtx {
+    pub fn destroy(&mut self, vtx: &mut VulkanCtx) {
         unsafe {
             for &(iv, fb) in &self.frame_buffers {
-                self.vtx.device.destroy_image_view(iv, None);
-                self.vtx.device.destroy_framebuffer(fb, None);
+                vtx.device.destroy_image_view(iv, None);
+                vtx.device.destroy_framebuffer(fb, None);
             }
             for &(iv, fb) in &self.old_frame_buffers {
-                self.vtx.device.destroy_image_view(iv, None);
-                self.vtx.device.destroy_framebuffer(fb, None);
+                vtx.device.destroy_image_view(iv, None);
+                vtx.device.destroy_framebuffer(fb, None);
             }
-            self.swapchain.destroy(&self.vtx.device);
-            self.vtx.instance.destroy_surface_khr(self.surface, None);
+            self.swapchain.destroy(&vtx.device);
+            vtx.instance.destroy_surface_khr(self.surface, None);
         }
     }
 }
+
 impl SurfaceCtx {
     pub fn tick(
         &mut self,
+        vtx: &mut VulkanCtx,
         render_pass: vk::RenderPass,
     ) -> anyhow::Result<erupt_bootstrap::AcquiredFrame> {
         unsafe {
             let current_frame = self
                 .swapchain
-                .acquire(&self.vtx.instance, &self.vtx.device, u64::MAX)
+                .acquire(&vtx.instance, &vtx.device, u64::MAX)
                 .result()?;
             if current_frame.invalidate_images {
                 self.invalidate_count_frames_reset = 0;
@@ -99,16 +150,16 @@ impl SurfaceCtx {
                 && self.invalidate_count_frames_reset > self.swapchain.frames_in_flight()
             {
                 for &(iv, fb) in &self.old_frame_buffers {
-                    self.vtx.device.destroy_image_view(iv, None);
-                    self.vtx.device.destroy_framebuffer(fb, None);
+                    vtx.device.destroy_image_view(iv, None);
+                    vtx.device.destroy_framebuffer(fb, None);
                 }
                 self.old_frame_buffers.clear();
             }
             assert!(!self.swapchain.images().is_empty());
             if self.frame_buffers.is_empty() {
                 for &scimage in self.swapchain.images() {
-                    let iv = self
-                        .vtx
+                    let iv = vtx
+
                         .device
                         .create_image_view(
                             &vk::ImageViewCreateInfoBuilder::new()
@@ -135,8 +186,7 @@ impl SurfaceCtx {
                             None,
                         )
                         .result()?;
-                    let fb = self
-                        .vtx
+                    let fb = vtx
                         .device
                         .create_framebuffer(
                             &vk::FramebufferCreateInfoBuilder::new()
@@ -160,10 +210,12 @@ impl SurfaceCtx {
         }
     }
 }
+
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
             self.vtx.device.device_wait_idle().unwrap();
+            
             self.vtx
                 .device
                 .free_command_buffers(self.cmd_pool, &self.cmd_buffers);
@@ -173,6 +225,9 @@ impl Drop for Renderer {
             for &s in &self.synctx {
                 self.vtx.device.destroy_semaphore(s, None);
             }
+            self.egui_state.destroy(&mut self.vtx);
+            self.stx.destroy(&mut self.vtx);
+            self.vtx.destroy();
         }
     }
 }
@@ -187,13 +242,13 @@ impl Renderer {
 
             // app info. because why not
             let instance_builder = InstanceBuilder::new()
-            .app_name(super::window::OverlayWindow::WINDOW_TITLE)?
-            .app_version(0, 1)
-            .engine_name("Jokolay Engine")?
-            .engine_version(0, 1)
-            .require_api_version(1, 2)
-            .require_extension(erupt::extensions::khr_get_surface_capabilities2::KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME)
-            .require_extension(erupt::extensions::khr_get_physical_device_properties2::KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+                .app_name(super::window::OverlayWindow::WINDOW_TITLE)?
+                .app_version(0, 1)
+                .engine_name("Jokolay Engine")?
+                .engine_version(0, 1)
+                .require_api_version(1, 2)
+                .require_extension(erupt::extensions::khr_get_surface_capabilities2::KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME)
+                .require_extension(erupt::extensions::khr_get_physical_device_properties2::KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
             // if validation enabled, extra stuff
             let instance_builder = if validation {
                 instance_builder
@@ -230,6 +285,7 @@ impl Renderer {
             let device_features = vk::PhysicalDeviceFeatures2Builder::new().features(
                 vk::PhysicalDeviceFeaturesBuilder::new()
                     .multi_draw_indirect(true)
+                    .logic_op(true)
                     .build(),
             );
             let queue_requirements = erupt_bootstrap::QueueFamilyCriteria::graphics_present()
@@ -283,7 +339,9 @@ impl Renderer {
                 .format_preference(&[vk::SurfaceFormatKHRBuilder::new()
                     .format(vk::Format::B8G8R8A8_SRGB)
                     .color_space(vk::ColorSpaceKHR::SRGB_NONLINEAR_KHR)
-                    .build()]);
+                    .build()])
+                // .present_mode_preference(&[vk::PresentModeKHR::IMMEDIATE_KHR])
+            ;
             let swapchain = erupt_bootstrap::Swapchain::new(
                 options,
                 surface,
@@ -291,7 +349,30 @@ impl Renderer {
                 &device,
                 swapchain_image_extent,
             );
-            let vtx = Arc::new(VulkanCtx {
+
+            let linear_sampler = device
+                .create_sampler(&vk::SamplerCreateInfoBuilder::new()
+                    .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                    .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                                , None)
+                .result()?;
+            let allocator = vk_mem_erupt::Allocator::new(&vk_mem_erupt::AllocatorCreateInfo {
+                physical_device: device_metadata.physical_device(),
+                device: device.clone(),
+                instance: instance.clone(),
+                flags: AllocatorCreateFlags::NONE,
+                preferred_large_heap_block_size: 0,
+                frame_in_use_count: swapchain.frames_in_flight() as u32,
+                heap_size_limits: None,
+            })?;
+            let mut vtx =VulkanCtx {
+                textures: HashMap::new(),
+                delete_queue: VecDeque::new(),
+                allocator,
+                linear_sampler,
+                frames_in_flight: swapchain.frames_in_flight(),
+                present_frame: 0,
+                frame_resource_index: 0,
                 queue_family,
                 queue: Arc::new(queue),
                 _entry: entry,
@@ -300,7 +381,7 @@ impl Renderer {
                 device,
                 device_metadata: Arc::new(device_metadata),
                 debug_messenger: Arc::new(debug_messenger),
-            });
+            };
 
             let cmd_pool_create_info = vk::CommandPoolCreateInfoBuilder::new()
                 .queue_family_index(queue_family)
@@ -329,11 +410,11 @@ impl Renderer {
                 old_frame_buffers: vec![],
                 swapchain,
                 surface,
-                vtx: vtx.clone(),
             };
-            let egui_state = EguiState::new(vtx.clone(), &stx)?;
+            let egui_state = EguiState::new( &mut vtx, &stx)?;
 
             let renderer = Self {
+
                 stx,
                 egui_state,
                 vtx,
@@ -344,25 +425,217 @@ impl Renderer {
             Ok(renderer)
         }
     }
-    pub fn tick(&mut self) -> anyhow::Result<()> {
+    pub fn tick(&mut self, delta: TexturesDelta, shapes: Vec<egui::ClippedMesh>, window: &OverlayWindow) -> anyhow::Result<()> {
         unsafe {
-            let frame = self.stx.tick(self.egui_state.render_pass)?;
+            let frame = self.stx.tick(&mut self.vtx, self.egui_state.render_pass)?;
             let dev = self.vtx.device.clone();
             let cb = self.cmd_buffers[frame.frame_index];
             let fb = self.stx.frame_buffers[frame.image_index].1;
-
+            self.vtx.delete_queue.push_back((vec![], vec![]));
+            self.vtx.frame_resource_index = frame.frame_index;
+            self.vtx.tick();
             dev.begin_command_buffer(cb, &vk::CommandBufferBeginInfoBuilder::new())
                 .result()?;
+            let mut tex_update = !delta.set.is_empty() || !delta.free.is_empty();
+            for (id, dt) in delta.set {
+                info!("{:#?}, {:#?}", &id, &dt.pos);
+                if dt.pos.is_none() {
+                    dbg!("resizing", &dt.image.width(), &dt.image.height());
+                }
+                let offset_x = dt.pos.unwrap_or_default()[0] as i32;
+                let offset_y = dt.pos.unwrap_or_default()[1] as i32;
+                let width = dt.image.width() as u32;
+                let height = dt.image.height() as u32;
+                let format = vk::Format::R8G8B8A8_SRGB;
+                let whole = dt.is_whole();
+                let pixels: Vec<u8> = match dt.image {
+                    egui::ImageData::Color(c) => {
+                        c.pixels.into_iter().map(|c32| {
+                            c32.to_srgba_unmultiplied()
+                        }).flatten().collect()
+                    },
+                    egui::ImageData::Alpha(a) => {
+                        a.srgba_pixels(1.0).map(|c32| {
+                            c32.to_srgba_unmultiplied()
+                        }).flatten().collect()
+                        // a.pixels.into_iter().map(|a8| {
+                        //     egui::Color32::from_white_alpha(a8).to_array()
+                        // }).flatten().collect()
+                    }
+                };
+                // let cimg = egui::ColorImage::example();
+                // // let cimg = egui::ColorImage::new([128, 128], egui::Color32::BLUE);
+                // let pixels: Vec<u8> = cimg.pixels.iter().map(|&c32| {
+                //     c32.to_srgba_unmultiplied()
+                //     // [255, 234, 123, 255]
+                // }).flatten().collect();
+                // let width = cimg.width() as u32;
+                // let height = cimg.height() as u32;
+                assert_eq!(pixels.len(), (width * height * 4) as usize);
+                let size = pixels.len();
+                if whole {
+                    // let img_create_info = ;
+                    let alloc_info = AllocationCreateInfo {
+                        usage: MemoryUsage::GpuOnly,
+                        flags: AllocationCreateFlags::empty(),
+                        required_flags: Default::default(),
+                        preferred_flags: Default::default(),
+                        memory_type_bits: 0,
+                        pool: None,
+                        user_data: None,
+                    };
+                    let (img, img_allocation, img_allocation_info) = self
+                    .vtx
+                        .allocator
+                        .create_image(&*vk::ImageCreateInfoBuilder::new()
+                            .format(format)
+                            .extent(
+                                vk::Extent3DBuilder::new()
+                                    .width(width)
+                                    .height(height)
+                                    .depth(1)
+                                    .build(),
+                            )
+                            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+                            .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
+                            .initial_layout(vk::ImageLayout::PREINITIALIZED)
+                            .samples(vk::SampleCountFlagBits::_1)
+                            .tiling(vk::ImageTiling::OPTIMAL)
+                            .mip_levels(1)
+                            .array_layers(1)
+                            .queue_family_indices(&[self.vtx.queue_family])
+                            .image_type(vk::ImageType::_2D), &alloc_info)?;
+
+                    let view = self
+                        .vtx
+                        .device
+                        .create_image_view(
+                            &vk::ImageViewCreateInfoBuilder::new()
+                                .format(format)
+                                .image(img)
+                                .subresource_range(
+                                    vk::ImageSubresourceRangeBuilder::new()
+                                        .level_count(1)
+                                        .base_mip_level(0)
+                                        .layer_count(1)
+                                        .base_array_layer(0)
+                                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                                        .build(),
+                                )
+                                .view_type(vk::ImageViewType::_2D)
+                                .components(vk::ComponentMappingBuilder::default().build()),
+                            None,
+                        )
+                        .result()?;
+                    if let Some(previous_texture) =
+                    self.vtx.textures.insert(id, (view, img, img_allocation))
+                    {
+                        self.vtx.delete_queue.back_mut().unwrap().0.push(previous_texture);
+                    }
+                    self.vtx.device.cmd_pipeline_barrier(cb, vk::PipelineStageFlags::ALL_GRAPHICS,
+                                                         vk::PipelineStageFlags::ALL_GRAPHICS, vk::DependencyFlags::default(), &[], &[], &[
+                            vk::ImageMemoryBarrierBuilder::new()
+                                .image(img)
+                                .src_queue_family_index(self.vtx.queue_family)
+                                .dst_queue_family_index(self.vtx.queue_family)
+                                .old_layout(vk::ImageLayout::PREINITIALIZED)
+                                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                                .src_access_mask(vk::AccessFlags::MEMORY_READ)
+                                .dst_access_mask(vk::AccessFlags::MEMORY_WRITE)
+                                .subresource_range(vk::ImageSubresourceRangeBuilder::new()
+                                    .layer_count(1)
+                                    .base_array_layer(0)
+                                    .base_mip_level(0)
+                                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                                    .level_count(1)
+                                    .build())
+                        ]);
+                }
+
+                let (buffer, buffer_allocation, buffer_allocation_info) =
+                    self.vtx.allocator.create_buffer(
+                        &vk::BufferCreateInfoBuilder::new()
+                            .usage(vk::BufferUsageFlags::TRANSFER_SRC)
+                            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+                            .queue_family_indices(&[self.vtx.queue_family])
+                            .size(size as u64),
+                        &AllocationCreateInfo {
+                            usage: MemoryUsage::CpuOnly,
+                            flags: AllocationCreateFlags::MAPPED,
+                            ..Default::default()
+                        },
+                    )?;
+                dbg!(&buffer_allocation_info);
+                let ptr = buffer_allocation_info.get_mapped_data();
+                std::ptr::copy_nonoverlapping(pixels.as_ptr(), ptr, pixels.len());
+                let tex = self.vtx.textures.get(&id).expect("failed to find texture in map").1;
+                self.vtx.device.cmd_pipeline_barrier(cb, vk::PipelineStageFlags::ALL_GRAPHICS,
+                                                     vk::PipelineStageFlags::ALL_GRAPHICS, vk::DependencyFlags::default(), &[], &[], &[
+                    vk::ImageMemoryBarrierBuilder::new()
+                        .image(tex)
+                        .src_queue_family_index(self.vtx.queue_family)
+                        .dst_queue_family_index(self.vtx.queue_family)
+                        .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                        .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                        .src_access_mask(vk::AccessFlags::MEMORY_READ)
+                        .dst_access_mask(vk::AccessFlags::MEMORY_WRITE)
+                        .subresource_range(vk::ImageSubresourceRangeBuilder::new()
+                            .layer_count(1)
+                            .base_array_layer(0)
+                            .base_mip_level(0)
+                            .aspect_mask(vk::ImageAspectFlags::COLOR)
+                            .level_count(1)
+                            .build())
+                ]);
+                self.vtx.device.cmd_copy_buffer_to_image(cb, buffer, tex,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL, &[vk::BufferImageCopyBuilder::new()
+                        .buffer_image_height(height)
+                        .buffer_offset(0)
+                        .buffer_row_length(width)
+                        .image_offset(vk::Offset3DBuilder::new().x(offset_x).y(offset_y).z(0).build())
+                        .image_extent(vk::Extent3DBuilder::new()
+                            .width(width)
+                            .height(height)
+                            .depth(1)
+                            .build())
+                        .image_subresource(vk::ImageSubresourceLayersBuilder::new()
+                            .aspect_mask(vk::ImageAspectFlags::COLOR)
+                            .base_array_layer(0)
+                            .layer_count(1)
+                            .mip_level(0)
+                            .build())
+                        ]);
+                self.vtx.device.cmd_pipeline_barrier(cb, vk::PipelineStageFlags::ALL_GRAPHICS, vk::PipelineStageFlags::ALL_GRAPHICS, vk::DependencyFlags::default(), &[], &[], &[
+                    vk::ImageMemoryBarrierBuilder::new()
+                        .image(tex)
+                        .src_queue_family_index(self.vtx.queue_family)
+                        .dst_queue_family_index(self.vtx.queue_family)
+                        .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                        .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                        .src_access_mask(vk::AccessFlags::MEMORY_WRITE)
+                        .dst_access_mask(vk::AccessFlags::MEMORY_READ)
+                        .subresource_range(vk::ImageSubresourceRangeBuilder::new()
+                            .layer_count(1)
+                            .base_array_layer(0)
+                            .base_mip_level(0)
+                            .aspect_mask(vk::ImageAspectFlags::COLOR)
+                            .level_count(1)
+                            .build())
+                ]);
+
+                self.vtx.delete_queue.back_mut().unwrap().1.push((buffer, buffer_allocation));
+                dbg!(buffer_allocation);
+            }
             self.egui_state.tick(
+                &mut self.vtx,
                 cb,
                 fb,
-                vk::Rect2D {
-                    offset: vk::Offset2D { x: 0, y: 0 },
-                    extent: vk::Extent2D {
-                        width: 800,
-                        height: 600,
-                    },
-                },
+                vk::Rect2DBuilder::new()
+                    .offset(vk::Offset2DBuilder::new().x(0).y(0).build())
+                    .extent(self.stx.swapchain.extent()).build(),
+                shapes,
+                tex_update,
+                window.window_state.scale[0]
             )?;
             dev.end_command_buffer(cb).result()?;
             dev.queue_submit(
@@ -374,7 +647,7 @@ impl Renderer {
                     .signal_semaphores(&[self.synctx[frame.frame_index]])],
                 frame.complete,
             )
-            .result()?;
+                .result()?;
             if let Err(e) = self
                 .stx
                 .swapchain
@@ -388,6 +661,7 @@ impl Renderer {
             {
                 dbg!(e, "queue present failed");
             }
+            
         }
         Ok(())
     }
