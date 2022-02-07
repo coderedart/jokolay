@@ -1,8 +1,8 @@
 use jokolink::MumbleConfig;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+// use std::path::Path;
 
-use tokio::{fs::File, io::AsyncWriteExt};
+// use tokio::{fs::File, io::AsyncWriteExt};
 
 use crate::config::window::OverlayWindowConfig;
 
@@ -41,12 +41,12 @@ impl Default for JokoConfig {
 //     Ok(())
 // }
 
-pub async fn save_config(config: &JokoConfig, path: &Path) -> anyhow::Result<()> {
-    let mut config_file = File::create(path).await?;
-    let config_string = serde_json::to_string_pretty(config)?;
-    config_file.write_all(config_string.as_bytes()).await?;
-    Ok(())
-}
+// pub async fn save_config(config: &JokoConfig, path: &Path) -> anyhow::Result<()> {
+//     let mut config_file = File::create(path).await?;
+//     let config_string = serde_json::to_string_pretty(config)?;
+//     config_file.write_all(config_string.as_bytes()).await?;
+//     Ok(())
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]

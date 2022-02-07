@@ -1,8 +1,13 @@
+// #[cfg(target_os = "linux")]
+// mod linux;
+// #[cfg(target_os = "windows")]
+// mod windows;
+
 use circular_queue::CircularQueue;
-use flume::Sender;
-use std::sync::atomic::AtomicBool;
+// use flume::Sender;
+// use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
-use std::sync::Arc;
+// use std::sync::Arc;
 use tap::{Conv, Pipe};
 use time::OffsetDateTime;
 
@@ -13,13 +18,9 @@ use glm::{I32Vec2, U16Vec2, U32Vec2, Vec2};
 
 use anyhow::Context as _;
 
+use crate::core::renderer::WgpuContext;
 use jokolink::WindowDimensions;
-use tracing::{error, info, trace};
-
-#[cfg(target_os = "linux")]
-mod linux;
-#[cfg(target_os = "windows")]
-mod windows;
+use tracing::{info, trace};
 
 /// This is the overlay window which wraps the window functions like resizing or getting the present size etc..
 /// we will cache a few attributes to avoid calling into system for high frequency variables like
@@ -85,21 +86,21 @@ impl WindowState {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum WindowCommand {
-    Resize(u32, u32),
-    Repos(i32, i32),
-    Transparent(bool),
-    Passthrough(bool),
-    Decorated(bool),
-    AlwaysOnTop(bool),
-    ShouldClose(bool),
-    SwapInterval(glfw::SwapInterval),
-    SetTransientFor(u32),
-    SetClipBoard(String),
-    GetClipBoard(Sender<Option<String>>),
-    ApplyConfig,
-}
+// #[derive(Debug, Clone)]
+// pub enum WindowCommand {
+//     Resize(u32, u32),
+//     Repos(i32, i32),
+//     Transparent(bool),
+//     Passthrough(bool),
+//     Decorated(bool),
+//     AlwaysOnTop(bool),
+//     ShouldClose(bool),
+//     SwapInterval(glfw::SwapInterval),
+//     SetTransientFor(u32),
+//     SetClipBoard(String),
+//     GetClipBoard(Sender<Option<String>>),
+//     ApplyConfig,
+// }
 
 impl OverlayWindow {
     /// default window title string
@@ -235,12 +236,14 @@ impl OverlayWindow {
         // glfw.window_hint(glfw::WindowHint::Decorated(false));
     }
 
-    pub fn tick(&mut self) -> anyhow::Result<RawInput> {
+    pub fn tick(&mut self, wtx: &mut WgpuContext) -> anyhow::Result<RawInput> {
         self.glfw.poll_events();
-        let cursor_position = self
-            .window
-            .get_cursor_pos()
-            .pipe(|cp| Vec2::new(cp.0 as f32 / self.window_state.scale.x, cp.1 as f32 / self.window_state.scale.y));
+        let cursor_position = self.window.get_cursor_pos().pipe(|cp| {
+            Vec2::new(
+                cp.0 as f32 / self.window_state.scale.x,
+                cp.1 as f32 / self.window_state.scale.y,
+            )
+        });
         self.window_state.glfw_time = self.glfw.get_time();
         self.window_state.present_time = OffsetDateTime::now_utc();
         let delta = self.window_state.glfw_time - self.window_state.previous_fps_reset;
@@ -253,7 +256,15 @@ impl OverlayWindow {
 
         let mut input = RawInput {
             time: Some(self.window_state.glfw_time),
-            pixels_per_point: Some(2.0),
+            pixels_per_point: Some(self.window_state.scale.x),
+            screen_rect: Some(egui::Rect::from_two_pos(
+                Default::default(),
+                [
+                    self.window_state.framebuffer_size.x as f32 / self.window_state.scale.x,
+                    self.window_state.framebuffer_size.y as f32 / self.window_state.scale.y,
+                ]
+                .into(),
+            )),
             ..Default::default()
         };
         if cursor_position != self.window_state.cursor_position {
@@ -262,20 +273,30 @@ impl OverlayWindow {
                 [cursor_position.x, cursor_position.y].into(),
             ))
         }
-        self.window_state.latest_local_events.clear();
+        // self.window_state.latest_local_events.clear();
         // self.window_state.latest_global_events.clear();
         // for event in self.rdev_events.try_iter() {
         //     self.window_state.latest_global_events.push(event);
         // }
         for (_, event) in glfw::flush_messages(&self.events) {
+            if let &glfw::WindowEvent::CursorPos(..) = &event {
+                continue;
+            }
             self.window_state.latest_local_events.push(event.clone());
             if let Some(ev) = match event {
                 glfw::WindowEvent::FramebufferSize(w, h) => {
                     self.window_state.framebuffer_size = WindowState::i32_to_u32((w, h))?;
                     input.screen_rect = Some(egui::Rect::from_two_pos(
                         Default::default(),
-                        [w as f32, h as f32].into(),
+                        [
+                            w as f32 / self.window_state.scale.x,
+                            h as f32 / self.window_state.scale.y,
+                        ]
+                        .into(),
                     ));
+                    wtx.config.width = w as u32;
+                    wtx.config.height = h as u32;
+                    wtx.surface.configure(&wtx.device, &wtx.config);
                     tracing::debug!("window framebuffer size update: {} {}", w, h);
                     None
                 }
@@ -289,10 +310,10 @@ impl OverlayWindow {
                     tracing::trace!("mouse button press: {:?}", &emb);
                     Some(emb)
                 }
-                glfw::WindowEvent::CursorPos(x, y) => {
-                    Some(Event::PointerMoved([x as f32 / self.window_state.scale.x, y as f32 / self.window_state.scale.y].into()))
+                glfw::WindowEvent::CursorPos(..) => None,
+                glfw::WindowEvent::Scroll(x, y) => {
+                    Some(Event::Scroll([x as f32 * 20.0, y as f32 * 20.0].into()))
                 }
-                glfw::WindowEvent::Scroll(x, y) => Some(Event::Scroll([x as f32 * 20.0, y as f32 * 20.0].into())),
                 glfw::WindowEvent::Key(k, _, a, m) => match k {
                     glfw::Key::C => {
                         if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {
@@ -341,7 +362,8 @@ impl OverlayWindow {
                 }
                 glfw::WindowEvent::Close => {
                     tracing::warn!("close event received");
-                    anyhow::bail!("close event");
+                    self.window.set_should_close(true);
+                    None
                 }
                 glfw::WindowEvent::Pos(x, y) => {
                     tracing::debug!("window position changed. {} {}", x, y);
@@ -365,16 +387,23 @@ impl OverlayWindow {
                     tracing::trace!("iconify event. {}", i);
                     None
                 }
-                // glfw::WindowEvent::CursorEnter(_) => todo!(),
-                // glfw::WindowEvent::CharModifiers(_, _) => todo!(),
                 glfw::WindowEvent::FileDrop(f) => {
                     tracing::info!("file dropped. {:#?}", &f);
+                    input
+                        .dropped_files
+                        .extend(f.into_iter().map(|p| egui::DroppedFile {
+                            path: Some(p),
+                            name: "".to_string(),
+                            last_modified: None,
+                            bytes: None,
+                        }));
                     None
                 }
                 glfw::WindowEvent::Maximize(m) => {
                     tracing::trace!("maximize event: {}", m);
                     None
                 }
+
                 _rest => None,
             } {
                 input.events.push(ev);

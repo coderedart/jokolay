@@ -6,7 +6,7 @@ use std::{
 };
 
 use elementtree::Element;
-use image::GenericImageView;
+// use image::GenericImageView;
 use itertools::Itertools;
 
 use crate::{
