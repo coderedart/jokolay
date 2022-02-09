@@ -1,8 +1,9 @@
+use crate::core::renderer::WgpuContext;
 use crate::core::window::OverlayWindow;
 use egui::{CollapsingHeader, DragValue, Widget};
 
 impl OverlayWindow {
-    pub fn gui(&mut self, ctx: egui::Context) -> anyhow::Result<()> {
+    pub fn gui(&mut self, ctx: egui::Context, wtx: &mut WgpuContext) -> anyhow::Result<()> {
         egui::Window::new("Window State")
             .scroll2([true, true])
             .show(&ctx, |ui| {
@@ -53,6 +54,23 @@ impl OverlayWindow {
                         .changed()
                 {
                     self.window.set_pos(position.x, position.y)
+                }
+                if ui
+                    .radio_value(
+                        &mut wtx.config.present_mode,
+                        wgpu::PresentMode::Immediate,
+                        "unlimited fps",
+                    )
+                    .changed()
+                    || ui
+                        .radio_value(
+                            &mut wtx.config.present_mode,
+                            wgpu::PresentMode::Fifo,
+                            "fps limited to vsync",
+                        )
+                        .changed()
+                {
+                    wtx.surface.configure(&wtx.device, &wtx.config);
                 }
                 CollapsingHeader::new("latest local events").show(ui, |ui| {
                     for event in self.window_state.latest_local_events.asc_iter().rev() {

@@ -66,7 +66,8 @@ tap = "1.0.1"
 circular-queue = "0.2.6"
 #inputbot = { version = "*", git = "https://github.com/obv-mikhail/InputBot.git" }
  wgpu = {version = "*", git = "https://github.com/gfx-rs/wgpu.git"}
-
+directories = "4"
+rfd = "*"
 #[target.'cfg(unix)'.dependencies]
 #x11rb = { version = "0.9.0", features = ["all-extensions"] }
 #

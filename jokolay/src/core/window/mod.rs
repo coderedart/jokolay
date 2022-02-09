@@ -20,7 +20,7 @@ use anyhow::Context as _;
 
 use crate::core::renderer::WgpuContext;
 use jokolink::WindowDimensions;
-use tracing::{info, trace};
+use tracing::{trace, warn};
 
 /// This is the overlay window which wraps the window functions like resizing or getting the present size etc..
 /// we will cache a few attributes to avoid calling into system for high frequency variables like
@@ -135,7 +135,7 @@ impl OverlayWindow {
         let size = window.get_size().pipe(WindowState::i32_to_u32)?;
         let transparent = window.is_framebuffer_transparent();
         let decorations = window.is_decorated();
-        info!("transparent: {}, decorations: {}", transparent, decorations);
+        warn!("transparent: {}, decorations: {}", transparent, decorations);
         let scale = window.get_content_scale().pipe(|s| Vec2::new(s.0, s.1));
         let cursor_position = window
             .get_cursor_pos()
@@ -169,7 +169,7 @@ impl OverlayWindow {
             previous_fps_reset: glfw_time,
             ..Default::default()
         };
-        info!("{:#?}", &window_state);
+        warn!("{:#?}", &window_state);
         Ok(Self {
             window,
             events,

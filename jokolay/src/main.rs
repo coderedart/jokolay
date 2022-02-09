@@ -1,12 +1,61 @@
 use anyhow::Context;
 use jokolay::log_initialize;
-use std::path::Path;
+
+use jokolay::config::ConfigManager;
+use tracing::level_filters::LevelFilter;
 
 fn fake_main() -> anyhow::Result<()> {
-    let _guard = log_initialize(
-        Path::new("./assets"),
-        tracing::level_filters::LevelFilter::INFO,
-    )?;
+    let [config_dir, _data_dir, _cache_dir, _markers_dir, logs_dir] =
+        jokolay::get_config_data_cache_markers_dirs().map_err(|e| {
+            rfd::MessageDialog::new()
+                .set_title("failed to start jokolay")
+                .set_description(&format!("failed to get current dir. error: {:#?}", &e))
+                .set_level(rfd::MessageLevel::Error)
+                .set_buttons(rfd::MessageButtons::Ok)
+                .show();
+            e
+        })?;
+
+    let cm = match ConfigManager::new(config_dir.join("joko_config.json")) {
+        Ok(cm) => cm,
+        Err(e) => {
+            rfd::MessageDialog::new()
+                .set_title("failed to start jokolay")
+                .set_description(&format!(
+                    "failed to create config manager. error: {:#?}",
+                    &e
+                ))
+                .set_level(rfd::MessageLevel::Error)
+                .set_buttons(rfd::MessageButtons::Ok)
+                .show();
+            anyhow::bail!(e)
+        }
+    };
+    let log_level = match cm.config.log_level.as_str() {
+        "trace" => LevelFilter::TRACE,
+        "debug" => LevelFilter::DEBUG,
+        "info" => LevelFilter::INFO,
+        "warn" => LevelFilter::WARN,
+        "error" => LevelFilter::ERROR,
+        rest => {
+            rfd::MessageDialog::new()
+                .set_title("failed to parse log level")
+                .set_description(&format!("failed to parse log level. source: {}", rest))
+                .set_level(rfd::MessageLevel::Error)
+                .set_buttons(rfd::MessageButtons::Ok)
+                .show();
+            anyhow::bail!("log level wrong")
+        }
+    };
+    let _guard = log_initialize(&logs_dir.join("jokolay.log"), log_level).map_err(|e| {
+        rfd::MessageDialog::new()
+            .set_title("failed to initiate logging")
+            .set_description(&format!("log initialize failed error: {:#?}", &e))
+            .set_level(rfd::MessageLevel::Error)
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+        e
+    })?;
     let (tokio_quit_sender, tokio_quit_receiver) = flume::bounded(1);
     let rt = tokio::runtime::Runtime::new()?;
     let handle = rt.handle().clone();
@@ -32,7 +81,7 @@ fn fake_main() -> anyhow::Result<()> {
             timer = std::time::Instant::now();
         }
         let input = window.tick(&mut renderer.wtx)?;
-        let (output, shapes) = etx.tick(input, &mut window)?;
+        let (output, shapes) = etx.tick(input, &mut window, &mut renderer.wtx)?;
         if etx.ctx.wants_pointer_input() || etx.ctx.wants_keyboard_input() {
             window.window.set_mouse_passthrough(false);
         } else {
@@ -43,7 +92,9 @@ fn fake_main() -> anyhow::Result<()> {
     tokio_quit_sender
         .send(())
         .context("failed to send tokio quit signal")?;
-    tokio_thread.join().expect("failed to join tokio thread");
+    if tokio_thread.join().is_err() {
+        anyhow::bail!("failed to join tokio thread");
+    }
     Ok(())
 }
 fn main() {

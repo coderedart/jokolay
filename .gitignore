@@ -4,3 +4,7 @@
 /.idea
 *.log
 *spv
+/logs
+/cache
+/config
+/data
