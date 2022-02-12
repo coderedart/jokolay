@@ -204,6 +204,14 @@ impl EguiState {
                     );
                     ib_view[ib_offset..(ib_offset + ib_len)]
                         .copy_from_slice(bytemuck::cast_slice(mesh.1.indices.as_slice()));
+                    render_pass.set_bind_group(
+                        1,
+                        &textures
+                            .get(&mesh.1.texture_id)
+                            .context("texture not found")?
+                            .2,
+                        &[],
+                    );
                     let clip_rect = mesh.0;
                     // Transform clip rect to physical pixels:
                     let pixels_per_point = window.window_state.scale.x;
@@ -222,25 +230,23 @@ impl EguiState {
                     // let clip_min_y = clip_min_y.round() as i32;
                     // let clip_max_x = clip_max_x.round() as i32;
                     // let clip_max_y = clip_max_y.round() as i32;
-                    render_pass.set_scissor_rect(
-                        clip_min_x as u32,
-                        (clip_min_y) as u32,
-                        (clip_max_x - clip_min_x) as u32,
-                        (clip_max_y - clip_min_y) as u32,
-                    );
-                    render_pass.set_bind_group(
-                        1,
-                        &textures
-                            .get(&mesh.1.texture_id)
-                            .context("texture not found")?
-                            .2,
-                        &[],
-                    );
-                    render_pass.draw_indexed(
-                        ((ib_offset / 4) as u32)..(((ib_offset / 4) + mesh.1.indices.len()) as u32),
-                        (vb_offset / 20).try_into()?,
-                        0..1,
-                    );
+                    // wgpu cannot handle zero sized scissor rectangles, so this workaround is necessary
+                    // https://github.com/gfx-rs/wgpu/issues/1750
+                    if (clip_max_y - clip_min_y) >= 1.0 && (clip_max_x - clip_min_x) >= 1.0 {
+                        render_pass.set_scissor_rect(
+                            clip_min_x as u32,
+                            (clip_min_y) as u32,
+                            (clip_max_x - clip_min_x) as u32,
+                            (clip_max_y - clip_min_y) as u32,
+                        );
+
+                        render_pass.draw_indexed(
+                            ((ib_offset / 4) as u32)..(((ib_offset / 4) + mesh.1.indices.len()) as u32),
+                            (vb_offset / 20).try_into()?,
+                            0..1,
+                        );
+                    }
+
                     vb_offset += vb_len;
                     ib_offset += ib_len;
                 }

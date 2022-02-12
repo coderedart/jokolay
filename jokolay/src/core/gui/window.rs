@@ -4,7 +4,7 @@ use egui::{CollapsingHeader, DragValue, Widget};
 
 impl OverlayWindow {
     pub fn gui(&mut self, ctx: egui::Context, wtx: &mut WgpuContext) -> anyhow::Result<()> {
-        egui::Window::new("Window State")
+        egui::Window::new("Window Controls")
             .scroll2([true, true])
             .show(&ctx, |ui| {
                 ui.set_width(300.0);
@@ -74,7 +74,7 @@ impl OverlayWindow {
                 }
                 CollapsingHeader::new("latest local events").show(ui, |ui| {
                     for event in self.window_state.latest_local_events.asc_iter().rev() {
-                        ui.label(&format!("{:?}", event));
+                        ui.label(&format!("{event:?}"));
                     }
                 });
                 ui.label(&format!("uptime: {:.1}", self.window_state.glfw_time));

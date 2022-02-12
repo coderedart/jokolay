@@ -14,13 +14,14 @@ use time::OffsetDateTime;
 use egui::{Event, Key, PointerButton, RawInput};
 
 use glfw::{Action, Glfw, WindowEvent};
-use glm::{I32Vec2, U16Vec2, U32Vec2, Vec2};
+use glm::{I32Vec2, U32Vec2, Vec2};
 
 use anyhow::Context as _;
 
 use crate::core::renderer::WgpuContext;
 use jokolink::WindowDimensions;
 use tracing::{trace, warn};
+use crate::config::JokoConfig;
 
 /// This is the overlay window which wraps the window functions like resizing or getting the present size etc..
 /// we will cache a few attributes to avoid calling into system for high frequency variables like
@@ -41,6 +42,7 @@ pub struct WindowState {
     // pub transient_for: Option<usize>,
     pub framebuffer_size: U32Vec2,
     pub scale: Vec2,
+    pub scroll_power: f32,
     pub latest_local_events: CircularQueue<WindowEvent>,
     // pub latest_global_events: CircularQueue<inputbot::KeybdKey>,
     pub cursor_position: Vec2,
@@ -58,6 +60,7 @@ impl Default for WindowState {
             position: Default::default(),
             framebuffer_size: Default::default(),
             scale: Default::default(),
+            scroll_power: 20.0,
             latest_local_events: CircularQueue::with_capacity(10),
             // latest_global_events: CircularQueue::with_capacity(10),
             cursor_position: Default::default(),
@@ -108,7 +111,7 @@ impl OverlayWindow {
 
     #[allow(clippy::type_complexity)]
     #[tracing::instrument]
-    pub fn create(framebuffer_size: U16Vec2) -> anyhow::Result<OverlayWindow> {
+    pub fn create(config: &JokoConfig) -> anyhow::Result<OverlayWindow> {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw")?;
         trace!("glfw initialized");
         Self::set_window_hints(&mut glfw);
@@ -116,8 +119,8 @@ impl OverlayWindow {
         trace!("creating window");
 
         let (mut window, events) = match glfw.create_window(
-            framebuffer_size[0] as u32,
-            framebuffer_size[1] as u32,
+            config.overlay_window_config.size[0] as u32,
+            config.overlay_window_config.size[1] as u32,
             Self::WINDOW_TITLE,
             glfw::WindowMode::Windowed,
         ) {
@@ -135,12 +138,13 @@ impl OverlayWindow {
         let size = window.get_size().pipe(WindowState::i32_to_u32)?;
         let transparent = window.is_framebuffer_transparent();
         let decorations = window.is_decorated();
-        warn!("transparent: {}, decorations: {}", transparent, decorations);
-        let scale = window.get_content_scale().pipe(|s| Vec2::new(s.0, s.1));
+        let scale = window.get_content_scale().pipe(|s| Vec2::new(s.0.max(1.0), s.1.max(1.0)));
         let cursor_position = window
             .get_cursor_pos()
             .pipe(|cp| Vec2::new(cp.0 as f32, cp.1 as f32));
         let glfw_time = glfw.get_time();
+        warn!("transparent: {transparent}, decorations: {decorations}, scale: {scale}");
+
         // let (sender, receiver) = flume::bounded(500);
         // let rdev_thread_signaller = Arc::new(AtomicBool::new(false));
         // let rdev_thread_signaller_copy = rdev_thread_signaller.clone();
@@ -165,6 +169,7 @@ impl OverlayWindow {
             framebuffer_size,
             scale,
             cursor_position,
+            scroll_power: config.input_config.scroll_power,
             glfw_time,
             previous_fps_reset: glfw_time,
             ..Default::default()
@@ -312,7 +317,9 @@ impl OverlayWindow {
                 }
                 glfw::WindowEvent::CursorPos(..) => None,
                 glfw::WindowEvent::Scroll(x, y) => {
-                    Some(Event::Scroll([x as f32 * 20.0, y as f32 * 20.0].into()))
+
+                    Some(Event::Scroll([x as f32  * self.window_state.scroll_power * self.window_state.scale.x,
+                        y as f32 * self.window_state.scroll_power * self.window_state.scale.x].into()))
                 }
                 glfw::WindowEvent::Key(k, _, a, m) => match k {
                     glfw::Key::C => {

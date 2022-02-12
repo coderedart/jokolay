@@ -33,7 +33,7 @@ pub fn log_initialize(
     Ok(guard)
 }
 
-pub fn get_config_data_cache_markers_dirs() -> anyhow::Result<[std::path::PathBuf; 5]> {
+pub fn get_config_data_cache_markers_dirs() -> anyhow::Result<[std::path::PathBuf; 7]> {
     let current_dir =
         std::env::current_dir().context("failed to get current directory from env")?;
     let config_dir_path = current_dir.join("config");
@@ -41,12 +41,16 @@ pub fn get_config_data_cache_markers_dirs() -> anyhow::Result<[std::path::PathBu
     let cache_dir_path = current_dir.join("cache");
     let markers_dir_path = current_dir.join("markers_dir_path");
     let logs_dir_path = current_dir.join("logs");
+    let themes_dir_path = data_dir_path.join("themes");
+    let fonts_dir_path = data_dir_path.join("fonts");
     let result = [
         config_dir_path,
         data_dir_path,
         cache_dir_path,
         markers_dir_path,
         logs_dir_path,
+        themes_dir_path,
+        fonts_dir_path
     ];
     for p in &result {
         std::fs::create_dir_all(p).context("failed to setup directories")?;

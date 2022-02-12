@@ -8,11 +8,12 @@ use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
     CommandEncoderDescriptor, Device, Extent3d, Features, FilterMode, ImageCopyTexture,
-    ImageDataLayout, Origin3d, PresentMode, Queue, Sampler, SamplerBindingType, SamplerDescriptor,
+    ImageDataLayout, Origin3d, Queue, Sampler, SamplerBindingType, SamplerDescriptor,
     ShaderStages, SurfaceConfiguration, SurfaceError, Texture, TextureAspect, TextureDescriptor,
     TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureView,
     TextureViewDescriptor, TextureViewDimension,
 };
+use crate::config::{JokoConfig, VsyncMode};
 
 use crate::core::renderer::egui_state::EguiState;
 use crate::core::window::OverlayWindow;
@@ -28,8 +29,9 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(window: &OverlayWindow, _validation: bool) -> anyhow::Result<Self> {
-        let mut wtx = WgpuContext::new(window).await?;
+    pub async fn new(window: &OverlayWindow,config: &JokoConfig, _validation: bool) -> anyhow::Result<Self> {
+        let mut wtx = WgpuContext::new(window, config).await?;
+
         let egui_linear_sampler = wtx.device.create_sampler(&SamplerDescriptor {
             label: Some("egui linear sampler"),
             address_mode_u: AddressMode::ClampToEdge,
@@ -252,7 +254,7 @@ pub struct WgpuContext {
 }
 
 impl WgpuContext {
-    pub async fn new(window: &OverlayWindow) -> anyhow::Result<Self> {
+    pub async fn new(window: &OverlayWindow, config: &JokoConfig) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
         let surface = unsafe { instance.create_surface(&window.window) };
         info!("{:#?}", &surface);
@@ -296,7 +298,10 @@ impl WgpuContext {
                 .context("surface has no preferred format")?,
             width: window.window_state.framebuffer_size.x,
             height: window.window_state.framebuffer_size.y,
-            present_mode: PresentMode::Fifo,
+            present_mode: match config.overlay_window_config.vsync {
+                VsyncMode::Immediate => wgpu::PresentMode::Immediate,
+                VsyncMode::Fifo => wgpu::PresentMode::Fifo
+            },
         };
         info!("using surface configuration: {:#?}", &config);
         surface.configure(&device, &config);

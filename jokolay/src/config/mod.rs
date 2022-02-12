@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use time::OffsetDateTime;
 
-use tokio::{fs::File, io::AsyncWriteExt};
+use std::fs::File;
 
 pub struct ConfigManager {
     pub path: PathBuf,
@@ -40,11 +40,11 @@ impl ConfigManager {
             needs_save: false,
         })
     }
-    pub async fn save_config(&mut self) -> anyhow::Result<()> {
+    pub fn save_config(&mut self) -> anyhow::Result<()> {
         if self.needs_save {
-            let mut config_file = File::create(&self.path).await?;
+            let mut config_file = File::create(&self.path)?;
             let config_string = serde_json::to_string_pretty(&self.config)?;
-            config_file.write_all(config_string.as_bytes()).await?;
+            config_file.write_all(config_string.as_bytes())?;
             self.needs_save = false;
             self.last_saved = OffsetDateTime::now_utc();
         }
@@ -95,7 +95,7 @@ impl Default for InputConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum VsyncMode {
     Immediate,
     Fifo,
