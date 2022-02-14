@@ -52,7 +52,7 @@ impl Etx {
             font_definitions.families.entry(egui::FontFamily::Monospace).or_default().insert(0, name);
         }
         ctx.set_fonts(font_definitions);
-        ctx.set_style(theme_manager.list_of_themes.iter().find(|&t| &t.name == default_theme_name).context("failed to find default theme")?.style.clone());
+        ctx.set_style(theme_manager.list_of_themes.iter().find(|&t| t.name == default_theme_name).context("failed to find default theme")?.style.clone());
         Ok(Self { ctx, enabled_windows, theme_manager })
     }
     pub fn tick(
@@ -84,7 +84,7 @@ impl Etx {
                          ctx.style_ui(ui);
                      });
             ow.gui(ctx.clone(), wtx).unwrap();
-            cm.gui(ctx.clone(), handle).unwrap();
+            cm.gui(ctx, handle).unwrap();
         }
         let (output, shapes) =  self.ctx.end_frame();
         let shapes = self.ctx.tessellate(shapes);

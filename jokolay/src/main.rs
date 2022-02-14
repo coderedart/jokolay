@@ -5,7 +5,7 @@ use jokolay::config::ConfigManager;
 use tracing::level_filters::LevelFilter;
 
 fn fake_main() -> anyhow::Result<()> {
-    let [config_dir, data_dir, _cache_dir, _markers_dir, logs_dir, themes_dir, fonts_dir] =
+    let [config_dir, _data_dir, _cache_dir, _markers_dir, logs_dir, themes_dir, fonts_dir] =
         jokolay::get_config_data_cache_markers_dirs().map_err(|e| {
             rfd::MessageDialog::new()
                 .set_title("failed to start jokolay")
