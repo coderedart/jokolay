@@ -1,0 +1,58 @@
+# To contribute improvements to CI/CD templates, please follow the Development guide at:
+# https://docs.gitlab.com/ee/development/cicd/templates.html
+# This specific template is located at:
+# https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Rust.gitlab-ci.yml
+cache:
+  paths:
+    - target/
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/rust/tags/
+image: "rust:latest"
+
+# Optional: Pick zero or more services to be used on all builds.
+# Only needed when using a docker container to run your tests in.
+# Check out: http://docs.gitlab.com/ee/ci/docker/using_docker_images.html#what-is-a-service
+# services:
+#   - mysql:latest
+#   - redis:latest
+#   - postgres:latest
+
+# Optional: Install a C compiler, cmake and git into the container.
+# You will often need this when you (or any of your dependencies) depends on C code.
+
+
+default:
+  before_script:
+    - rustc --version 
+    - cargo --version
+    - apt-get update -yqq
+    - apt-get install -yqq --no-install-recommends build-essential libspeechd-dev xorg-dev libgtk-3-dev
+
+stages:
+  - test
+  - build
+
+test-code:
+  stage: test
+  script:
+    - cargo test
+
+lint-code:
+  stage: test
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check
+    - rustup component add clippy
+    - cargo clippy --workspace --all-targets --all-features --  -D warnings -W clippy::all
+
+build-code:
+    stage: build
+    script: 
+        - cargo build --workspace
+# audit-code:
+#   stage: test
+#   script:
+#     - cargo install cargo-audit
+#     - cargo audit
+
+
