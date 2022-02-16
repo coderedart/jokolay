@@ -60,7 +60,10 @@ impl Etx {
                         "show config window",
                     );
                     ui.checkbox(&mut self.enabled_windows.theme_window, "show theme window");
-                    ui.checkbox(&mut self.enabled_windows.overlay_controls, "show overlay controls");
+                    ui.checkbox(
+                        &mut self.enabled_windows.overlay_controls,
+                        "show overlay controls",
+                    );
                     ui.checkbox(&mut self.enabled_windows.debug_window, "show debug window");
                     ui.checkbox(
                         &mut self.enabled_windows.marker_pack_window,

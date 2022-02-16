@@ -220,10 +220,10 @@ impl ThemeManager {
         if save {
             let t = Theme {
                 fonts_priority: self.font_definitions.families.clone(),
-                style: ctx.style().as_ref().clone()
+                style: ctx.style().as_ref().clone(),
             };
             t.save(&self.active_theme, &self.theme_folder_path)?;
-             self.list_of_themes.insert(self.active_theme.clone(), t);
+            self.list_of_themes.insert(self.active_theme.clone(), t);
         }
         Ok(())
     }
