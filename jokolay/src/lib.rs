@@ -50,7 +50,7 @@ pub fn get_config_data_cache_markers_dirs() -> anyhow::Result<[std::path::PathBu
         markers_dir_path,
         logs_dir_path,
         themes_dir_path,
-        fonts_dir_path
+        fonts_dir_path,
     ];
     for p in &result {
         std::fs::create_dir_all(p).context("failed to setup directories")?;

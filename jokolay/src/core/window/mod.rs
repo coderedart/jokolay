@@ -18,10 +18,10 @@ use glm::{I32Vec2, U32Vec2, Vec2};
 
 use anyhow::Context as _;
 
+use crate::config::JokoConfig;
 use crate::core::renderer::WgpuContext;
 use jokolink::WindowDimensions;
 use tracing::{trace, warn};
-use crate::config::JokoConfig;
 
 /// This is the overlay window which wraps the window functions like resizing or getting the present size etc..
 /// we will cache a few attributes to avoid calling into system for high frequency variables like
@@ -138,7 +138,9 @@ impl OverlayWindow {
         let size = window.get_size().pipe(WindowState::i32_to_u32)?;
         let transparent = window.is_framebuffer_transparent();
         let decorations = window.is_decorated();
-        let scale = window.get_content_scale().pipe(|s| Vec2::new(s.0.max(1.0), s.1.max(1.0)));
+        let scale = window
+            .get_content_scale()
+            .pipe(|s| Vec2::new(s.0.max(1.0), s.1.max(1.0)));
         let cursor_position = window
             .get_cursor_pos()
             .pipe(|cp| Vec2::new(cp.0 as f32, cp.1 as f32));
@@ -316,11 +318,13 @@ impl OverlayWindow {
                     Some(emb)
                 }
                 glfw::WindowEvent::CursorPos(..) => None,
-                glfw::WindowEvent::Scroll(x, y) => {
-
-                    Some(Event::Scroll([x as f32  * self.window_state.scroll_power * self.window_state.scale.x,
-                        y as f32 * self.window_state.scroll_power * self.window_state.scale.x].into()))
-                }
+                glfw::WindowEvent::Scroll(x, y) => Some(Event::Scroll(
+                    [
+                        x as f32 * self.window_state.scroll_power * self.window_state.scale.x,
+                        y as f32 * self.window_state.scroll_power * self.window_state.scale.x,
+                    ]
+                    .into(),
+                )),
                 glfw::WindowEvent::Key(k, _, a, m) => match k {
                     glfw::Key::C => {
                         if glfw_to_egui_action(a) && m.contains(glfw::Modifiers::Control) {

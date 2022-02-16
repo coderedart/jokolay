@@ -241,7 +241,8 @@ impl EguiState {
                         );
 
                         render_pass.draw_indexed(
-                            ((ib_offset / 4) as u32)..(((ib_offset / 4) + mesh.1.indices.len()) as u32),
+                            ((ib_offset / 4) as u32)
+                                ..(((ib_offset / 4) + mesh.1.indices.len()) as u32),
                             (vb_offset / 20).try_into()?,
                             0..1,
                         );

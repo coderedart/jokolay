@@ -4,16 +4,16 @@ use anyhow::Context;
 use egui::{Color32, ImageData, TextureId};
 use tracing::info;
 
+use crate::config::{JokoConfig, VsyncMode};
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
     CommandEncoderDescriptor, Device, Extent3d, Features, FilterMode, ImageCopyTexture,
-    ImageDataLayout, Origin3d, Queue, Sampler, SamplerBindingType, SamplerDescriptor,
-    ShaderStages, SurfaceConfiguration, SurfaceError, Texture, TextureAspect, TextureDescriptor,
+    ImageDataLayout, Origin3d, Queue, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages,
+    SurfaceConfiguration, SurfaceError, Texture, TextureAspect, TextureDescriptor,
     TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureView,
     TextureViewDescriptor, TextureViewDimension,
 };
-use crate::config::{JokoConfig, VsyncMode};
 
 use crate::core::renderer::egui_state::EguiState;
 use crate::core::window::OverlayWindow;
@@ -29,7 +29,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(window: &OverlayWindow,config: &JokoConfig, _validation: bool) -> anyhow::Result<Self> {
+    pub async fn new(
+        window: &OverlayWindow,
+        config: &JokoConfig,
+        _validation: bool,
+    ) -> anyhow::Result<Self> {
         let mut wtx = WgpuContext::new(window, config).await?;
 
         let egui_linear_sampler = wtx.device.create_sampler(&SamplerDescriptor {
@@ -300,7 +304,7 @@ impl WgpuContext {
             height: window.window_state.framebuffer_size.y,
             present_mode: match config.overlay_window_config.vsync {
                 VsyncMode::Immediate => wgpu::PresentMode::Immediate,
-                VsyncMode::Fifo => wgpu::PresentMode::Fifo
+                VsyncMode::Fifo => wgpu::PresentMode::Fifo,
             },
         };
         info!("using surface configuration: {:#?}", &config);

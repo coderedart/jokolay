@@ -1,18 +1,22 @@
+use crate::config::{ConfigManager, VsyncMode};
 use anyhow::Context;
 use egui::{DragValue, Widget, Window};
-use crate::config::{ConfigManager, VsyncMode};
 
 impl ConfigManager {
-    pub fn gui(&mut self, ctx: egui::Context, _handle: tokio::runtime::Handle) -> anyhow::Result<()> {
+    pub fn gui(
+        &mut self,
+        ctx: egui::Context,
+        _handle: tokio::runtime::Handle,
+    ) -> anyhow::Result<()> {
         Window::new("Configuration")
             .scroll2([true, true])
             .show(&ctx, |ui| {
                 // Overlay Window Settings
-               ui.label("default window size");
+                ui.label("default window size");
                 DragValue::new(&mut self.config.overlay_window_config.size.x)
                     .clamp_range::<u32>(100..=4500)
                     .ui(ui);
-                    DragValue::new(&mut self.config.overlay_window_config.size.y)
+                DragValue::new(&mut self.config.overlay_window_config.size.y)
                     .clamp_range::<u32>(100..=4500)
                     .ui(ui);
                 ui.label("default window position");
@@ -23,18 +27,16 @@ impl ConfigManager {
                     .clamp_range::<i32>(0..=i32::MAX)
                     .ui(ui);
 
-                ui
-                    .radio_value(
-                        &mut self.config.overlay_window_config.vsync,
-                        VsyncMode::Immediate,
-                        "unlimited fps",
-                    );
-                ui
-                    .radio_value(
-                        &mut self.config.overlay_window_config.vsync,
-                        VsyncMode::Fifo,
-                        "fps limited to vsync",
-                    );
+                ui.radio_value(
+                    &mut self.config.overlay_window_config.vsync,
+                    VsyncMode::Immediate,
+                    "unlimited fps",
+                );
+                ui.radio_value(
+                    &mut self.config.overlay_window_config.vsync,
+                    VsyncMode::Fifo,
+                    "fps limited to vsync",
+                );
 
                 // Mumble Config
                 ui.label("Mumble Link Name");
@@ -47,7 +49,10 @@ impl ConfigManager {
                     .ui(ui);
                 // auto attach to gw2 window
                 ui.label("auto attach to gw2 window");
-                ui.checkbox(&mut self.config.auto_attach_to_gw2, "attach to gw2 when we find the window");
+                ui.checkbox(
+                    &mut self.config.auto_attach_to_gw2,
+                    "attach to gw2 when we find the window",
+                );
                 // log level
                 ui.label("log level: trace, debug, info, warn, error.");
                 ui.text_edit_singleline(&mut self.config.log_level);
@@ -58,7 +63,6 @@ impl ConfigManager {
 
                 if ui.button("save configuration to file").clicked() {
                     self.needs_save = true;
-
                 }
             });
         if self.needs_save {

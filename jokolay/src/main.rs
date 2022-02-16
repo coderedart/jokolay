@@ -68,8 +68,11 @@ fn fake_main() -> anyhow::Result<()> {
         });
     });
     let mut window = jokolay::core::window::OverlayWindow::create(&cm.config)?;
-    let mut renderer = handle.block_on(jokolay::core::renderer::Renderer::new(&window, &cm.config, true))?;
-    let mut etx = jokolay::core::gui::Etx::new(&window, themes_dir, &cm.config.theme_name, fonts_dir)?;
+    let mut renderer = handle.block_on(jokolay::core::renderer::Renderer::new(
+        &window, &cm.config, true,
+    ))?;
+    let mut etx =
+        jokolay::core::gui::Etx::new(&window, themes_dir, &cm.config.theme_name, fonts_dir)?;
     let mut timer = std::time::Instant::now();
     let mut fps = 0u32;
 
@@ -81,7 +84,13 @@ fn fake_main() -> anyhow::Result<()> {
             timer = std::time::Instant::now();
         }
         let input = window.tick(&mut renderer.wtx)?;
-        let (output, shapes) = etx.tick(input, &mut window, &mut renderer.wtx, &mut cm, handle.clone())?;
+        let (output, shapes) = etx.tick(
+            input,
+            &mut window,
+            &mut renderer.wtx,
+            &mut cm,
+            handle.clone(),
+        )?;
         if etx.ctx.wants_pointer_input() || etx.ctx.wants_keyboard_input() {
             window.window.set_mouse_passthrough(false);
         } else {
