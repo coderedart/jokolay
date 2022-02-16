@@ -29,6 +29,7 @@ default:
     - apt-get install -yqq --no-install-recommends build-essential libspeechd-dev xorg-dev libgtk-3-dev cmake
 
 stages:
+  - lint
   - test
   - build
 
@@ -38,7 +39,7 @@ test-code:
     - cargo test
 
 lint-code:
-  stage: test
+  stage: lint
   script:
     - rustup component add rustfmt
     - cargo fmt -- --check
