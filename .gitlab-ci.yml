@@ -15,6 +15,7 @@ default:
     - cargo --version
     - apt-get update -yqq
     - apt-get install -yqq --no-install-recommends build-essential libspeechd-dev xorg-dev libgtk-3-dev cmake
+  after_script:
     - echo "size of $CARGO_HOME"
     - du -sh $CARGO_HOME
     - echo "size of target"
