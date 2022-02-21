@@ -24,13 +24,10 @@ pub struct MumbleLink {
 impl MumbleLink {
     /// The most used function probably. will check if the `link_ptr->ui_tick > &self.ui_tick`
     /// and update self's fields based on that.
-    pub fn update(&mut self, link_ptr: *const CMumbleLink) -> anyhow::Result<()> {
+    pub fn update(&mut self, link_ptr: *const CMumbleLink) -> Result<(), MumbleUpdateError> {
         let cmlink = match unsafe { link_ptr.as_ref() } {
             Some(cmlink) => cmlink,
-            None => {
-                error!("link_ptr.as_ref returned None when trying to update MumbleLink. ptr is null. something is very wrong");
-                bail!("link_ptr.as_ref return None")
-            }
+            None => return Err(MumbleUpdateError::CMLinkPtrAsRefError),
         };
 
         if self.ui_tick != cmlink.ui_tick {
@@ -49,7 +46,7 @@ impl MumbleLink {
 
         Ok(())
     }
-    pub fn update_from_slice(&mut self, buffer: &[u8]) -> anyhow::Result<()> {
+    pub fn update_from_slice(&mut self, buffer: &[u8]) -> Result<(), MumbleUpdateError> {
         assert!(buffer.len() >= 1093);
         self.update(buffer.as_ptr() as *const CMumbleLink)
     }
@@ -112,17 +109,8 @@ bitflags! {
     }
 }
 impl CMumbleContext {
-    pub fn get_ui_state(&self) -> anyhow::Result<UIState> {
-        match UIState::from_bits(self.ui_state) {
-            Some(state) => Ok(state),
-            None => {
-                error!(
-                    "ui_state is in an invalid bitset state. ui_state uint32_t: {}",
-                    self.ui_state
-                );
-                bail!("ui_state bitset parse failed")
-            }
-        }
+    pub fn get_ui_state(&self) -> Option<UIState> {
+        UIState::from_bits(self.ui_state)
     }
 
     pub fn update(&mut self, link_ptr: *const CMumbleLink) {
@@ -135,10 +123,6 @@ impl CMumbleContext {
     /// contains sockaddr_in or sockaddr_in6
     pub fn get_map_ip(&self) -> anyhow::Result<Ipv4Addr> {
         if self.server_address[0] != 2 {
-            error!(
-                "ip addr first byte is not 2. server_address byte array: {:?}",
-                self.server_address
-            );
             bail!("ipaddr parsing failed for CMumble Context");
         }
 
@@ -151,18 +135,9 @@ impl CMumbleContext {
         Ok(ip)
     }
 
-    pub fn get_mount(&self) -> anyhow::Result<Mount> {
+    pub fn get_mount(&self) -> Option<Mount> {
         use num_traits::FromPrimitive;
-        match Mount::from_u8(self.mount_index) {
-            Some(m) => Ok(m),
-            None => {
-                error!(
-                    "invalid mount state in CMumbleContext. {}",
-                    self.mount_index
-                );
-                bail!("mount_index parse failed")
-            }
-        }
+        Mount::from_u8(self.mount_index)
     }
 }
 
@@ -239,52 +214,19 @@ pub enum Race {
     Sylvari = 4,
 }
 impl CIdentity {
-    pub fn get_uisz(&self) -> anyhow::Result<UISize> {
+    pub fn get_uisz(&self) -> Option<UISize> {
         use num_traits::FromPrimitive;
-        match UISize::from_u32(self.uisz) {
-            Some(u) => Ok(u),
-            None => {
-                error!(
-                    "could not convert uisz to UISize enum. value: {}",
-                    self.uisz
-                );
-                bail!("uisz does not map to any enum value");
-            }
-        }
+        UISize::from_u32(self.uisz)
     }
-    pub fn get_race(&self) -> anyhow::Result<Race> {
+    pub fn get_race(&self) -> Option<Race> {
         use num_traits::FromPrimitive;
-        match Race::from_u32(self.uisz) {
-            Some(r) => Ok(r),
-            None => {
-                error!("could not convert race to Race enum. value: {}", self.race);
-                bail!("context.race does not map to any enum value");
-            }
-        }
+        Race::from_u32(self.uisz)
     }
-    pub fn update(&mut self, link_ptr: *const CMumbleLink) -> anyhow::Result<()> {
+    pub fn update(&mut self, link_ptr: *const CMumbleLink) -> Result<(), MumbleIdentityError> {
         use widestring::U16CStr;
-        let id = U16CStr::from_slice_truncate(unsafe { &(*link_ptr).identity }).map_err(|e| {
-            error!(
-                "could not decode CMumbleIdentity to valid wstr due to error: {:?}",
-                &e
-            );
-            e
-        })?;
-        let id = id.to_string().map_err(|e| {
-            error!(
-                "could not decode CMumbleIdentity to valid string due to error: {:?}",
-                &e
-            );
-            e
-        })?;
-        *self = serde_json::from_str::<CIdentity>(&id).map_err(|e| {
-            error!(
-                "could not decode CMumbleIdentity as json to str due to error: {:?}",
-                &e
-            );
-            e
-        })?;
+        let id = U16CStr::from_slice_truncate(unsafe { &(*link_ptr).identity })?;
+        let id = id.to_string()?;
+        *self = serde_json::from_str::<CIdentity>(&id)?;
         Ok(())
     }
 }
@@ -330,11 +272,11 @@ impl CMumbleLink {
     pub fn get_ui_tick(link_ptr: *const CMumbleLink) -> u32 {
         unsafe { (*link_ptr).ui_tick }
     }
-    /// creates the shared memory using win32 calls and returns the pointer
-    #[cfg(target_os = "windows")]
-    pub fn new_ptr(key: &str) -> anyhow::Result<*const CMumbleLink> {
-        crate::win::create_link_shared_mem(key)
-    }
+    // /// creates the shared memory using win32 calls and returns the pointer
+    // #[cfg(target_os = "windows")]
+    // pub fn new_ptr(key: &str) -> anyhow::Result<(_, *const CMumbleLink)> {
+    //     crate::win::create_link_shared_mem(key)
+    // }
     /// we will copy the bytes of the struct memory into the slice. we check that we will only copy upto C_MUMBLE_LINK_SIZE or buffer.len() whichever is smaller to avoid buffer overflow reads
     pub fn copy_raw_bytes_into(link_ptr: *const CMumbleLink, buffer: &mut [u8]) {
         let max_len = usize::min(buffer.len(), C_MUMBLE_LINK_SIZE);
@@ -342,4 +284,22 @@ impl CMumbleLink {
             std::ptr::copy_nonoverlapping(link_ptr as *const u8, buffer.as_mut_ptr(), max_len);
         }
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MumbleUpdateError {
+    #[error("Mumble Identity error")]
+    MumbleIdentityError(#[from] MumbleIdentityError),
+    #[error("link_ptr.as_ref returned None when trying to update MumbleLink. ptr is null. something is very wrong")]
+    CMLinkPtrAsRefError,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MumbleIdentityError {
+    #[error("Mumble Identity String missing null terminator error")]
+    U16CStrMissingNullTerminator(#[from] widestring::error::MissingNulTerminator),
+    #[error("Mumble Identity String is not valid utf-8")]
+    Utf16To8Error(#[from] std::string::FromUtf16Error),
+    #[error("Mumble Identity is not valid json")]
+    JsonError(#[from] serde_json::Error),
 }

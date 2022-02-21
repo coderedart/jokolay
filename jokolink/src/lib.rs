@@ -9,12 +9,9 @@
 //! to request the data.
 
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
-use tracing::*;
 
-#[cfg(target_os = "windows")]
-use crate::mlink::CMumbleLink;
-use crate::mlink::MumbleLink;
+use anyhow::Context;
+
 pub mod mlink;
 
 #[cfg(target_os = "linux")]
@@ -22,12 +19,16 @@ pub mod linux;
 #[cfg(target_os = "windows")]
 pub mod win;
 
+#[cfg(target_os = "linux")]
+use linux::MumbleSource;
+
+#[cfg(target_os = "windows")]
+use win::MumbleSource;
+
 /// This is used to update the link from the mumble source. when src is none, the link is usually a default. check if its valid before using
 #[derive(Debug)]
-pub struct MumbleManager {
-    pub src: Option<MumbleSource>,
-    pub link: MumbleLink,
-    pub last_update: Instant,
+pub struct MumbleCtx {
+    pub src: MumbleSource,
     pub config: MumbleConfig,
 }
 /// The configuration that mumble needs. just a mumble link name
@@ -51,68 +52,32 @@ impl Default for MumbleConfig {
     }
 }
 
-impl MumbleManager {
+impl MumbleCtx {
     /// creates a mumble manager based on the config. it is upto users to check if its valid by checking the last instant and whether src is none
-    pub fn new(config: MumbleConfig) -> anyhow::Result<MumbleManager> {
-        let mut src = MumbleSource::new(&config.link_name);
-        let mut link = MumbleLink::default();
-        if let Some(ref mut msrc) = src {
-            link = msrc.get_link()?
-        }
-        if link.ui_tick == 0 {
-            error!("mumble link manager started with an uninitialized link");
-        }
-        let manager = MumbleManager {
-            src,
-            link,
-            last_update: Instant::now(),
-            config,
-        };
-        Ok(manager)
+    pub fn new(config: MumbleConfig, ow_window_id: u32, latest_time: f64) -> anyhow::Result<Self> {
+        let src = MumbleSource::new(&config, latest_time, ow_window_id)
+            .context("failed to create mumble src")?;
+        Ok(Self { src, config })
     }
 
     // just gets the already cached mumble link. call `tick()` to update
-    pub fn get_link(&self) -> &MumbleLink {
-        &self.link
-    }
+    // pub fn get_link(&self) -> &MumbleLink {
+    //     &self.src.get_link()
+    // }
 
     // if src is none, it represents the last instant when we tried to update src. when src is some, it represents the last instant mumble's uitick changed
-    pub fn last_updated(&self) -> Instant {
-        self.last_update
-    }
+    // pub fn last_updated(&self) -> Instant {
+    //     self.last_link_update
+    // }
 
     /// this will check previous cache's uitick and if src is valid, will try to update mumble link. IF uitick is different, it will update the last_update instant
     /// if src is not valid, tries to create src again if it has been atleast a second from the last attempt to create. after creation attempt, we will update the last_update instant to now
     /// this keeps cpu usage low by not checking every frame. which is not that useful anyway.
-    pub fn tick(&mut self) -> anyhow::Result<()> {
-        let ui_tick = self.link.ui_tick;
-        match self.src {
-            Some(ref mut msrc) => {
-                self.link = msrc.get_link()?;
-                if ui_tick != self.link.ui_tick {
-                    self.last_update = Instant::now();
-                }
-            }
-            None => {
-                if self.last_updated().elapsed() > Duration::from_secs(1) {
-                    self.src = MumbleSource::new(&self.config.link_name);
-                    warn!("mumble link is not initalized");
-                    self.last_update = Instant::now();
-                }
-            }
-        }
+    pub fn tick(&mut self, latest_time: f64, sys: &mut sysinfo::System) -> anyhow::Result<()> {
+        self.src.tick(latest_time, sys)?;
+
         Ok(())
     }
-}
-/// This source will be the used to abstract the linux/windows way of getting MumbleLink
-/// on windows, this represents the shared memory pointer to mumblelink, and as long as one of gw2 or a client like us is alive, the shared memory will stay alive
-/// on linux, this will be a File in /dev/shm that will only exist if jokolink created it at some point in time. this lives in ram, so reading from it is pretty much free.
-#[derive(Debug)]
-pub struct MumbleSource {
-    #[cfg(target_os = "linux")]
-    pub mumble_src: std::fs::File,
-    #[cfg(target_os = "windows")]
-    pub mumble_src: *const CMumbleLink,
 }
 
 /// The Window dimensions struct used to represent the window position/sizes.

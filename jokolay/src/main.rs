@@ -1,5 +1,7 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use jokolay::log_initialize;
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use sysinfo::SystemExt;
 
 use jokolay::config::ConfigManager;
 use tracing::level_filters::LevelFilter;
@@ -73,16 +75,42 @@ fn fake_main() -> anyhow::Result<()> {
     ))?;
     let mut etx =
         jokolay::core::gui::Etx::new(&window, themes_dir, &cm.config.theme_name, fonts_dir)?;
+    let window_id: u32 = match window.window.raw_window_handle() {
+        RawWindowHandle::Xlib(x) => {
+            #[cfg(target_os = "windows")]
+            let xid = x.window;
+            #[cfg(target_os = "linux")]
+            let xid = x
+                .window
+                .try_into()
+                .context("failed to convert raw handle into window_id")?;
+
+            xid
+        }
+        RawWindowHandle::Xcb(x) => x.window,
+        // RawWindowHandle::Wayland(x) => {x.surface.try_into().context("failed to convert raw handle into window_id")?}
+        RawWindowHandle::Win32(_) => 0,
+        RawWindowHandle::WinRt(_) => 0,
+        rest => bail!("invalid platform for raw window handle. {rest:#?}"),
+    };
+    let mut mm = jokolink::MumbleCtx::new(
+        cm.config.mumble_config.clone(),
+        window_id,
+        window.glfw.get_time(),
+    )?;
     let mut timer = std::time::Instant::now();
     let mut fps = 0u32;
-
+    let mut sys = sysinfo::System::new();
+    sys.refresh_all();
     while !window.window.should_close() {
         fps += 1;
         if timer.elapsed() > std::time::Duration::from_secs(1) {
             dbg!(fps);
             fps = 0;
             timer = std::time::Instant::now();
+            dbg!(&mm.src.get_link().ui_tick, &mm.src.gw2_size);
         }
+
         let input = window.tick(&mut renderer.wtx)?;
         let (output, shapes) = etx.tick(
             input,
@@ -91,6 +119,8 @@ fn fake_main() -> anyhow::Result<()> {
             &mut cm,
             handle.clone(),
         )?;
+        mm.tick(window.window_state.glfw_time, &mut sys)?;
+
         if etx.ctx.wants_pointer_input() || etx.ctx.wants_keyboard_input() {
             window.window.set_mouse_passthrough(false);
         } else {

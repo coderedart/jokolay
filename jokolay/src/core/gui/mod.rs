@@ -71,15 +71,10 @@ impl Etx {
                     );
                 });
             });
-            if self.enabled_windows.theme_window {
-                self.theme_manager.gui(ctx.clone())?;
-            }
-            if self.enabled_windows.overlay_controls {
-                ow.gui(ctx.clone(), wtx)?;
-            }
-            if self.enabled_windows.config_window {
-                cm.gui(ctx, handle)?;
-            }
+            self.theme_manager
+                .gui(ctx.clone(), &mut self.enabled_windows.theme_window)?;
+            ow.gui(ctx.clone(), &mut self.enabled_windows.overlay_controls, wtx)?;
+            cm.gui(ctx, &mut self.enabled_windows.config_window, handle)?;
         }
         let (output, shapes) = self.ctx.end_frame();
         let shapes = self.ctx.tessellate(shapes);

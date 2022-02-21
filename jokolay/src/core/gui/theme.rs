@@ -109,11 +109,14 @@ impl ThemeManager {
             .get(&self.active_theme)
             .context("could not find active theme, impossible")
     }
-    pub fn gui(&mut self, ctx: egui::Context) -> anyhow::Result<()> {
+    pub fn gui(&mut self, ctx: egui::Context, open: &mut bool) -> anyhow::Result<()> {
         let mut delete_themes = vec![];
         let mut fonts_changed = false;
         let mut save = false;
-        Window::new("Theme Manager").show(&ctx, |ui| {
+        Window::new("Theme Manager")
+            .open(open)
+            .scroll2([true, true])
+            .show(&ctx, |ui| {
             ui.label("changes need to be saved manually by pressing save button.\n you can set default theme in config manager window");
             // show list of themes, and allow to delete the theme unless its the current active theme
             CollapsingHeader::new("Themes List")

@@ -3,8 +3,14 @@ use crate::core::window::OverlayWindow;
 use egui::{CollapsingHeader, DragValue, Widget};
 
 impl OverlayWindow {
-    pub fn gui(&mut self, ctx: egui::Context, wtx: &mut WgpuContext) -> anyhow::Result<()> {
+    pub fn gui(
+        &mut self,
+        ctx: egui::Context,
+        open: &mut bool,
+        wtx: &mut WgpuContext,
+    ) -> anyhow::Result<()> {
         egui::Window::new("Window Controls")
+            .open(open)
             .scroll2([true, true])
             .show(&ctx, |ui| {
                 ui.set_width(300.0);

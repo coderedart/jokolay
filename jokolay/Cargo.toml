@@ -55,7 +55,7 @@ tokio = {version = "1.12.0", default-features = false, features = ["rt-multi-thr
 #tokio-stream = {version = "0.1.7", features = ["fs"]}
 flume = "0"
 parking_lot = "*"
-#sysinfo = "0.23.0"
+sysinfo = "*"
 tracing-appender = { version = "0" }
 tracing-subscriber = { version = "0" }
 tracing = "0"
@@ -68,6 +68,5 @@ circular-queue = "0.2.6"
  wgpu = {version = "*", git = "https://github.com/gfx-rs/wgpu.git"}
 directories = "4"
 rfd = "*"
-#[target.'cfg(unix)'.dependencies]
-#x11rb = { version = "0.9.0", features = ["all-extensions"] }
+
 #

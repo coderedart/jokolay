@@ -6,9 +6,11 @@ impl ConfigManager {
     pub fn gui(
         &mut self,
         ctx: egui::Context,
+        open: &mut bool,
         _handle: tokio::runtime::Handle,
     ) -> anyhow::Result<()> {
         Window::new("Configuration")
+            .open(open)
             .scroll2([true, true])
             .show(&ctx, |ui| {
                 // Overlay Window Settings
