@@ -2,12 +2,14 @@ use crate::config::ConfigManager;
 use crate::core::gui::theme::ThemeManager;
 use crate::core::renderer::WgpuContext;
 use anyhow::Context;
-use egui::{ClippedMesh, Color32, RawInput, RichText, WidgetText};
+use egui::{ClippedMesh, Color32, RawInput, RichText, WidgetText, Window};
+use jokolink::MumbleCtx;
 use std::path::PathBuf;
 
 use crate::core::window::OverlayWindow;
 
 mod config;
+pub mod marker;
 mod theme;
 pub mod window;
 
@@ -43,6 +45,7 @@ impl Etx {
         ow: &mut OverlayWindow,
         wtx: &mut WgpuContext,
         cm: &mut ConfigManager,
+        mm: &mut MumbleCtx,
         handle: tokio::runtime::Handle,
     ) -> anyhow::Result<(egui::Output, Vec<ClippedMesh>)> {
         self.ctx.begin_frame(input);
@@ -69,12 +72,43 @@ impl Etx {
                         &mut self.enabled_windows.marker_pack_window,
                         "show marker pack manager",
                     );
+                    ui.checkbox(
+                        &mut self.enabled_windows.mumble_window,
+                        "show mumble window",
+                    );
                 });
             });
             self.theme_manager
                 .gui(ctx.clone(), &mut self.enabled_windows.theme_window)?;
             ow.gui(ctx.clone(), &mut self.enabled_windows.overlay_controls, wtx)?;
-            cm.gui(ctx, &mut self.enabled_windows.config_window, handle)?;
+            cm.gui(ctx.clone(), &mut self.enabled_windows.config_window, handle)?;
+            Window::new("Mumble Window")
+                .open(&mut self.enabled_windows.mumble_window)
+                .scroll2([true, true])
+                .show(&ctx, |ui| {
+                    ui.set_width(300.0);
+
+                    ui.horizontal(|ui| {
+                        ui.label("mumble link name: ");
+                        ui.label(&mm.config.link_name);
+                    });
+                    ui.label("time since the last change");
+                    ui.label(&format!(
+                        "uitick change: {:.1}",
+                        ow.window_state.glfw_time - mm.src.last_uitick_update
+                    ));
+                    ui.label(&format!(
+                        "dimensions change: {:.1}",
+                        ow.window_state.glfw_time - mm.src.last_pos_size_update
+                    ));
+                    ui.label(&format!("gw2 pid: {}", mm.src.gw2_pid));
+                    ui.label(&format!("gw2 xid: {}", mm.src.gw2_window_handle));
+                    ui.label(&format!("gw2 position: {:#?}", mm.src.gw2_pos));
+                    ui.label(&format!("gw2 size: {:#?}", mm.src.gw2_size));
+                    ui.collapsing("mumble link data", |ui| {
+                        ui.label(&format!("{:#?}", mm.src.get_link()));
+                    });
+                });
         }
         let (output, shapes) = self.ctx.end_frame();
         let shapes = self.ctx.tessellate(shapes);
@@ -89,4 +123,5 @@ pub struct WindowEnabled {
     pub debug_window: bool,
     pub marker_pack_window: bool,
     pub overlay_controls: bool,
+    pub mumble_window: bool,
 }

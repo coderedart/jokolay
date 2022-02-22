@@ -17,6 +17,7 @@ use glfw::{Action, Glfw, WindowEvent};
 use glm::{I32Vec2, U32Vec2, Vec2};
 
 use anyhow::Context as _;
+use device_query::{DeviceQuery, DeviceState, Keycode, MouseState};
 
 use crate::config::JokoConfig;
 use crate::core::renderer::WgpuContext;
@@ -29,13 +30,12 @@ use tracing::{trace, warn};
 pub struct OverlayWindow {
     pub window: glfw::Window,
     pub glfw: Glfw,
-    // _rdev_thread: (std::thread::JoinHandle<()>, Arc<AtomicBool>),
-    // rdev_events: flume::Receiver<inputbot::KeybdKey>,
+    pub ds: DeviceState,
     pub events: Receiver<(f64, WindowEvent)>,
     pub window_state: WindowState,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct WindowState {
     pub size: U32Vec2,
     pub position: I32Vec2,
@@ -44,7 +44,8 @@ pub struct WindowState {
     pub scale: Vec2,
     pub scroll_power: f32,
     pub latest_local_events: CircularQueue<WindowEvent>,
-    // pub latest_global_events: CircularQueue<inputbot::KeybdKey>,
+    pub mouse_state: [MouseState; 2],
+    pub kb_state: [Vec<Keycode>; 2],
     pub cursor_position: Vec2,
     pub present_time: time::OffsetDateTime,
     pub glfw_time: f64,
@@ -62,7 +63,8 @@ impl Default for WindowState {
             scale: Default::default(),
             scroll_power: 20.0,
             latest_local_events: CircularQueue::with_capacity(10),
-            // latest_global_events: CircularQueue::with_capacity(10),
+            mouse_state: Default::default(),
+            kb_state: Default::default(),
             cursor_position: Default::default(),
             present_time: OffsetDateTime::now_utc(),
             glfw_time: Default::default(),
@@ -147,24 +149,10 @@ impl OverlayWindow {
         let glfw_time = glfw.get_time();
         warn!("transparent: {transparent}, decorations: {decorations}, scale: {scale}");
 
-        // let (sender, receiver) = flume::bounded(500);
-        // let rdev_thread_signaller = Arc::new(AtomicBool::new(false));
-        // let rdev_thread_signaller_copy = rdev_thread_signaller.clone();
-        // let rdev_thread_handle = std::thread::spawn(move || {
-        //     inputbot::init_device();
-        //     inputbot::KeybdKey::bind_all(move |ev| {
-        //         dbg!(&ev);
-        //         let _ = sender.try_send(ev);
-        //         if rdev_thread_signaller_copy.load(std::sync::atomic::Ordering::Relaxed) {
-        //             panic!("rdev_thread_signaller is true");
-        //         }
-        //     });
-        //
-        //     inputbot::handle_input_events();
-        //     // {
-        //     //     error!("failed to start rdev listener due to error: {:#?}", e);
-        //     // }
-        // });
+        let ds = DeviceState::new();
+        let ms = ds.get_mouse();
+        let ms1 = ds.get_mouse();
+        let kb = ds.get_keys();
         let window_state = WindowState {
             size,
             position,
@@ -174,6 +162,8 @@ impl OverlayWindow {
             scroll_power: config.input_config.scroll_power,
             glfw_time,
             previous_fps_reset: glfw_time,
+            mouse_state: [ms, ms1],
+            kb_state: [kb.clone(), kb],
             ..Default::default()
         };
         warn!("{:#?}", &window_state);
@@ -181,9 +171,8 @@ impl OverlayWindow {
             window,
             events,
             glfw,
+            ds,
             window_state,
-            // _rdev_thread: (rdev_thread_handle, rdev_thread_signaller),
-            // rdev_events: receiver,
         })
     }
 
@@ -280,11 +269,10 @@ impl OverlayWindow {
                 [cursor_position.x, cursor_position.y].into(),
             ))
         }
-        // self.window_state.latest_local_events.clear();
-        // self.window_state.latest_global_events.clear();
-        // for event in self.rdev_events.try_iter() {
-        //     self.window_state.latest_global_events.push(event);
-        // }
+        self.window_state.mouse_state[0] = self.window_state.mouse_state[1].clone();
+        self.window_state.kb_state[0] = self.window_state.kb_state[1].clone();
+        self.window_state.mouse_state[1] = self.ds.get_mouse();
+        self.window_state.kb_state[1] = self.ds.get_keys();
         for (_, event) in glfw::flush_messages(&self.events) {
             if let &glfw::WindowEvent::CursorPos(..) = &event {
                 continue;
@@ -377,12 +365,12 @@ impl OverlayWindow {
                     None
                 }
                 glfw::WindowEvent::Pos(x, y) => {
-                    tracing::debug!("window position changed. {} {}", x, y);
+                    tracing::info!("window position changed. {} {}", x, y);
                     self.window_state.position = I32Vec2::new(x, y);
                     None
                 }
                 glfw::WindowEvent::Size(x, y) => {
-                    tracing::debug!("window size changed. {} {}", x, y);
+                    tracing::info!("window size changed. {} {}", x, y);
                     self.window_state.size = WindowState::i32_to_u32((x, y))?;
                     None
                 }

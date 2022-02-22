@@ -89,8 +89,7 @@ fn fake_main() -> anyhow::Result<()> {
         }
         RawWindowHandle::Xcb(x) => x.window,
         // RawWindowHandle::Wayland(x) => {x.surface.try_into().context("failed to convert raw handle into window_id")?}
-        RawWindowHandle::Win32(_) => 0,
-        RawWindowHandle::WinRt(_) => 0,
+        RawWindowHandle::Win32(_) | RawWindowHandle::WinRt(_) => 0,
         rest => bail!("invalid platform for raw window handle. {rest:#?}"),
     };
     let mut mm = jokolink::MumbleCtx::new(
@@ -108,7 +107,6 @@ fn fake_main() -> anyhow::Result<()> {
             dbg!(fps);
             fps = 0;
             timer = std::time::Instant::now();
-            dbg!(&mm.src.get_link().ui_tick, &mm.src.gw2_size);
         }
 
         let input = window.tick(&mut renderer.wtx)?;
@@ -117,11 +115,24 @@ fn fake_main() -> anyhow::Result<()> {
             &mut window,
             &mut renderer.wtx,
             &mut cm,
+            &mut mm,
             handle.clone(),
         )?;
         mm.tick(window.window_state.glfw_time, &mut sys)?;
 
         if etx.ctx.wants_pointer_input() || etx.ctx.wants_keyboard_input() {
+
+            #[cfg(target_os = "linux")]
+            if !window.window.is_mouse_passthrough() {
+                // check if we have been clicked, while we are not passthrough but not focused either. it means mouse is being captured by gw2
+                // and we will need to force focus to break that capture.
+                if !window.window.is_mouse_passthrough() && ((!window.window_state.mouse_state[0].button_pressed[1] && window.window_state.mouse_state[1].button_pressed[1]) ||
+                    (!window.window_state.mouse_state[0].button_pressed[2] && window.window_state.mouse_state[1].button_pressed[2]) ||
+                        (!window.window_state.mouse_state[0].button_pressed[3] && window.window_state.mouse_state[1].button_pressed[3])) && !window.window.is_focused() {
+                    window.window.focus();
+                }
+
+            }
             window.window.set_mouse_passthrough(false);
         } else {
             window.window.set_mouse_passthrough(true);
@@ -136,6 +147,7 @@ fn fake_main() -> anyhow::Result<()> {
     }
     Ok(())
 }
+
 fn main() {
     if let Err(e) = fake_main() {
         dbg!(e);
