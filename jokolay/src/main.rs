@@ -121,17 +121,21 @@ fn fake_main() -> anyhow::Result<()> {
         mm.tick(window.window_state.glfw_time, &mut sys)?;
 
         if etx.ctx.wants_pointer_input() || etx.ctx.wants_keyboard_input() {
-
             #[cfg(target_os = "linux")]
             if !window.window.is_mouse_passthrough() {
                 // check if we have been clicked, while we are not passthrough but not focused either. it means mouse is being captured by gw2
                 // and we will need to force focus to break that capture.
-                if !window.window.is_mouse_passthrough() && ((!window.window_state.mouse_state[0].button_pressed[1] && window.window_state.mouse_state[1].button_pressed[1]) ||
-                    (!window.window_state.mouse_state[0].button_pressed[2] && window.window_state.mouse_state[1].button_pressed[2]) ||
-                        (!window.window_state.mouse_state[0].button_pressed[3] && window.window_state.mouse_state[1].button_pressed[3])) && !window.window.is_focused() {
+                if !window.window.is_mouse_passthrough()
+                    && ((!window.window_state.mouse_state[0].button_pressed[1]
+                        && window.window_state.mouse_state[1].button_pressed[1])
+                        || (!window.window_state.mouse_state[0].button_pressed[2]
+                            && window.window_state.mouse_state[1].button_pressed[2])
+                        || (!window.window_state.mouse_state[0].button_pressed[3]
+                            && window.window_state.mouse_state[1].button_pressed[3]))
+                    && !window.window.is_focused()
+                {
                     window.window.focus();
                 }
-
             }
             window.window.set_mouse_passthrough(false);
         } else {
