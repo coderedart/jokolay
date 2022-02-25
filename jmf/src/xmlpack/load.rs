@@ -9,38 +9,78 @@ use elementtree::Element;
 // use image::GenericImageView;
 use itertools::Itertools;
 
+use crate::json::{FullPack, ImageSrc, PackData};
 use crate::{
     json::{
-        category::{Cat, CatTree},
-        marker::{Achievement, Behavior, Info, Marker, MarkerFlags, Trigger},
-        trail::{TBinDescription, Trail},
-        ImageDescription, Pack,
+        Achievement, Behavior, Cat, CatTree, ImageDescription, Info, Marker, MarkerFlags, Pack,
+        TBinDescription, Trail, Trigger,
     },
     xmlpack::MarkerTemplate,
     INCHES_PER_METER,
 };
 
-pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation>) {
-    let mut image_path_id: BTreeMap<String, u16> = BTreeMap::default();
-    // trl path to (tbin_id, tbin_pos, tbin_map_id)
-    let mut trail_path_id: BTreeMap<String, (u16, [f32; 3], u32)> = BTreeMap::default();
-    // let mut trail_pos: BTreeMap<u16, > = BTreeMap::default();
-    let mut images_descriptions: BTreeMap<u16, ImageDescription> = BTreeMap::default();
-    let mut tbins_descriptions: BTreeMap<u16, TBinDescription> = BTreeMap::default();
-    let mut images: BTreeMap<u16, Vec<u8>> = BTreeMap::default();
-    let mut tbins: BTreeMap<u16, Vec<[f32; 3]>> = BTreeMap::default();
-    let mut errors = vec![];
-    // walk the directory and gather all the images + Tbins + xml files
-    let mut etrees: Vec<(Arc<PathBuf>, Element)> = vec![];
-    let mut image_id = 0_u16;
-    let mut tbin_id = 0_u16;
-    let pack_buf = Arc::new(pack_dir.to_path_buf());
-    for entry in walkdir::WalkDir::new(&pack_dir) {
+#[derive(Debug, Default)]
+struct XmlPackEntries {
+    /// has relative paths to image id
+    img_relative_path_id: BTreeMap<String, u16>,
+    /// relative trl path to (tbin_id, tbin_pos, tbin_map_id)
+    trl_relative_path_id: BTreeMap<String, (u16, [f32; 3], u32)>,
+    /// image descriptions for json pack
+    img_desc: BTreeMap<u16, ImageDescription>,
+    /// tbin descriptions for json pack
+    tbin_desc: BTreeMap<u16, TBinDescription>,
+    /// image raw bytes of image id
+    images: BTreeMap<u16, Vec<u8>>,
+    /// tbin raw bytes of tbin id
+    tbins: BTreeMap<u16, Vec<[f32; 3]>>,
+    /// Element Trees of parsed xml files along with their path
+    elements: Vec<(Arc<PathBuf>, Element)>,
+}
+
+struct FileEntry {
+    file_path: Arc<PathBuf>,
+    file_raw_bytes: Vec<u8>,
+    file_name: String,
+    relative_path: String,
+}
+
+fn parse_file_entry(pack_dir: &Path, entry_path: Arc<PathBuf>) -> Result<FileEntry, XMLPackError> {
+    let file_name = entry_path
+        .as_path()
+        .file_stem()
+        .ok_or(XMLPackError::FileStemError)?
+        .to_str()
+        .ok_or(XMLPackError::FileNameError)?
+        .to_lowercase();
+
+    let relative_path = entry_path
+        .strip_prefix(pack_dir)
+        .map_err(|_| XMLPackError::StripPrefixError)?
+        .to_str()
+        .ok_or(XMLPackError::StripPrefixError)?
+        .to_lowercase();
+    let mut file_bytes = vec![];
+    std::fs::File::open(entry_path.as_path())?.read_to_end(&mut file_bytes)?;
+    Ok(FileEntry {
+        file_path: entry_path,
+        file_raw_bytes: file_bytes,
+        file_name,
+        relative_path,
+    })
+}
+
+fn get_file_entries(
+    pack_dir: Arc<PathBuf>,
+    _warnings: &mut Vec<ErrorWithLocation>,
+    errors: &mut Vec<ErrorWithLocation>,
+) -> Vec<FileEntry> {
+    let mut file_entries = vec![];
+    for entry in walkdir::WalkDir::new(pack_dir.as_path()) {
         let entry = match entry {
-            Ok(entry) => entry,
+            Ok(e) => e,
             Err(e) => {
                 errors.push(ErrorWithLocation {
-                    file_path: pack_buf.clone(),
+                    file_path: pack_dir.clone(),
                     tag: None,
                     error: e.into(),
                 });
@@ -48,37 +88,61 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
             }
         };
         match entry.metadata() {
-            Ok(md) => {
-                if md.is_dir() {
+            Ok(e) => {
+                if e.is_dir() {
                     continue;
                 }
             }
-            Err(e) => {
-                errors.push(ErrorWithLocation {
-                    file_path: pack_buf.clone(),
-                    tag: None,
-                    error: e.into(),
-                });
-                continue;
-            }
+            Err(e) => errors.push(ErrorWithLocation {
+                file_path: pack_dir.clone(),
+                tag: None,
+                error: e.into(),
+            }),
         }
         let entry_path = Arc::new(entry.path().to_path_buf());
-        match entry.path().extension().map(|ext| ext.to_str()).flatten() {
+        match parse_file_entry(pack_dir.as_path(), entry_path.clone()) {
+            Ok(fe) => {
+                file_entries.push(fe);
+            }
+            Err(e) => errors.push(ErrorWithLocation {
+                file_path: entry_path.clone(),
+                tag: None,
+                error: e,
+            }),
+        }
+    }
+    file_entries
+}
+
+/// walk over all entries in a directory
+/// if xml, we parse element tree and store it. if image or tbin, we parse the descriptions and bytes,
+/// validate them before storing into entries
+fn get_xml_pack_entries(
+    pack_dir: &Path,
+    warnings: &mut Vec<ErrorWithLocation>,
+    errors: &mut Vec<ErrorWithLocation>,
+) -> XmlPackEntries {
+    // we use Arc Pathbuf as we will clone it a lot for a lot of errors, so its faster to clone with Arc.
+    let pack_buf = Arc::new(pack_dir.to_path_buf());
+    let mut entries = XmlPackEntries::default();
+    // all the errors we encounter put into one vector
+    let file_entries = get_file_entries(pack_buf, warnings, errors);
+    // ids to be used.
+    let mut image_id = 0_u16;
+    let mut tbin_id = 0_u16;
+
+    for fe in file_entries.into_iter() {
+        let entry_path = fe.file_path.clone();
+        match entry_path
+            .as_path()
+            .extension()
+            .map(|ext| ext.to_str())
+            .flatten()
+        {
             // collect all xml strings, so that we can deal with them all at once
             Some("xml") => {
-                let mut src_xml = String::default();
-                match std::fs::File::open(entry.path()) {
-                    Ok(mut f) => match f.read_to_string(&mut src_xml) {
-                        Ok(_b) => {}
-                        Err(e) => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: e.into(),
-                            });
-                            continue;
-                        }
-                    },
+                let src_xml = match std::str::from_utf8(&fe.file_raw_bytes) {
+                    Ok(s) => s,
                     Err(e) => {
                         errors.push(ErrorWithLocation {
                             file_path: entry_path.clone(),
@@ -87,11 +151,12 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
                         });
                         continue;
                     }
-                }
-                let post_xml = super::rapid::rapid_filter(src_xml);
+                };
+
+                let post_xml = super::rapid::rapid_filter(src_xml.to_string());
                 match elementtree::Element::from_reader(std::io::Cursor::new(post_xml)) {
                     Ok(ele) => {
-                        etrees.push((entry_path.clone(), ele));
+                        entries.elements.push((entry_path.clone(), ele));
                     }
                     Err(e) => errors.push(ErrorWithLocation {
                         file_path: entry_path.clone(),
@@ -103,19 +168,12 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
 
             Some("png") => {
                 // get the image into memory
-                let mut src_png = vec![];
-                match std::fs::File::open(entry.path()) {
-                    Ok(mut f) => match f.read_to_end(&mut src_png) {
-                        Ok(_b) => {}
-                        Err(e) => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: e.into(),
-                            });
-                            continue;
-                        }
-                    },
+                // parse image
+                let img = match image::load_from_memory_with_format(
+                    &fe.file_raw_bytes,
+                    image::ImageFormat::Png,
+                ) {
+                    Ok(i) => i,
                     Err(e) => {
                         errors.push(ErrorWithLocation {
                             file_path: entry_path.clone(),
@@ -124,91 +182,27 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
                         });
                         continue;
                     }
-                } // get the width/height
-                let img =
-                    match image::load_from_memory_with_format(&src_png, image::ImageFormat::Png) {
-                        Ok(i) => i,
-                        Err(e) => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: e.into(),
-                            });
-                            continue;
-                        }
-                    };
+                };
+
+                // get ImageDescription
                 let desc = ImageDescription {
-                    name: match entry_path.file_stem().map(|name| name.to_str()).flatten() {
-                        Some(name) => name.to_string(),
-                        None => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: XMLPackError::FileStemError,
-                            });
-                            continue;
-                        }
-                    },
-                    width: img
-                        .width()
-                        .try_into()
-                        .expect("image width greater than u16"),
-                    height: img
-                        .height()
-                        .try_into()
-                        .expect("image height greater than u16"),
+                    name: fe.file_name,
+                    width: img.width(),
+                    height: img.height(),
+                    source: ImageSrc::FS,
+                    ..Default::default()
                 };
-                let img_path = match entry_path.strip_prefix(pack_dir) {
-                    Ok(ep) => match ep.to_str() {
-                        Some(ep) => ep.to_lowercase(),
-                        None => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: XMLPackError::FileNameError,
-                            });
-                            continue;
-                        }
-                    },
-                    Err(_e) => {
-                        errors.push(ErrorWithLocation {
-                            file_path: entry_path.clone(),
-                            tag: None,
-                            error: XMLPackError::StripPrefixError(entry.path().to_path_buf()),
-                        });
-                        continue;
-                    }
-                };
+
                 // start inserting into maps and increment id
-                images.insert(image_id, src_png);
-                images_descriptions.insert(image_id, desc);
-                image_path_id.insert(img_path, image_id);
+                entries.images.insert(image_id, fe.file_raw_bytes);
+                entries.img_desc.insert(image_id, desc);
+                entries
+                    .img_relative_path_id
+                    .insert(fe.relative_path, image_id);
                 image_id += 1;
             }
             Some("trl") => {
-                let mut src_trl = vec![];
-                match std::fs::File::open(entry.path()) {
-                    Ok(mut f) => match f.read_to_end(&mut src_trl) {
-                        Ok(_b) => {}
-                        Err(e) => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: e.into(),
-                            });
-                            continue;
-                        }
-                    },
-                    Err(e) => {
-                        errors.push(ErrorWithLocation {
-                            file_path: entry_path.clone(),
-                            tag: None,
-                            error: e.into(),
-                        });
-                        continue;
-                    }
-                }
-                if src_trl.len() <= 12 {
+                if fe.file_raw_bytes.len() <= 12 {
                     errors.push(ErrorWithLocation {
                         file_path: entry_path.clone(),
                         tag: None,
@@ -217,14 +211,14 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
                     continue;
                 }
                 let mut version_bytes = [0_u8; 4];
-                version_bytes.copy_from_slice(&src_trl[..4]);
+                version_bytes.copy_from_slice(&fe.file_raw_bytes[..4]);
                 let mut _version = u32::from_ne_bytes(version_bytes); // optional as we will convert to version 3
 
                 let mut map_id_bytes = [0_u8; 4];
-                map_id_bytes.copy_from_slice(&src_trl[4..8]);
+                map_id_bytes.copy_from_slice(&fe.file_raw_bytes[4..8]);
                 let map_id = u32::from_ne_bytes(map_id_bytes);
 
-                let nodes: &[[f32; 3]] = bytemuck::cast_slice(&src_trl[8..]);
+                let nodes: &[[f32; 3]] = bytemuck::cast_slice(&fe.file_raw_bytes[8..]);
                 let mut nodes: Vec<[f32; 3]> = nodes.to_vec();
                 let position = if let Some(p) = nodes.first().copied() {
                     p
@@ -241,60 +235,54 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
                     *p = [n[0] - position[0], n[1] - position[1], n[2] - position[2]];
                 });
                 let desc = TBinDescription {
-                    name: match entry_path.file_stem().map(|name| name.to_str()).flatten() {
-                        Some(name) => name.to_string(),
-                        None => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: XMLPackError::FileStemError,
-                            });
-                            continue;
-                        }
-                    },
+                    name: fe.file_name,
                     version: 3,
                 };
-                let trl_path = match entry_path.strip_prefix(pack_dir) {
-                    Ok(ep) => match ep.to_str() {
-                        Some(ep) => ep.to_lowercase(),
-                        None => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: None,
-                                error: XMLPackError::FileNameError,
-                            });
-                            continue;
-                        }
-                    },
-                    Err(_e) => {
-                        errors.push(ErrorWithLocation {
-                            file_path: entry_path.clone(),
-                            tag: None,
-                            error: XMLPackError::StripPrefixError(entry.path().to_path_buf()),
-                        });
-                        continue;
-                    }
-                };
-                tbins.insert(tbin_id, nodes);
-                tbins_descriptions.insert(tbin_id, desc);
-                trail_path_id.insert(trl_path, (tbin_id, position, map_id));
+                entries.tbins.insert(tbin_id, nodes);
+                entries.tbin_desc.insert(tbin_id, desc);
+                entries
+                    .trl_relative_path_id
+                    .insert(fe.relative_path.clone(), (tbin_id, position, map_id));
                 tbin_id += 1;
             }
             _rest => {
-                errors.push(ErrorWithLocation {
+                warnings.push(ErrorWithLocation {
                     file_path: entry_path.clone(),
                     tag: None,
-                    error: XMLPackError::ExtensionLessFile,
+                    error: XMLPackError::UnrecognisedFile,
                 });
             }
         }
     }
+
+    entries
+}
+
+// fn load_xml_pack_entries(pack_dir: &Path) -> ()
+/// loads an xml pack from the given pack directory and lossily converts it into json pack. we will
+/// document all the errors too, so that they can either be ignored or fixed. as we are dealing with
+/// filesystem, parsing, validating and conversions, there are LOTS or errors that are possible,
+/// so this function is really really long.
+pub fn xml_to_json_pack(
+    pack_dir: &Path,
+) -> (FullPack, Vec<ErrorWithLocation>, Vec<ErrorWithLocation>) {
+    let mut errors = vec![];
+    let mut warnings = vec![];
+    let XmlPackEntries {
+        mut img_relative_path_id,
+        mut trl_relative_path_id,
+        img_desc,
+        tbin_desc,
+        images,
+        tbins,
+        elements,
+    } = get_xml_pack_entries(pack_dir, &mut warnings, &mut errors);
     let mut fullnames_to_catid: BTreeMap<String, u16> = BTreeMap::default();
     let mut catid_templates: BTreeMap<u16, MarkerTemplate> = BTreeMap::default();
     let mut cats: BTreeMap<u16, Cat> = BTreeMap::default();
     let mut cattree: Vec<CatTree> = vec![];
     let mut cat_id = 0_u16;
-    for (entry_path, root) in etrees.iter() {
+    for (entry_path, root) in elements.iter() {
         for mc in root
             .children()
             .filter(|c| c.tag().name() == "MarkerCategory")
@@ -308,6 +296,7 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
                 &MarkerTemplate::default(),
                 &mut cat_id,
                 "",
+                &mut warnings,
                 &mut errors,
                 entry_path.clone(),
             );
@@ -316,34 +305,36 @@ pub fn xml_to_json_pack(pack_dir: &Path) -> (Option<Pack>, Vec<ErrorWithLocation
     let mut markers: BTreeMap<u32, Marker> = BTreeMap::default();
     let mut trails: BTreeMap<u32, Trail> = BTreeMap::default();
 
-    for (p, root) in etrees.iter() {
+    for (p, root) in elements.iter() {
         for pois in root.children().filter(|c| c.tag().name() == "POIs") {
             parse_markers_trails(
                 pois,
                 &mut fullnames_to_catid,
                 &mut catid_templates,
-                &mut image_path_id,
-                &mut trail_path_id,
+                &mut img_relative_path_id,
+                &mut trl_relative_path_id,
                 &mut markers,
                 &mut trails,
                 p.clone(),
+                &mut warnings,
                 &mut errors,
             );
         }
     }
-
-    (
-        Some(Pack {
-            images_descriptions,
-            tbins_descriptions,
-            cats,
-            cat_tree: cattree,
-            markers,
-            trails,
-            ..Default::default()
-        }),
-        errors,
-    )
+    let pack = Pack {
+        images_descriptions: img_desc,
+        tbins_descriptions: tbin_desc,
+        cats,
+        cat_tree: cattree,
+        markers,
+        trails,
+        ..Default::default()
+    };
+    let full_pack = FullPack {
+        pack,
+        pack_data: PackData { images, tbins },
+    };
+    (full_pack, warnings, errors)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -356,21 +347,56 @@ fn parse_recursive_mc(
     parent_template: &MarkerTemplate,
     cat_id: &mut u16,
     parent_name: &str,
+    warnings: &mut Vec<ErrorWithLocation>,
     errors: &mut Vec<ErrorWithLocation>,
     entry_path: Arc<PathBuf>,
 ) {
     let mut template = parent_template.clone();
-    template.override_from_element(ele, errors, entry_path.clone());
+    template.override_from_element(ele, warnings, errors, entry_path.clone());
     let mut display_name = String::new();
     let mut is_separator = false;
+    let mut enabled = false;
     if let Some(dn) = ele.get_attr("DisplayName") {
         display_name = dn.to_string();
+    } else {
+        warnings.push(ErrorWithLocation {
+            file_path: entry_path.clone(),
+            tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+            error: XMLPackError::AttributeParseError("missing displayname attribute".to_string()),
+        })
     }
 
     if let Some(issep) = ele.get_attr("IsSeparator=") {
-        is_separator = issep.parse().unwrap();
+        match issep.parse() {
+            Ok(e) => is_separator = e,
+            Err(_e) => {
+                warnings.push(ErrorWithLocation {
+                    file_path: entry_path.clone(),
+                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                    error: XMLPackError::AttributeParseError("Is Seperator attribute".to_string()),
+                });
+            }
+        }
     }
-
+    if let Some(e) = ele.get_attr("defaulttoggle") {
+        match e {
+            "1" | "true" => {
+                enabled = true;
+            }
+            "0" | "false" => {
+                enabled = false;
+            }
+            _ => {
+                warnings.push(ErrorWithLocation {
+                    file_path: entry_path.clone(),
+                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                    error: XMLPackError::AttributeParseError(
+                        "Default Toggle attribute".to_string(),
+                    ),
+                });
+            }
+        }
+    }
     if let Some(name) = ele.get_attr("name") {
         let full_name = if parent_name.is_empty() {
             name.to_string()
@@ -387,7 +413,8 @@ fn parse_recursive_mc(
                 name: name.to_string(),
                 display_name,
                 is_separator,
-                authors: vec![],
+                enabled,
+                ..Default::default()
             },
         );
         *cat_id += 1;
@@ -402,6 +429,7 @@ fn parse_recursive_mc(
                 &template,
                 cat_id,
                 &full_name,
+                warnings,
                 errors,
                 entry_path.clone(),
             );
@@ -414,6 +442,7 @@ impl MarkerTemplate {
     pub fn override_from_element(
         &mut self,
         ele: &Element,
+        warnings: &mut Vec<ErrorWithLocation>,
         errors: &mut Vec<ErrorWithLocation>,
         entry_path: Arc<PathBuf>,
     ) {
@@ -424,7 +453,7 @@ impl MarkerTemplate {
                     self.achievement_id = Some(match attr_value.parse() {
                         Ok(v) => v,
                         Err(_e) => {
-                            errors.push(ErrorWithLocation {
+                            warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(
@@ -439,7 +468,7 @@ impl MarkerTemplate {
                     self.achievement_bit = Some(match attr_value.parse() {
                         Ok(v) => v,
                         Err(_e) => {
-                            errors.push(ErrorWithLocation {
+                            warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(
@@ -454,7 +483,7 @@ impl MarkerTemplate {
                     self.alpha = Some(match attr_value.parse() {
                         Ok(v) => v,
                         Err(_e) => {
-                            errors.push(ErrorWithLocation {
+                            warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(
@@ -469,7 +498,7 @@ impl MarkerTemplate {
                     self.anim_speed = Some(match attr_value.parse() {
                         Ok(v) => v,
                         Err(_e) => {
-                            errors.push(ErrorWithLocation {
+                            warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(
@@ -485,7 +514,7 @@ impl MarkerTemplate {
                         "1" | "true" => 1,
                         "0" | "false" => 0,
                         _others => {
-                            errors.push(ErrorWithLocation {
+                            warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(
@@ -839,8 +868,16 @@ impl MarkerTemplate {
                     | "GUID" | "MapID" | "copy" | "tip-name" | "tip-description" | "festival"
                     | "copy-message" | "schedule" | "schedule-duration" => {}
                     rest => {
-                        if !rest.starts_with("bh-") {
-                            errors.push(ErrorWithLocation {
+                        if rest.starts_with("bh-") {
+                            warnings.push(ErrorWithLocation {
+                                file_path: entry_path.clone(),
+                                tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                error: XMLPackError::AttributeParseError(
+                                    "attributes starting with bh- are ignored".to_string(),
+                                ),
+                            })
+                        } else {
+                            warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(rest.to_string()),
@@ -863,12 +900,43 @@ fn parse_markers_trails(
     markers: &mut BTreeMap<u32, Marker>,
     trails: &mut BTreeMap<u32, Trail>,
     entry_path: Arc<PathBuf>,
+    warnings: &mut Vec<ErrorWithLocation>,
     errors: &mut Vec<ErrorWithLocation>,
 ) {
     if ele.tag().name() == "POIs" {
         for (_, mt) in ele.children().enumerate() {
             match mt.tag().name() {
                 "POI" => {
+                    if let Some(guid) = mt.get_attr("GUID") {
+                        match base64::decode(guid) {
+                            Ok(uuid_bytes) => {
+                                if let Err(e) = uuid::Uuid::from_slice(&uuid_bytes) {
+                                    warnings.push(ErrorWithLocation {
+                                        file_path: entry_path.clone(),
+                                        tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                        error: XMLPackError::AttributeParseError(format!("decoded uuid bytes are {uuid_bytes:?}. and uuid error: {e:?}")),
+                                    })
+                                }
+                            }
+                            Err(e) => {
+                                warnings.push(ErrorWithLocation {
+                                    file_path: entry_path.clone(),
+                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                    error: XMLPackError::AttributeParseError(format!(
+                                        "GUID attribute is not valid base64. {e:?}"
+                                    )),
+                                });
+                            }
+                        }
+                    } else {
+                        warnings.push(ErrorWithLocation {
+                            file_path: entry_path.clone(),
+                            tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                            error: XMLPackError::AttributeParseError(
+                                "GUID attribute missing".to_string(),
+                            ),
+                        });
+                    }
                     let mut position = [0_f32; 3];
                     if let Some(xpos) = mt.get_attr("xpos") {
                         match xpos.trim().parse() {
@@ -941,6 +1009,7 @@ fn parse_markers_trails(
                     position
                         .iter_mut()
                         .for_each(|meter| *meter *= INCHES_PER_METER);
+
                     let map_id: u16 = if let Some(map_id) = mt.get_attr("MapID") {
                         match map_id.trim().parse() {
                             Ok(map_id) => map_id,
@@ -995,18 +1064,23 @@ fn parse_markers_trails(
                         .get(&cat)
                         .expect("missing cat template")
                         .clone();
-                    template.override_from_element(mt, errors, entry_path.clone());
+                    template.override_from_element(mt, warnings, errors, entry_path.clone());
 
                     m.alpha = template.alpha.map(|a| (a * 255.0) as u8);
                     m.color = template.color;
                     if template.fade_far.is_some() || template.fade_near.is_some() {
                         m.fade_range = Some([
-                            template.fade_near.unwrap_or_default() as f32,
-                            template.fade_far.unwrap_or_default() as f32,
+                            template
+                                .fade_near
+                                .map(|m| m as f32 * INCHES_PER_METER)
+                                .unwrap_or(0.0),
+                            template
+                                .fade_far
+                                .map(|m| m as f32 * INCHES_PER_METER)
+                                .unwrap_or(f32::MAX),
                         ]);
                     }
-                    m.min_size = template.min_size;
-                    m.max_size = template.max_size;
+                    if template.min_size.is_some() || template.max_size.is_some() {}
                     m.map_display_size = template.map_display_size;
                     m.map_fade_out_scale_level = template.map_fade_out_scale_level;
                     m.scale = template.icon_size;
@@ -1041,26 +1115,20 @@ fn parse_markers_trails(
                     );
 
                     if let Some(info) = template.info {
-                        m.dynamic_props = Some(m.dynamic_props.unwrap_or_default());
                         let info = Info {
                             text: info,
                             range: template.info_range.map(|meter| meter * INCHES_PER_METER),
                         };
-                        if let Some(ref mut d) = m.dynamic_props {
-                            d.info = Some(info);
-                        }
+                        m.dynamic_props.info = Some(info);
                     }
                     if let Some(aid) = template.achievement_id {
-                        m.dynamic_props = Some(m.dynamic_props.unwrap_or_default());
                         let achievement = Achievement {
                             id: aid,
                             bit: template.achievement_bit.unwrap_or(u8::MAX),
                         };
-                        if let Some(ref mut d) = m.dynamic_props {
-                            d.achievement = Some(achievement);
-                        }
+                        m.dynamic_props.achievement = Some(achievement);
                     }
-                    let range = template.trigger_range.unwrap_or(2.0) * INCHES_PER_METER;
+                    let range = template.trigger_range.map(|r| r * INCHES_PER_METER);
                     let behavior = if let Some(b) = template.behavior {
                         Some(match b {
                             super::xml_marker::Behavior::AlwaysVisible => Behavior::AlwaysVisible,
@@ -1103,15 +1171,11 @@ fn parse_markers_trails(
                         .map(|full_name| fullnames_to_catid.get(&full_name).copied())
                         .flatten();
                     if toggle_cat.is_some() || behavior.is_some() {
-                        m.dynamic_props = Some(m.dynamic_props.unwrap_or_default());
-
-                        if let Some(ref mut d) = m.dynamic_props {
-                            d.trigger = Some(Trigger {
-                                range,
-                                behavior,
-                                toggle_cat,
-                            });
-                        }
+                        m.dynamic_props.trigger = Some(Trigger {
+                            range,
+                            behavior,
+                            toggle_cat,
+                        });
                     }
                     if let Some(tex) = template.icon_file {
                         m.texture = image_path_id.get(&tex.to_lowercase()).copied();
@@ -1136,9 +1200,64 @@ fn parse_markers_trails(
                     }
                 }
                 "Trail" => {
-                    let tdfile = mt.get_attr("trailData").unwrap();
+                    if let Some(guid) = mt.get_attr("GUID") {
+                        match base64::decode(guid) {
+                            Ok(uuid_bytes) => {
+                                if let Err(e) = uuid::Uuid::from_slice(&uuid_bytes) {
+                                    warnings.push(ErrorWithLocation {
+                                        file_path: entry_path.clone(),
+                                        tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                        error: XMLPackError::AttributeParseError(format!("decoded uuid bytes are {uuid_bytes:?}. and uuid error: {e:?}")),
+                                    })
+                                }
+                            }
+                            Err(e) => {
+                                warnings.push(ErrorWithLocation {
+                                    file_path: entry_path.clone(),
+                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                    error: XMLPackError::AttributeParseError(format!(
+                                        "GUID attribute is not valid base64. {e:?}"
+                                    )),
+                                });
+                            }
+                        }
+                    } else {
+                        warnings.push(ErrorWithLocation {
+                            file_path: entry_path.clone(),
+                            tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                            error: XMLPackError::AttributeParseError(
+                                "GUID attribute missing".to_string(),
+                            ),
+                        });
+                        continue;
+                    }
+                    let tdfile = match mt.get_attr("trailData") {
+                        Some(e) => e,
+                        None => {
+                            errors.push(ErrorWithLocation {
+                                file_path: entry_path.clone(),
+                                tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                error: XMLPackError::AttributeParseError(
+                                    "TrailData attribute".to_string(),
+                                ),
+                            });
+                            continue;
+                        }
+                    };
                     let (tbin_id, mut tposition, map_id) =
-                        trail_path_id.get(&tdfile.to_lowercase()).copied().unwrap();
+                        match trail_path_id.get(&tdfile.to_lowercase()).copied() {
+                            Some(x) => x,
+                            None => {
+                                errors.push(ErrorWithLocation {
+                                    file_path: entry_path.clone(),
+                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                    error: XMLPackError::TrlNotFound {
+                                        trl_path: tdfile.to_string(),
+                                    },
+                                });
+                                continue;
+                            }
+                        };
                     let cat = if let Some(fullname) = mt.get_attr("type") {
                         if let Some(catid) = fullnames_to_catid.get(&fullname.to_lowercase()) {
                             *catid
@@ -1174,7 +1293,7 @@ fn parse_markers_trails(
                         .expect("missing cat template")
                         .clone();
 
-                    template.override_from_element(mt, errors, entry_path.clone());
+                    template.override_from_element(mt, warnings, errors, entry_path.clone());
 
                     m.alpha = template.alpha.map(|a| (a * 255.0) as u8);
                     m.color = template.color;
@@ -1260,9 +1379,9 @@ pub enum XMLPackError {
     #[error("failed to convert filename to utf-8 str. ")]
     FileNameError,
     #[error("file with no extension.")]
-    ExtensionLessFile,
-    #[error("strip prefix error. {0:?}.")]
-    StripPrefixError(PathBuf),
+    UnrecognisedFile,
+    #[error("strip prefix error.")]
+    StripPrefixError,
     #[error("file stem error ")]
     FileStemError,
     #[error("invalid png image")]
@@ -1272,7 +1391,7 @@ pub enum XMLPackError {
     #[error("invalid trl binary")]
     TrailBinaryError,
     #[error("file does not contain valid utf-8")]
-    UTF8Error,
+    UTF8Error(#[from] std::str::Utf8Error),
     #[error("file does not contain valid xml")]
     XMLParseError(#[from] elementtree::Error),
     #[error("referenced category not found")]

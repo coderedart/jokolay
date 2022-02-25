@@ -74,12 +74,14 @@ impl MumbleSource {
 
     pub fn tick(&mut self, latest_time: f64, sys: &mut sysinfo::System) -> anyhow::Result<()> {
         let previous_tick = self.link.ui_tick;
-        let buffer = get_link_buffer(&mut self.mfile)?;
+
         // to make sure that self.link is always "valid" and without any errors while updating from buffer,
         // we will use a new link and after checking that its valid, we will assign it.
         let mut present_link = MumbleLink::default();
+        let buffer = get_link_buffer(&mut self.mfile)?;
         present_link.update_from_slice(&buffer)?;
         let present_tick = present_link.ui_tick;
+
         // case where mumble is not initialized or mumble is not changed from last frame (either game dead or game fps low)
         if present_tick == 0 || previous_tick == present_tick {
             return Ok(());
@@ -94,8 +96,10 @@ impl MumbleSource {
         }
         // we handled present == previous and present < previous. so, we know that present is greater than previous
         self.last_uitick_update = latest_time;
+        // by updating link here, if gw2 is dead, we make sure that next frame, if mumble doesn't update, we don't reach the checking for xid again.
         self.link = present_link;
 
+        // we only update pos/size atleast a second after previous successful update
         if latest_time - self.last_pos_size_update > 1.0 {
             // for linux, first get window xid from jokolink using "wine_x11" thingy and then get pid from NET_WM_PID
             let xid: isize = xid_from_buffer(&buffer);

@@ -1,36 +1,38 @@
-use crate::json::Author;
+use crate::is_default;
+use crate::json::author::Author;
 use serde::{Deserialize, Serialize};
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Cat {
     pub name: String,
     pub display_name: String,
     #[serde(default)]
-    #[serde(skip_serializing_if = "is_false")]
+    #[serde(skip_serializing_if = "is_default")]
     pub is_separator: bool,
     #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "is_default")]
+    pub enabled: bool,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
     pub authors: Vec<Author>,
-}
-
-fn is_false(b: &bool) -> bool {
-    !b
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
+    pub extra: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CatTree {
     pub id: u16,
     #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "is_default")]
     pub children: Vec<CatTree>,
 }
 
 #[cfg(test)]
 mod tests {
-    use serde_test::*;
-
     use crate::json::category::{Cat, CatTree};
+    use serde_test::*;
 
     #[test]
     fn serde_cat_description() {
@@ -38,7 +40,9 @@ mod tests {
             name: "marker category one".to_string(),
             display_name: "One".to_string(),
             is_separator: false,
+            enabled: false,
             authors: vec![],
+            extra: "".to_string(),
         };
 
         assert_tokens(

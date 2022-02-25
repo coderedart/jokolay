@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use tracing::info;
 
 fn main() {
@@ -14,7 +12,10 @@ fn main() {
                     )
                 }));
             let (nb, guard) = tracing_appender::non_blocking(writer);
-            tracing_subscriber::fmt().with_writer(nb).init();
+            tracing_subscriber::fmt()
+                .with_ansi(false)
+                .with_writer(nb)
+                .init();
 
             info!("Application Name: {}", env!("CARGO_PKG_NAME"));
             info!("Application Version: {}", env!("CARGO_PKG_VERSION"));
@@ -31,15 +32,17 @@ fn main() {
             guard
         };
 
-        let (pack, errors) =
+        let (pack, warnings, errors) =
             jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tw"));
         std::thread::sleep(std::time::Duration::from_secs(5));
 
-        tracing::warn!("{:#?}", &errors);
-        std::fs::File::create("./assets/packs/pack.json")
-            .unwrap()
-            .write_all(serde_json::to_string(&pack.unwrap()).unwrap().as_bytes())
-            .unwrap();
+        tracing::warn!("{:#?}", &warnings);
+        tracing::error!("{:#?}", &errors);
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create("./assets/packs/pack.json").unwrap()),
+            &pack.pack,
+        )
+        .unwrap();
         // let pack_file = std::io::BufReader::new( std::fs::File::open("./assets/packs/pack.json").unwrap());
         // let pack: Pack = serde_json::from_reader(pack_file).unwrap();
         // std::thread::sleep(std::time::Duration::from_secs(30));

@@ -1,5 +1,5 @@
+use crate::is_default;
 use serde::{Deserialize, Serialize};
-use validator::Validate;
 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -8,8 +8,12 @@ pub struct Marker {
     pub cat: u16,
     pub color: Option<[u8; 4]>,
     pub fade_range: Option<[f32; 2]>,
-    pub dynamic_props: Option<Dynamic>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
+    pub dynamic_props: Dynamic,
     pub texture: Option<u16>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
     pub flags: MarkerFlags,
     pub map_display_size: Option<u16>,
     pub map_fade_out_scale_level: Option<f32>,
@@ -32,7 +36,7 @@ bitflags::bitflags! {
     }
 }
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Dynamic {
     pub trigger: Option<Trigger>,
     pub achievement: Option<Achievement>,
@@ -40,27 +44,27 @@ pub struct Dynamic {
 }
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Deserialize, Serialize, Copy, Validate)]
+#[derive(Debug, Clone, Deserialize, Serialize, Copy, PartialEq)]
 pub struct Trigger {
-    pub range: f32,
+    pub range: Option<f32>,
     pub behavior: Option<Behavior>,
     pub toggle_cat: Option<u16>,
 }
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Deserialize, Serialize, Copy, Validate)]
+#[derive(Debug, Clone, Deserialize, Serialize, Copy, PartialEq)]
 pub struct Achievement {
     pub id: u16,
     pub bit: u8,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Info {
     pub text: String,
     pub range: Option<f32>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Copy)]
+#[derive(Debug, Clone, Deserialize, Serialize, Copy, PartialEq)]
 pub enum Behavior {
     AlwaysVisible,
     ReappearOnMapChange,
