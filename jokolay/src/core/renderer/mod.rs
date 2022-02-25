@@ -100,14 +100,12 @@ impl Renderer {
                 ImageData::Color(c) => c
                     .pixels
                     .into_iter()
-                    .map(|c32| c32.to_array())
-                    .flatten()
+                    .flat_map(|c32| c32.to_array())
                     .collect(),
                 ImageData::Alpha(a) => a
                     .pixels
                     .into_iter()
-                    .map(|a8| Color32::from_white_alpha(a8).to_array())
-                    .flatten()
+                    .flat_map(|a8| Color32::from_white_alpha(a8).to_array())
                     .collect(),
             };
             let size = pixels.len() as u32;

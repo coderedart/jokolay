@@ -32,7 +32,7 @@ oxipng = "5"
 # for hashing images/trails
 xxhash-rust = {version = "0", features = ["xxh3"] }
 tracing-appender = { version = "0" }
-tracing-subscriber = { version = "0" }
+tracing-subscriber = { version = "0" , features = ["env-filter", "registry"]}
 tracing = "0"
 git-version = "0"
 # for easier extraction to folers and compression of folders into zip files (.taco format alias)
@@ -48,6 +48,9 @@ tokio = {version = "1", features = ["full"]}
 url = {version = "2", features = ["serde"]}
 # customized errors. optional honestly
 thiserror = "1"
+#anyhow = { version = "1.0.44", features = ["backtrace"]}
+color-eyre = "0.6"
+tracing-error = "*"
 derive_more = "0"
 
 # crevice = {version = "0.8.0", features = ["nalgebra"]}

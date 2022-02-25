@@ -6,6 +6,7 @@ use crate::json::ImageDescription;
 use serde::*;
 use serde_with::*;
 use std::collections::BTreeMap;
+use std::path::Path;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FullPack {
@@ -62,4 +63,41 @@ pub struct PackDescription {
     /// Authors of the Pack. use this for the "Primary" maintainers of the pack. Contributors can be added to the Category Description Authors field
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub authors: BTreeMap<u16, Author>,
+}
+
+
+impl Pack {
+    #[tracing::instrument]
+    pub fn save_to_folder(&self, pack_dir: &Path) -> color_eyre::Result<()> {
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("pack_desc.json"))?),
+            &self.pack_description,
+        )?;
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("image_desc.json"))?),
+            &self.images_descriptions,
+        )?;
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("tbin_desc.json"))?),
+            &self.tbins_descriptions,
+        )?;
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("cat_desc.json"))?),
+            &self.cats,
+        )?;
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("cat_tree.json"))?),
+            &self.cat_tree,
+        )?;
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("markers.json"))?),
+            &self.markers,
+        )?;
+        serde_json::to_writer_pretty(
+            std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("trails.json"))?),
+            &self.trails,
+        )?;
+        std::fs::create_dir_all(pack_dir.join(pack_dir.join("maps")))?;
+        Ok(())
+    }
 }

@@ -136,8 +136,8 @@ fn get_xml_pack_entries(
         match entry_path
             .as_path()
             .extension()
-            .map(|ext| ext.to_str())
-            .flatten()
+            .and_then(|ext| ext.to_str())
+
         {
             // collect all xml strings, so that we can deal with them all at once
             Some("xml") => {
@@ -865,9 +865,12 @@ impl MarkerTemplate {
                 }
                 rest => match rest {
                     "DisplayName" | "name" | "xpos" | "ypos" | "zpos" | "IsSeparator" | "type"
-                    | "GUID" | "MapID" | "copy" | "tip-name" | "tip-description" | "festival"
-                    | "copy-message" | "schedule" | "schedule-duration" => {}
+                    | "GUID" | "MapID"  => {
+                        // these are parsed in category / marker/ trail tags themselves.
+                    }
                     rest => {
+                        // "copy" | "tip-name" | "tip-description" | "festival"
+                        //                     | "copy-message" | "schedule" | "schedule-duration"
                         if rest.starts_with("bh-") {
                             warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
@@ -880,7 +883,7 @@ impl MarkerTemplate {
                             warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                error: XMLPackError::AttributeParseError(rest.to_string()),
+                                error: XMLPackError::AttributeParseError(format!("unsupported attribute: {rest}")),
                             });
                         }
                     }
@@ -1168,8 +1171,7 @@ fn parse_markers_trails(
                     };
                     let toggle_cat = template
                         .toggle_cateogry
-                        .map(|full_name| fullnames_to_catid.get(&full_name).copied())
-                        .flatten();
+                        .and_then(|full_name| fullnames_to_catid.get(&full_name).copied());
                     if toggle_cat.is_some() || behavior.is_some() {
                         m.dynamic_props.trigger = Some(Trigger {
                             range,
