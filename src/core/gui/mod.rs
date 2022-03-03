@@ -47,7 +47,7 @@ impl Etx {
         cm: &mut ConfigManager,
         mm: &mut MumbleCtx,
         handle: tokio::runtime::Handle,
-    ) -> anyhow::Result<(egui::Output, Vec<ClippedMesh>)> {
+    ) -> anyhow::Result<(egui::PlatformOutput, egui::TexturesDelta, Vec<ClippedMesh>)> {
         self.ctx.begin_frame(input);
         {
             let ctx = self.ctx.clone();
@@ -110,9 +110,11 @@ impl Etx {
                     });
                 });
         }
-        let (output, shapes) = self.ctx.end_frame();
+        let egui::FullOutput {
+            platform_output, needs_repaint: _, textures_delta, shapes
+        } = self.ctx.end_frame();
         let shapes = self.ctx.tessellate(shapes);
-        Ok((output, shapes))
+        Ok((platform_output, textures_delta, shapes))
     }
 }
 

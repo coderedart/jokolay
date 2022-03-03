@@ -5,12 +5,52 @@ mod marker;
 mod pack;
 mod trail;
 
+use std::collections::BTreeSet;
 pub use self::image::{ImageDescription, ImageSrc, OverlayImage};
 pub use author::Author;
 pub use category::{Cat, CatTree};
 pub use marker::{Achievement, Behavior, Dynamic, Info, Marker, MarkerFlags, Trigger};
 pub use pack::{FullPack, Pack, PackData, PackDescription};
 pub use trail::{TBinDescription, Trail};
+
+#[derive(Debug, Clone, Default)]
+pub struct Dirty {
+    /// ignore the rest of the struct and just save everything (delete the folder first if there's anything left)
+    pub pack_desc: bool,
+    pub image_desc: bool,
+    pub tbin_desc: bool,
+    pub cat_desc: bool,
+    pub cat_tree: bool,
+    /// save the markers from these map ids
+    pub markers: BTreeSet<u16>,
+    /// same as above, but trails
+    pub trails: BTreeSet<u16>,
+    /// save the images that have been with these ids, if the image doesn't exist, delete that image instead from filesystem
+    pub images: BTreeSet<u16>,
+    /// same as above, but for tbins.
+    pub tbins: BTreeSet<u16>,
+}
+
+impl Dirty {
+    pub fn full_from_pack(fp: &FullPack) -> Self {
+        let markers: BTreeSet<u16> = fp.pack.markers.keys().copied().map(|id| (id >> 16) as u16).collect();
+        let trails: BTreeSet<u16> = fp.pack.trails.keys().copied().map(|id| (id >> 16) as u16).collect();
+        let images: BTreeSet<u16> = fp.pack_data.images.keys().copied().collect();
+        let tbins: BTreeSet<u16> = fp.pack_data.tbins.keys().copied().collect();
+        Self {
+            pack_desc: true,
+            image_desc: true,
+            tbin_desc: true,
+            cat_desc: true,
+            cat_tree: true,
+            markers,
+            trails,
+            images,
+            tbins
+        }
+    }
+}
+
 
 //
 // use derive_more::*;

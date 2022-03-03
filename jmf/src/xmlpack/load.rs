@@ -9,7 +9,7 @@ use elementtree::Element;
 // use image::GenericImageView;
 use itertools::Itertools;
 
-use crate::json::{FullPack, ImageSrc, PackData};
+use crate::json::{Dirty, FullPack, ImageSrc, PackData};
 use crate::{
     json::{
         Achievement, Behavior, Cat, CatTree, ImageDescription, Info, Marker, MarkerFlags, Pack,
@@ -330,10 +330,14 @@ pub fn xml_to_json_pack(
         trails,
         ..Default::default()
     };
-    let full_pack = FullPack {
+    let mut full_pack = FullPack {
         pack,
         pack_data: PackData { images, tbins },
+        dirty: crate::json::Dirty {
+            ..Default::default()
+        }
     };
+    full_pack.dirty = Dirty::full_from_pack(&full_pack);
     (full_pack, warnings, errors)
 }
 

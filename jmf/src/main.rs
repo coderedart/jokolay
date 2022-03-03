@@ -45,14 +45,15 @@ fn main() -> color_eyre::Result<()> {
             guard
         };
 
-        let (pack, warnings, errors) =
+        let (mut pack, warnings, errors) =
             jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tw"));
-        std::thread::sleep(std::time::Duration::from_secs(5));
 
         tracing::warn!("{:#?}", &warnings);
         tracing::error!("{:#?}", &errors);
-        std::fs::create_dir_all("./assets/packs/json_tw").unwrap();
-        pack.pack.save_to_folder(std::path::Path::new("./assets/packs/json_tw")).unwrap();
+        let _ = std::fs::remove_dir_all("./assets/packs/tw_json");
+        std::fs::create_dir_all("./assets/packs/tw_json").unwrap();
+
+        pack.save_to_folder_multiple_files(std::path::Path::new("./assets/packs/tw_json"), true).unwrap();
 
         // serde_json::to_writer_pretty(
         //     std::io::BufWriter::new(std::fs::File::create("./assets/packs/pack.json").unwrap()),

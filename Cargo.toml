@@ -1,11 +1,63 @@
+[package]
+name = "jokolay"
+version = "0.1.12"
+description = "An Overlay for Guild Wars 2 in rust"
+license = "MIT"
+authors = ["coderedart <redartofcode@gmail.com>"]
+edition = "2021"
+keywords = ["GuildWars2", "GW2", "Overlay"]
 
-[workspace]
 resolver = "2"
 
-members = [
-    "jokolay",
-    "jokolink",
-    "jmf",
-    "jokoapi",
-]
-default-members = ["jokolay"]
+[dependencies]
+glfw = { version = "*", git = "https://github.com/coderedart/glfw-rs.git", features = ["all"] }
+jokolink = {version = "*", path = "jokolink"}
+jmf = {version = "*", path = "jmf"}
+jokoapi = {version = "*", path = "jokoapi"}
+serde = { version = "1.0.130", features = ["derive"] }
+#serde_path_to_error = "0.1.5"
+bytemuck = "1.7.2"
+egui = { version = "*", git = "https://github.com/emilk/egui.git", default-features = false, features = ["persistence", "convert_bytemuck", "multi_threaded", "default_fonts"] }
+glm = { version = "0.16.0", package = "nalgebra-glm", features = ["serde-serialize"] }
+#image = { version = "0.23.14", default-features = false, features = ["png"] }
+anyhow = { version = "1.0.44", features = ["backtrace"]}
+# rayon = "1.5.1"
+# bus = "2.2.3"
+# for getting window id of self? idk if this is necessary
+raw-window-handle = "0.4.2"
+serde_json = "1.0.68"
+# open = "2.0.1"
+# notify-rust = "4.5.5"
+tokio = {version = "1.12.0", default-features = false, features = ["rt-multi-thread"]}
+#url = "2.2.2"
+#tokio-stream = {version = "0.1.7", features = ["fs"]}
+flume = "0"
+parking_lot = "*"
+sysinfo = "*"
+tracing-appender = { version = "0" }
+tracing-subscriber = { version = "0" }
+tracing = "0"
+git-version = "0"
+time = "0.3.6"
+tap = "1.0.1"
+circular-queue = "0.2"
+# it takes barely 50 microseconds to update the mouse/keyboard states. so, this is fast. and also supports callbacks now.
+# but it doesn't support sending events, only querying for them.
+device_query = {version = "*", git = "https://github.com/coderedart/device_query.git"}
+# to *send* inputs, rather than just listen. no macro support yet, so keep them disabled
+#rdev = "*"
+#inputbot = { version = "*", git = "https://github.com/obv-mikhail/InputBot.git" }
+# to draw stuff..
+wgpu = {version = "*", git = "https://github.com/gfx-rs/wgpu.git"}
+#directories = "4"
+rfd = "*"
+# for translation
+i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester"]}
+rust-embed = "6"
+unic-langid = "0.9"
+
+
+#[target.'cfg(unix)'.dependencies]
+#x11rb = { version = "0.9.0", features = ["all-extensions"] }
+
+[workspace]

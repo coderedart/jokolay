@@ -110,7 +110,7 @@ fn fake_main() -> anyhow::Result<()> {
         }
 
         let input = window.tick(&mut renderer.wtx)?;
-        let (output, shapes) = etx.tick(
+        let (output, textures_delta, shapes) = etx.tick(
             input,
             &mut window,
             &mut renderer.wtx,
@@ -119,7 +119,9 @@ fn fake_main() -> anyhow::Result<()> {
             handle.clone(),
         )?;
         mm.tick(window.window_state.glfw_time, &mut sys)?;
-
+        if !output.copied_text.is_empty() {
+            window.window.set_clipboard_string(&output.copied_text);
+        }
         if etx.ctx.wants_pointer_input() || etx.ctx.wants_keyboard_input() {
             #[cfg(target_os = "linux")]
             if !window.window.is_mouse_passthrough() {
@@ -141,7 +143,7 @@ fn fake_main() -> anyhow::Result<()> {
         } else {
             window.window.set_mouse_passthrough(true);
         }
-        renderer.tick(output.textures_delta, shapes, &window)?;
+        renderer.tick(textures_delta, shapes, &window)?;
     }
     tokio_quit_sender
         .send(())
