@@ -1,17 +1,17 @@
 use serde::{Deserialize, Serialize};
 
 use crate::is_default;
-use crate::json::marker::Achievement;
+use crate::json::marker::{Filters};
 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Trail {
-    pub achievement: Option<Achievement>,
     pub alpha: Option<u8>,
     pub anim_speed: Option<f32>,
     pub cat: u16,
     pub color: Option<[u8; 4]>,
     pub fade_range: Option<[f32; 2]>,
+    pub filters: Filters,
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub flags: super::marker::MarkerFlags,

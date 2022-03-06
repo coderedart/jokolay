@@ -1,97 +1,64 @@
-use anyhow::{bail, Context};
+use color_eyre::eyre::WrapErr;
 use jokolay::log_initialize;
-use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use std::path::PathBuf;
 use sysinfo::SystemExt;
 
+use rfd::{MessageButtons, MessageLevel};
+
 use jokolay::config::ConfigManager;
-use tracing::level_filters::LevelFilter;
 
-fn fake_main() -> anyhow::Result<()> {
-    let [config_dir, _data_dir, _cache_dir, _markers_dir, logs_dir, themes_dir, fonts_dir] =
-        jokolay::get_config_data_cache_markers_dirs().map_err(|e| {
-            rfd::MessageDialog::new()
-                .set_title("failed to start jokolay")
-                .set_description(&format!("failed to get current dir. error: {:#?}", &e))
-                .set_level(rfd::MessageLevel::Error)
-                .set_buttons(rfd::MessageButtons::Ok)
-                .show();
-            e
-        })?;
+use tracing::instrument;
+use tracing_appender::non_blocking::WorkerGuard;
 
-    let mut cm = match ConfigManager::new(config_dir.join("joko_config.json")) {
-        Ok(cm) => cm,
-        Err(e) => {
-            rfd::MessageDialog::new()
-                .set_title("failed to start jokolay")
-                .set_description(&format!(
-                    "failed to create config manager. error: {:#?}",
-                    &e
-                ))
-                .set_level(rfd::MessageLevel::Error)
-                .set_buttons(rfd::MessageButtons::Ok)
-                .show();
-            anyhow::bail!(e)
-        }
-    };
-    let log_level = match cm.config.log_level.as_str() {
-        "trace" => LevelFilter::TRACE,
-        "debug" => LevelFilter::DEBUG,
-        "info" => LevelFilter::INFO,
-        "warn" => LevelFilter::WARN,
-        "error" => LevelFilter::ERROR,
-        rest => {
-            rfd::MessageDialog::new()
-                .set_title("failed to parse log level")
-                .set_description(&format!("failed to parse log level. source: {}", rest))
-                .set_level(rfd::MessageLevel::Error)
-                .set_buttons(rfd::MessageButtons::Ok)
-                .show();
-            anyhow::bail!("log level wrong")
-        }
-    };
-    let _guard = log_initialize(&logs_dir.join("jokolay.log"), log_level).map_err(|e| {
+#[instrument]
+async fn fake_main(
+    guard: &mut Option<tracing_appender::non_blocking::WorkerGuard>,
+) -> color_eyre::Result<()> {
+    let BeforeLogData {
+        mut cm,
+        worker_guard,
+        themes_dir,
+        fonts_dir,
+    } = pre_logging_setup().map_err(|e| {
         rfd::MessageDialog::new()
-            .set_title("failed to initiate logging")
-            .set_description(&format!("log initialize failed error: {:#?}", &e))
-            .set_level(rfd::MessageLevel::Error)
-            .set_buttons(rfd::MessageButtons::Ok)
+            .set_title("Jokolay failed to start")
+            .set_description(&format!("error: {:#?}", &e))
+            .set_buttons(MessageButtons::Ok)
+            .set_level(MessageLevel::Error)
             .show();
         e
     })?;
-    let (tokio_quit_sender, tokio_quit_receiver) = flume::bounded(1);
-    let rt = tokio::runtime::Runtime::new()?;
-    let handle = rt.handle().clone();
-    let tokio_thread = std::thread::spawn(move || {
-        rt.block_on(async {
-            tokio_quit_receiver
-                .recv_async()
-                .await
-                .expect("failed to receive tokio quit signal")
-        });
-    });
+    *guard = Some(worker_guard);
+
+    // use i18n_embed::{
+    //     fluent::{fluent_language_loader, FluentLanguageLoader},
+    //     LanguageLoader,
+    // };
+    //
+    // use rust_embed::RustEmbed;
+    // use i18n_embed::DesktopLanguageRequester;
+    // #[derive(RustEmbed)]
+    // #[folder = "i18n/"]
+    // struct Localizations;
+    //
+    // let loader: FluentLanguageLoader = fluent_language_loader!();
+    // loader
+    //     .load_languages(&Localizations, &[loader.fallback_language()])
+    //     .wrap_err("i18 load langauges error")?;
+    // let requested_languages = DesktopLanguageRequester::requested_languages();
+    // i18n_embed::select(
+    //     &loader, &Localizations, &requested_languages).wrap_err("failed to select a language from requested_languages")?;
+    //
+    // dbg!(i18n_embed_fl::fl!(loader, "hello"));
     let mut window = jokolay::core::window::OverlayWindow::create(&cm.config)?;
-    let mut renderer = handle.block_on(jokolay::core::renderer::Renderer::new(
-        &window, &cm.config, true,
-    ))?;
+    let mut renderer = jokolay::core::renderer::Renderer::new(&window, &cm.config, true)
+        .await
+        .wrap_err("failed to create renderer")?;
     let mut etx =
         jokolay::core::gui::Etx::new(&window, themes_dir, &cm.config.theme_name, fonts_dir)?;
-    let window_id: u32 = match window.window.raw_window_handle() {
-        RawWindowHandle::Xlib(x) => {
-            #[cfg(target_os = "windows")]
-            let xid = x.window;
-            #[cfg(target_os = "linux")]
-            let xid = x
-                .window
-                .try_into()
-                .context("failed to convert raw handle into window_id")?;
-
-            xid
-        }
-        RawWindowHandle::Xcb(x) => x.window,
-        // RawWindowHandle::Wayland(x) => {x.surface.try_into().context("failed to convert raw handle into window_id")?}
-        RawWindowHandle::Win32(_) | RawWindowHandle::WinRt(_) => 0,
-        rest => bail!("invalid platform for raw window handle. {rest:#?}"),
-    };
+    let window_id: u32 = (window.window.get_x11_window() as usize)
+        .try_into()
+        .wrap_err("failed to put x11 window id into u32")?;
     let mut mm = jokolink::MumbleCtx::new(
         cm.config.mumble_config.clone(),
         window_id,
@@ -110,14 +77,8 @@ fn fake_main() -> anyhow::Result<()> {
         }
 
         let input = window.tick(&mut renderer.wtx)?;
-        let (output, textures_delta, shapes) = etx.tick(
-            input,
-            &mut window,
-            &mut renderer.wtx,
-            &mut cm,
-            &mut mm,
-            handle.clone(),
-        )?;
+        let (output, textures_delta, shapes) =
+            etx.tick(input, &mut window, &mut renderer.wtx, &mut cm, &mut mm)?;
         mm.tick(window.window_state.glfw_time, &mut sys)?;
         if !output.copied_text.is_empty() {
             window.window.set_clipboard_string(&output.copied_text);
@@ -145,17 +106,40 @@ fn fake_main() -> anyhow::Result<()> {
         }
         renderer.tick(textures_delta, shapes, &window)?;
     }
-    tokio_quit_sender
-        .send(())
-        .context("failed to send tokio quit signal")?;
-    if tokio_thread.join().is_err() {
-        anyhow::bail!("failed to join tokio thread");
-    }
+
     Ok(())
 }
 
-fn main() {
-    if let Err(e) = fake_main() {
-        dbg!(e);
+#[tokio::main]
+async fn main() {
+    {
+        // the logger guard. as long as we have this alive, the logger will keep writing to file
+        let mut guard = None;
+        if let Err(e) = fake_main(&mut guard).await {
+            tracing::error!("{:#?}", &e);
+            dbg!(e);
+        }
     }
+}
+struct BeforeLogData {
+    cm: ConfigManager,
+    worker_guard: WorkerGuard,
+    themes_dir: PathBuf,
+    fonts_dir: PathBuf,
+}
+fn pre_logging_setup() -> color_eyre::Result<BeforeLogData> {
+    let [config_dir, _data_dir, _cache_dir, _markers_dir, logs_dir, themes_dir, fonts_dir] =
+        jokolay::get_config_data_cache_markers_dirs().wrap_err("failed to get current dir")?;
+
+    let cm = ConfigManager::new(config_dir.join("joko_config.json"))
+        .wrap_err("failed to create config manager")?;
+    let worker_guard = log_initialize(&logs_dir.join("jokolay.log"), cm.config.log_level.clone())
+        .wrap_err("log initialize failed")?;
+
+    Ok(BeforeLogData {
+        cm,
+        worker_guard,
+        themes_dir,
+        fonts_dir,
+    })
 }

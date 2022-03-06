@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Cat {
     pub name: String,
-    pub display_name: String,
+    pub display_name: u16,
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub is_separator: bool,

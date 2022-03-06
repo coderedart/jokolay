@@ -1,5 +1,5 @@
-use anyhow::Context;
 use async_trait::async_trait;
+use color_eyre::eyre::WrapErr;
 use itertools::Itertools;
 use reqwest::Client;
 use serde::de::DeserializeOwned;
@@ -11,6 +11,7 @@ pub mod items;
 pub mod minis;
 pub mod outfits;
 pub mod quaggans;
+pub mod races;
 pub mod worlds;
 
 #[async_trait]
@@ -22,7 +23,7 @@ pub trait EndPointAuthId {
         client: Client,
         api_key: &str,
         id: &Self::Id,
-    ) -> anyhow::Result<Self::RType>
+    ) -> color_eyre::Result<Self::RType>
     where
         Self::RType: DeserializeOwned,
         Self::Id: Display + Send + Sync,
@@ -32,7 +33,7 @@ pub trait EndPointAuthId {
             .bearer_auth(api_key)
             .send()
             .await?;
-        Ok(res.json().await.context(format!(
+        Ok(res.json().await.wrap_err(format!(
             "couldn't convert json result to rust type {}",
             type_name::<Self::RType>()
         ))?)
@@ -48,7 +49,7 @@ pub trait EndPointAuthIds {
         client: Client,
         api_key: &str,
         ids: &[Self::Id],
-    ) -> anyhow::Result<Self::RType>
+    ) -> color_eyre::Result<Self::RType>
     where
         Self::RType: DeserializeOwned,
         Self::Id: Display + Send + Sync,
@@ -59,7 +60,7 @@ pub trait EndPointAuthIds {
             .query(&[("ids", ids.iter().join(","))])
             .send()
             .await?;
-        Ok(res.json().await.context(format!(
+        Ok(res.json().await.wrap_err(format!(
             "couldn't convert json result to rust type {}",
             type_name::<Self::RType>()
         ))?)
@@ -69,7 +70,7 @@ pub trait EndPointAuthIds {
 pub trait EndPointAuth {
     type RType;
     fn get_url() -> &'static str;
-    async fn get_auth(client: Client, api_key: &str) -> anyhow::Result<Self::RType>
+    async fn get_auth(client: Client, api_key: &str) -> color_eyre::Result<Self::RType>
     where
         Self::RType: DeserializeOwned,
     {
@@ -78,7 +79,7 @@ pub trait EndPointAuth {
             .bearer_auth(api_key)
             .send()
             .await?;
-        Ok(res.json().await.context(format!(
+        Ok(res.json().await.wrap_err(format!(
             "couldn't convert json result to rust type {}",
             type_name::<Self::RType>()
         ))?)
@@ -89,7 +90,7 @@ pub trait EndPointIds {
     type Id;
     type RType;
     fn get_url() -> &'static str;
-    async fn get_with_id(client: Client, ids: &[Self::Id]) -> anyhow::Result<Self::RType>
+    async fn get_with_id(client: Client, ids: &[Self::Id]) -> color_eyre::Result<Self::RType>
     where
         Self::RType: DeserializeOwned,
         Self::Id: Display + Send + Sync,
@@ -99,7 +100,7 @@ pub trait EndPointIds {
             .query(&[("ids", ids.iter().join(","))])
             .send()
             .await?;
-        Ok(res.json().await.context(format!(
+        Ok(res.json().await.wrap_err(format!(
             "couldn't convert json result to rust type {}",
             type_name::<Self::RType>()
         ))?)
@@ -109,12 +110,12 @@ pub trait EndPointIds {
 pub trait EndPoint {
     type RType;
     fn get_url() -> &'static str;
-    async fn get(client: Client) -> anyhow::Result<Self::RType>
+    async fn get(client: Client) -> color_eyre::Result<Self::RType>
     where
         Self::RType: DeserializeOwned,
     {
         let res = client.get(Self::get_url()).send().await?;
-        Ok(res.json().await.context(format!(
+        Ok(res.json().await.wrap_err(format!(
             "couldn't convert json result to rust type {}",
             type_name::<Self::RType>()
         ))?)

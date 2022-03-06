@@ -1,27 +1,47 @@
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
+use color_eyre::Result;
 use std::path::Path;
 use tracing::warn;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_error::ErrorLayer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
+
 pub mod config;
 pub mod core;
+macro_rules! fl {
+    ($message_id:literal) => {{
+        i18n_embed_fl::fl!($crate::YOUR_STATIC_LOADER, $message_id)
+    }};
 
-pub fn log_initialize(
-    log_file_path: &Path,
-    log_level: tracing::level_filters::LevelFilter,
-) -> anyhow::Result<WorkerGuard> {
+    ($message_id:literal, $($args:expr),*) => {{
+        i18n_embed_fl::fl!($crate::YOUR_STATIC_LOADER, $message_id, $($args), *)
+    }};
+}
+
+pub fn log_initialize(log_file_path: &Path, log_level: String) -> Result<WorkerGuard> {
     // let file_appender = tracing_appender::rolling::never(log_directory, log_file_name);
-    let writer = std::io::BufWriter::new(
-        std::fs::File::create(&log_file_path)
-            .with_context(|| format!("failed to create logfile at path: {:#?}", &log_file_path))?,
-    );
+    let writer =
+        std::io::BufWriter::new(std::fs::File::create(&log_file_path).wrap_err_with(|| {
+            format!("failed to create logfile at path: {:#?}", &log_file_path)
+        })?);
     let (nb, guard) = tracing_appender::non_blocking(writer);
-    tracing_subscriber::fmt()
-        .with_ansi(false)
-        .without_time()
-        .with_writer(nb)
-        .with_max_level(log_level)
-        .init();
 
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_target(true)
+        .with_ansi(false)
+        .with_writer(nb);
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new(log_level))
+        .wrap_err("failed to parse log level :(")?;
+
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .with(ErrorLayer::default())
+        .init();
+    color_eyre::install()?;
     warn!("Application Name: {}", env!("CARGO_PKG_NAME"));
     warn!("Application Version: {}", env!("CARGO_PKG_VERSION"));
     warn!("Application Authors: {}", env!("CARGO_PKG_AUTHORS"));
@@ -33,9 +53,9 @@ pub fn log_initialize(
     Ok(guard)
 }
 
-pub fn get_config_data_cache_markers_dirs() -> anyhow::Result<[std::path::PathBuf; 7]> {
+pub fn get_config_data_cache_markers_dirs() -> Result<[std::path::PathBuf; 7]> {
     let current_dir =
-        std::env::current_dir().context("failed to get current directory from env")?;
+        std::env::current_dir().wrap_err("failed to get current directory from env")?;
     let config_dir_path = current_dir.join("config");
     let data_dir_path = current_dir.join("data");
     let cache_dir_path = current_dir.join("cache");
@@ -53,7 +73,7 @@ pub fn get_config_data_cache_markers_dirs() -> anyhow::Result<[std::path::PathBu
         fonts_dir_path,
     ];
     for p in &result {
-        std::fs::create_dir_all(p).context("failed to setup directories")?;
+        std::fs::create_dir_all(p).wrap_err("failed to setup directories")?;
     }
     Ok(result)
 }

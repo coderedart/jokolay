@@ -44,9 +44,9 @@ impl MumbleSource {
         config: &MumbleConfig,
         latest_time: f64,
         _ow_window_id: u32,
-    ) -> anyhow::Result<Self> {
+    ) -> color_eyre::Result<Self> {
         let (handle, link_ptr) = create_link_shared_mem(&config.link_name)
-            .context("failed to create mumblelink shm ")?;
+            .wrap_err("failed to create mumblelink shm ")?;
         let mut link = MumbleLink::default();
         let link = if link.update(link_ptr).is_ok() {
             link
@@ -67,7 +67,7 @@ impl MumbleSource {
             last_pos_size_update: latest_time,
         })
     }
-    pub fn tick(&mut self, latest_time: f64, _sys: &mut sysinfo::System) -> anyhow::Result<()> {
+    pub fn tick(&mut self, latest_time: f64, _sys: &mut sysinfo::System) -> color_eyre::Result<()> {
         let mut present_link = MumbleLink::default();
         present_link.update(self.link_ptr)?;
         let present_tick = present_link.ui_tick;
@@ -98,12 +98,12 @@ impl MumbleSource {
             if self.gw2_pid != 0 {
                 if self.gw2_process_handle.is_invalid() {
                     self.gw2_process_handle = get_process_handle(self.gw2_pid)
-                        .context("failed to get gw2 process handle, when pid is not zero")?;
+                        .wrap_err("failed to get gw2 process handle, when pid is not zero")?;
                 }
                 assert!(!self.gw2_process_handle.is_invalid());
                 if check_process_alive(self.gw2_process_handle)? {
                     if self.gw2_window_handle == 0 {
-                        self.gw2_window_handle = get_gw2_window_handle(self.link_ptr).context(
+                        self.gw2_window_handle = get_gw2_window_handle(self.link_ptr).wrap_err(
                             "failed to get window handle when tick is greater than zero",
                         )?;
                     }
@@ -149,7 +149,7 @@ unsafe extern "system" fn get_handle_by_pid(window_handle: HWND, gw2_pid: LPARAM
     BOOL(1)
 }
 
-pub fn get_win_pos_dim(window_handle: isize) -> anyhow::Result<(i32, i32, u32, u32)> {
+pub fn get_win_pos_dim(window_handle: isize) -> color_eyre::Result<(i32, i32, u32, u32)> {
     unsafe {
         let mut rect: RECT = RECT {
             left: 0,
@@ -166,10 +166,10 @@ pub fn get_win_pos_dim(window_handle: isize) -> anyhow::Result<(i32, i32, u32, u
             rect.top,
             (rect.right - rect.left)
                 .try_into()
-                .context("gw2 window width could not be cast into u32")?,
+                .wrap_err("gw2 window width could not be cast into u32")?,
             (rect.bottom - rect.top)
                 .try_into()
-                .context("gw2 height could not be cast into u32")?,
+                .wrap_err("gw2 height could not be cast into u32")?,
         ))
     }
 }
@@ -185,7 +185,7 @@ pub fn get_link_buffer(
     }
 }
 
-pub fn get_gw2_window_handle(link_ptr: *const CMumbleLink) -> anyhow::Result<isize> {
+pub fn get_gw2_window_handle(link_ptr: *const CMumbleLink) -> color_eyre::Result<isize> {
     unsafe {
         // get pid from mumble link
 
@@ -211,7 +211,7 @@ pub fn get_gw2_pid(link_ptr: *const CMumbleLink) -> u32 {
     unsafe { (*((*link_ptr).context.as_ptr() as *const CMumbleContext)).process_id }
 }
 /// The function helps get the x11 window id by using the pid in mumblelink.
-pub fn get_xid(link_ptr: *const CMumbleLink) -> anyhow::Result<isize> {
+pub fn get_xid(link_ptr: *const CMumbleLink) -> color_eyre::Result<isize> {
     // no point in getting xid if mumble is not valid -_-
     assert!(CMumbleLink::is_valid(link_ptr));
 
@@ -229,7 +229,7 @@ pub fn get_xid(link_ptr: *const CMumbleLink) -> anyhow::Result<isize> {
     }
 }
 
-pub fn get_process_handle(pid: u32) -> anyhow::Result<HANDLE> {
+pub fn get_process_handle(pid: u32) -> color_eyre::Result<HANDLE> {
     unsafe {
         let process_handle = OpenProcess(
             PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
@@ -247,7 +247,7 @@ pub fn get_process_handle(pid: u32) -> anyhow::Result<HANDLE> {
         }
     }
 }
-pub fn check_process_alive(process_handle: HANDLE) -> anyhow::Result<bool> {
+pub fn check_process_alive(process_handle: HANDLE) -> color_eyre::Result<bool> {
     // let mut exit_code = 0u32;
     // let result = unsafe { GetExitCodeProcess(process_handle, &mut exit_code as *mut u32) };
     // if !result.as_bool() {
@@ -281,14 +281,14 @@ pub fn close_process_handle(process_handle: HANDLE) {
         CloseHandle(process_handle);
     }
 }
-pub fn is_pid_alive(pid: u32) -> anyhow::Result<bool> {
+pub fn is_pid_alive(pid: u32) -> color_eyre::Result<bool> {
     let process_handle = get_process_handle(pid)?;
     let alive = check_process_alive(process_handle);
     close_process_handle(process_handle);
     alive
 }
 /// This function creates shared memory for mumble link using Key as the link name
-pub fn create_link_shared_mem(key: &str) -> anyhow::Result<(HANDLE, *const CMumbleLink)> {
+pub fn create_link_shared_mem(key: &str) -> color_eyre::Result<(HANDLE, *const CMumbleLink)> {
     // prepare the key as a cstr to pass to windows functions
     let key_cstr = std::ffi::CString::new(key)?;
     unsafe {

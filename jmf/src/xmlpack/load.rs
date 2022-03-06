@@ -9,10 +9,10 @@ use elementtree::Element;
 // use image::GenericImageView;
 use itertools::Itertools;
 
-use crate::json::{Dirty, FullPack, ImageSrc, PackData};
+use crate::json::{Dirty, FullPack, ImageSrc};
 use crate::{
     json::{
-        Achievement, Behavior, Cat, CatTree, ImageDescription, Info, Marker, MarkerFlags, Pack,
+        Achievement, Behavior, Cat, CatTree, ImageDescription, Info, Marker, MarkerFlags,
         TBinDescription, Trail, Trigger,
     },
     xmlpack::MarkerTemplate,
@@ -25,14 +25,6 @@ struct XmlPackEntries {
     img_relative_path_id: BTreeMap<String, u16>,
     /// relative trl path to (tbin_id, tbin_pos, tbin_map_id)
     trl_relative_path_id: BTreeMap<String, (u16, [f32; 3], u32)>,
-    /// image descriptions for json pack
-    img_desc: BTreeMap<u16, ImageDescription>,
-    /// tbin descriptions for json pack
-    tbin_desc: BTreeMap<u16, TBinDescription>,
-    /// image raw bytes of image id
-    images: BTreeMap<u16, Vec<u8>>,
-    /// tbin raw bytes of tbin id
-    tbins: BTreeMap<u16, Vec<[f32; 3]>>,
     /// Element Trees of parsed xml files along with their path
     elements: Vec<(Arc<PathBuf>, Element)>,
 }
@@ -119,6 +111,7 @@ fn get_file_entries(
 /// validate them before storing into entries
 fn get_xml_pack_entries(
     pack_dir: &Path,
+    full_pack: &mut FullPack,
     warnings: &mut Vec<ErrorWithLocation>,
     errors: &mut Vec<ErrorWithLocation>,
 ) -> XmlPackEntries {
@@ -137,7 +130,6 @@ fn get_xml_pack_entries(
             .as_path()
             .extension()
             .and_then(|ext| ext.to_str())
-
         {
             // collect all xml strings, so that we can deal with them all at once
             Some("xml") => {
@@ -194,8 +186,8 @@ fn get_xml_pack_entries(
                 };
 
                 // start inserting into maps and increment id
-                entries.images.insert(image_id, fe.file_raw_bytes);
-                entries.img_desc.insert(image_id, desc);
+                full_pack.pack_data.images.insert(image_id, fe.file_raw_bytes);
+                full_pack.pack.images_descriptions.insert(image_id, desc);
                 entries
                     .img_relative_path_id
                     .insert(fe.relative_path, image_id);
@@ -238,8 +230,8 @@ fn get_xml_pack_entries(
                     name: fe.file_name,
                     version: 3,
                 };
-                entries.tbins.insert(tbin_id, nodes);
-                entries.tbin_desc.insert(tbin_id, desc);
+                full_pack.pack_data.tbins.insert(tbin_id, nodes);
+                full_pack.pack.tbins_descriptions.insert(tbin_id, desc);
                 entries
                     .trl_relative_path_id
                     .insert(fe.relative_path.clone(), (tbin_id, position, map_id));
@@ -268,20 +260,17 @@ pub fn xml_to_json_pack(
 ) -> (FullPack, Vec<ErrorWithLocation>, Vec<ErrorWithLocation>) {
     let mut errors = vec![];
     let mut warnings = vec![];
+    let mut full_pack = FullPack::default();
     let XmlPackEntries {
         mut img_relative_path_id,
         mut trl_relative_path_id,
-        img_desc,
-        tbin_desc,
-        images,
-        tbins,
         elements,
-    } = get_xml_pack_entries(pack_dir, &mut warnings, &mut errors);
+    } = get_xml_pack_entries(pack_dir, &mut full_pack, &mut warnings, &mut errors);
     let mut fullnames_to_catid: BTreeMap<String, u16> = BTreeMap::default();
     let mut catid_templates: BTreeMap<u16, MarkerTemplate> = BTreeMap::default();
-    let mut cats: BTreeMap<u16, Cat> = BTreeMap::default();
-    let mut cattree: Vec<CatTree> = vec![];
     let mut cat_id = 0_u16;
+    let mut string_id = 0_u16;
+
     for (entry_path, root) in elements.iter() {
         for mc in root
             .children()
@@ -289,21 +278,21 @@ pub fn xml_to_json_pack(
         {
             parse_recursive_mc(
                 mc,
-                &mut cattree,
+                &mut full_pack.pack.cat_tree,
                 &mut fullnames_to_catid,
-                &mut cats,
+                &mut full_pack.pack.cats,
                 &mut catid_templates,
                 &MarkerTemplate::default(),
                 &mut cat_id,
                 "",
+                &mut full_pack.pack.strings,
+                &mut string_id,
                 &mut warnings,
                 &mut errors,
                 entry_path.clone(),
             );
         }
     }
-    let mut markers: BTreeMap<u32, Marker> = BTreeMap::default();
-    let mut trails: BTreeMap<u32, Trail> = BTreeMap::default();
 
     for (p, root) in elements.iter() {
         for pois in root.children().filter(|c| c.tag().name() == "POIs") {
@@ -313,30 +302,16 @@ pub fn xml_to_json_pack(
                 &mut catid_templates,
                 &mut img_relative_path_id,
                 &mut trl_relative_path_id,
-                &mut markers,
-                &mut trails,
+                &mut full_pack.pack.markers,
+                &mut full_pack.pack.trails,
                 p.clone(),
                 &mut warnings,
                 &mut errors,
             );
         }
     }
-    let pack = Pack {
-        images_descriptions: img_desc,
-        tbins_descriptions: tbin_desc,
-        cats,
-        cat_tree: cattree,
-        markers,
-        trails,
-        ..Default::default()
-    };
-    let mut full_pack = FullPack {
-        pack,
-        pack_data: PackData { images, tbins },
-        dirty: crate::json::Dirty {
-            ..Default::default()
-        }
-    };
+
+
     full_pack.dirty = Dirty::full_from_pack(&full_pack);
     (full_pack, warnings, errors)
 }
@@ -351,24 +326,34 @@ fn parse_recursive_mc(
     parent_template: &MarkerTemplate,
     cat_id: &mut u16,
     parent_name: &str,
+    strings: &mut BTreeMap<u16, String>,
+    string_id: &mut u16,
     warnings: &mut Vec<ErrorWithLocation>,
     errors: &mut Vec<ErrorWithLocation>,
     entry_path: Arc<PathBuf>,
 ) {
     let mut template = parent_template.clone();
     template.override_from_element(ele, warnings, errors, entry_path.clone());
-    let mut display_name = String::new();
     let mut is_separator = false;
     let mut enabled = false;
-    if let Some(dn) = ele.get_attr("DisplayName") {
-        display_name = dn.to_string();
+    let mut display_name = if let Some(dn) = ele.get_attr("DisplayName") {
+        if let Some((id, display_name)) = strings.iter().find(|(key, s)| **s == dn) {
+            *id
+        } else {
+            let id = *string_id;
+            *string_id += 1;
+            strings.insert(id, dn.to_string());
+            id
+        }
     } else {
-        warnings.push(ErrorWithLocation {
+        errors.push(ErrorWithLocation {
             file_path: entry_path.clone(),
             tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
             error: XMLPackError::AttributeParseError("missing displayname attribute".to_string()),
-        })
-    }
+        });
+        return;
+    };
+
 
     if let Some(issep) = ele.get_attr("IsSeparator=") {
         match issep.parse() {
@@ -433,6 +418,8 @@ fn parse_recursive_mc(
                 &template,
                 cat_id,
                 &full_name,
+                strings,
+                string_id
                 warnings,
                 errors,
                 entry_path.clone(),
@@ -869,7 +856,7 @@ impl MarkerTemplate {
                 }
                 rest => match rest {
                     "DisplayName" | "name" | "xpos" | "ypos" | "zpos" | "IsSeparator" | "type"
-                    | "GUID" | "MapID"  => {
+                    | "GUID" | "MapID" => {
                         // these are parsed in category / marker/ trail tags themselves.
                     }
                     rest => {
@@ -887,7 +874,9 @@ impl MarkerTemplate {
                             warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                error: XMLPackError::AttributeParseError(format!("unsupported attribute: {rest}")),
+                                error: XMLPackError::AttributeParseError(format!(
+                                    "unsupported attribute: {rest}"
+                                )),
                             });
                         }
                     }

@@ -68,7 +68,8 @@ itertools = {version = "0"}
 validator = {version = "*", features = ["derive"]}
 rgb = {version = "*", features = ["serde"]}
 cxx = "1.0"
-
+jokoapi = {version = "*", path = "../jokoapi"}
+jokolink = {version = "*", path = "../jokolink"}
 
 [dev-dependencies]
 serde_test = {version = "1"}

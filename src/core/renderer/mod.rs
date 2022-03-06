@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use anyhow::Context;
+use color_eyre::eyre::{bail, ContextCompat, WrapErr};
 use egui::{Color32, ImageData, TextureId};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::config::{JokoConfig, VsyncMode};
 use wgpu::{
@@ -33,7 +33,7 @@ impl Renderer {
         window: &OverlayWindow,
         config: &JokoConfig,
         _validation: bool,
-    ) -> anyhow::Result<Self> {
+    ) -> color_eyre::Result<Self> {
         let mut wtx = WgpuContext::new(window, config).await?;
 
         let egui_linear_sampler = wtx.device.create_sampler(&SamplerDescriptor {
@@ -89,7 +89,7 @@ impl Renderer {
         textures_delta: egui::TexturesDelta,
         shapes: Vec<egui::ClippedMesh>,
         window: &OverlayWindow,
-    ) -> anyhow::Result<()> {
+    ) -> color_eyre::Result<()> {
         let tex_update = !textures_delta.set.is_empty() || !textures_delta.free.is_empty();
 
         for (id, delta) in textures_delta.set {
@@ -191,12 +191,15 @@ impl Renderer {
         match self.wtx.surface.get_current_texture() {
             Ok(fb) => {
                 if fb.suboptimal {
-                    dbg!("suboptimal");
+                    warn!("suboptimal");
+                    self.wtx
+                        .surface
+                        .configure(&self.wtx.device, &self.wtx.config);
                 }
                 if self.wtx.config.width != window.window_state.framebuffer_size.x
                     || self.wtx.config.height != window.window_state.framebuffer_size.y
                 {
-                    dbg!(&self.wtx.config, window.window_state.framebuffer_size);
+                    warn!("surface config is not equal to window state. surface config: {:#?}, and window config :{:#?}", &self.wtx.config, window.window_state.framebuffer_size);
                 }
                 let mut encoder =
                     self.wtx
@@ -237,7 +240,7 @@ impl Renderer {
                         .configure(&self.wtx.device, &self.wtx.config);
                 }
                 rest => {
-                    anyhow::bail!("surface error: {:#?}", rest);
+                    bail!("surface error: {:#?}", rest);
                 }
             },
         };
@@ -256,7 +259,7 @@ pub struct WgpuContext {
 }
 
 impl WgpuContext {
-    pub async fn new(window: &OverlayWindow, config: &JokoConfig) -> anyhow::Result<Self> {
+    pub async fn new(window: &OverlayWindow, config: &JokoConfig) -> color_eyre::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
         let surface = unsafe { instance.create_surface(&window.window) };
         info!("{:#?}", &surface);
@@ -275,7 +278,7 @@ impl WgpuContext {
                 compatible_surface: Some(&surface),
             })
             .await
-            .context("failed to create adapter")?;
+            .wrap_err("failed to create adapter")?;
         info!("chose adapter: {}", &adapter.get_info().name);
         let (device, queue) = adapter
             .request_device(
@@ -292,12 +295,12 @@ impl WgpuContext {
                 None,
             )
             .await
-            .context("features not supported by this gpu")?;
+            .wrap_err("features not supported by this gpu")?;
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format: surface
                 .get_preferred_format(&adapter)
-                .context("surface has no preferred format")?,
+                .wrap_err("surface has no preferred format")?,
             width: window.window_state.framebuffer_size.x,
             height: window.window_state.framebuffer_size.y,
             present_mode: match config.overlay_window_config.vsync {

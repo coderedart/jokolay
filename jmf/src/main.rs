@@ -27,7 +27,7 @@ fn main() -> color_eyre::Result<()> {
             tracing_subscriber::registry()
                 .with(filter_layer)
                 .with(fmt_layer)
-                .with( ErrorLayer::default())
+                .with(ErrorLayer::default())
                 .init();
             color_eyre::install()?;
             info!("Application Name: {}", env!("CARGO_PKG_NAME"));
@@ -53,7 +53,8 @@ fn main() -> color_eyre::Result<()> {
         let _ = std::fs::remove_dir_all("./assets/packs/tw_json");
         std::fs::create_dir_all("./assets/packs/tw_json").unwrap();
 
-        pack.save_to_folder_multiple_files(std::path::Path::new("./assets/packs/tw_json"), true).unwrap();
+        pack.save_to_folder_multiple_files(std::path::Path::new("./assets/packs/tw_json"), true)
+            .unwrap();
 
         // serde_json::to_writer_pretty(
         //     std::io::BufWriter::new(std::fs::File::create("./assets/packs/pack.json").unwrap()),

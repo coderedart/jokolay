@@ -16,7 +16,7 @@ use egui::{Event, Key, PointerButton, RawInput};
 use glfw::{Action, Glfw, WindowEvent};
 use glm::{I32Vec2, U32Vec2, Vec2};
 
-use anyhow::Context as _;
+use color_eyre::eyre::{bail, WrapErr};
 use device_query::{DeviceQuery, DeviceState, Keycode, MouseState};
 
 use crate::config::JokoConfig;
@@ -76,7 +76,7 @@ impl Default for WindowState {
 }
 
 impl WindowState {
-    pub fn i32_to_u32(size: (i32, i32)) -> anyhow::Result<U32Vec2> {
+    pub fn i32_to_u32(size: (i32, i32)) -> color_eyre::Result<U32Vec2> {
         Ok(U32Vec2::new(
             size.0
                 .try_into()
@@ -113,8 +113,8 @@ impl OverlayWindow {
 
     #[allow(clippy::type_complexity)]
     #[tracing::instrument]
-    pub fn create(config: &JokoConfig) -> anyhow::Result<OverlayWindow> {
-        let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("failed to initialize glfw")?;
+    pub fn create(config: &JokoConfig) -> color_eyre::Result<OverlayWindow> {
+        let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).wrap_err("failed to initialize glfw")?;
         trace!("glfw initialized");
         Self::set_window_hints(&mut glfw);
 
@@ -127,7 +127,7 @@ impl OverlayWindow {
             glfw::WindowMode::Windowed,
         ) {
             Some(w) => w,
-            None => anyhow::bail!("failed to create window window"),
+            None => bail!("failed to create window window"),
         };
 
         trace!("window created");
@@ -232,7 +232,7 @@ impl OverlayWindow {
         // glfw.window_hint(glfw::WindowHint::Decorated(false));
     }
 
-    pub fn tick(&mut self, wtx: &mut WgpuContext) -> anyhow::Result<RawInput> {
+    pub fn tick(&mut self, wtx: &mut WgpuContext) -> color_eyre::Result<RawInput> {
         self.glfw.poll_events();
         let cursor_position = self.window.get_cursor_pos().pipe(|cp| {
             Vec2::new(

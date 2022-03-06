@@ -5,12 +5,12 @@ mod marker;
 mod pack;
 mod trail;
 
-use std::collections::BTreeSet;
 pub use self::image::{ImageDescription, ImageSrc, OverlayImage};
 pub use author::Author;
 pub use category::{Cat, CatTree};
 pub use marker::{Achievement, Behavior, Dynamic, Info, Marker, MarkerFlags, Trigger};
 pub use pack::{FullPack, Pack, PackData, PackDescription};
+use std::collections::BTreeSet;
 pub use trail::{TBinDescription, Trail};
 
 #[derive(Debug, Clone, Default)]
@@ -19,6 +19,7 @@ pub struct Dirty {
     pub pack_desc: bool,
     pub image_desc: bool,
     pub tbin_desc: bool,
+    pub string_desc: bool,
     pub cat_desc: bool,
     pub cat_tree: bool,
     /// save the markers from these map ids
@@ -33,24 +34,36 @@ pub struct Dirty {
 
 impl Dirty {
     pub fn full_from_pack(fp: &FullPack) -> Self {
-        let markers: BTreeSet<u16> = fp.pack.markers.keys().copied().map(|id| (id >> 16) as u16).collect();
-        let trails: BTreeSet<u16> = fp.pack.trails.keys().copied().map(|id| (id >> 16) as u16).collect();
+        let markers: BTreeSet<u16> = fp
+            .pack
+            .markers
+            .keys()
+            .copied()
+            .map(|id| (id >> 16) as u16)
+            .collect();
+        let trails: BTreeSet<u16> = fp
+            .pack
+            .trails
+            .keys()
+            .copied()
+            .map(|id| (id >> 16) as u16)
+            .collect();
         let images: BTreeSet<u16> = fp.pack_data.images.keys().copied().collect();
         let tbins: BTreeSet<u16> = fp.pack_data.tbins.keys().copied().collect();
         Self {
             pack_desc: true,
             image_desc: true,
             tbin_desc: true,
+            string_desc: true,
             cat_desc: true,
             cat_tree: true,
             markers,
             trails,
             images,
-            tbins
+            tbins,
         }
     }
 }
-
 
 //
 // use derive_more::*;

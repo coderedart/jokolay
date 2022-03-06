@@ -8,9 +8,8 @@
 //! It can multiple accessing data of multiple MumbleLinks, and allows multiple clients
 //! to request the data.
 
+use color_eyre::eyre::WrapErr;
 use serde::{Deserialize, Serialize};
-
-use anyhow::Context;
 
 pub mod mlink;
 
@@ -31,6 +30,7 @@ pub struct MumbleCtx {
     pub src: MumbleSource,
     pub config: MumbleConfig,
 }
+
 /// The configuration that mumble needs. just a mumble link name
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MumbleConfig {
@@ -54,9 +54,13 @@ impl Default for MumbleConfig {
 
 impl MumbleCtx {
     /// creates a mumble manager based on the config. it is upto users to check if its valid by checking the last instant and whether src is none
-    pub fn new(config: MumbleConfig, ow_window_id: u32, latest_time: f64) -> anyhow::Result<Self> {
+    pub fn new(
+        config: MumbleConfig,
+        ow_window_id: u32,
+        latest_time: f64,
+    ) -> color_eyre::Result<Self> {
         let src = MumbleSource::new(&config, latest_time, ow_window_id)
-            .context("failed to create mumble src")?;
+            .wrap_err("failed to create mumble src")?;
         Ok(Self { src, config })
     }
 
@@ -73,7 +77,7 @@ impl MumbleCtx {
     /// this will check previous cache's uitick and if src is valid, will try to update mumble link. IF uitick is different, it will update the last_update instant
     /// if src is not valid, tries to create src again if it has been atleast a second from the last attempt to create. after creation attempt, we will update the last_update instant to now
     /// this keeps cpu usage low by not checking every frame. which is not that useful anyway.
-    pub fn tick(&mut self, latest_time: f64, sys: &mut sysinfo::System) -> anyhow::Result<()> {
+    pub fn tick(&mut self, latest_time: f64, sys: &mut sysinfo::System) -> color_eyre::Result<()> {
         self.src.tick(latest_time, sys)?;
 
         Ok(())

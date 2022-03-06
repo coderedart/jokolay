@@ -34,7 +34,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn check_dailycrafting() -> anyhow::Result<()> {
+    async fn check_dailycrafting() -> color_eyre::Result<()> {
         let client = Client::new();
         let result = Dailycrafting::get(client.clone()).await?;
         assert_eq!(

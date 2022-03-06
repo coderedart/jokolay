@@ -1,4 +1,4 @@
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::create_dir_all;
@@ -103,11 +103,11 @@ impl AssetManager {
     pub fn fill_web_cache_imgs(_all_paths: &mut Vec<PathBuf>) -> HashMap<Url, usize> {
         todo!()
     }
-    pub fn get_id_from_file_path(&self, path: &Path) -> anyhow::Result<usize> {
+    pub fn get_id_from_file_path(&self, path: &Path) -> color_eyre::Result<usize> {
         self.all_paths
             .iter()
             .position(|p| *p == *path)
-            .context(format!("could not find path: {:?}", path.as_os_str()))
+            .wrap_err(format!("could not find path: {:?}", path.as_os_str()))
     }
     pub fn get_file_path_from_id(&self, id: usize) -> Option<&PathBuf> {
         self.all_paths.get(id)
@@ -125,7 +125,7 @@ impl AssetManager {
             }
         }
     }
-    pub fn open_file(&self, id: usize) -> anyhow::Result<File> {
+    pub fn open_file(&self, id: usize) -> color_eyre::Result<File> {
         let path = self
             .get_file_path_from_id(id)
             .expect("invalid id given to open_file in AssetManager");

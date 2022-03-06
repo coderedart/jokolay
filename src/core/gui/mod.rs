@@ -1,7 +1,7 @@
 use crate::config::ConfigManager;
 use crate::core::gui::theme::ThemeManager;
 use crate::core::renderer::WgpuContext;
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
 use egui::{ClippedMesh, Color32, RawInput, RichText, WidgetText, Window};
 use jokolink::MumbleCtx;
 use std::path::PathBuf;
@@ -25,11 +25,11 @@ impl Etx {
         theme_folder_path: PathBuf,
         default_theme_name: &str,
         fonts_dir: PathBuf,
-    ) -> anyhow::Result<Self> {
+    ) -> color_eyre::Result<Self> {
         let ctx = egui::Context::default();
         let enabled_windows = WindowEnabled::default();
         let theme_manager = ThemeManager::new(theme_folder_path, fonts_dir, default_theme_name)
-            .context("failed to create theme manager")?;
+            .wrap_err("failed to create theme manager")?;
 
         ctx.set_fonts(theme_manager.font_definitions.clone());
         ctx.set_style(theme_manager.get_current_theme()?.style.clone());
@@ -46,8 +46,8 @@ impl Etx {
         wtx: &mut WgpuContext,
         cm: &mut ConfigManager,
         mm: &mut MumbleCtx,
-        handle: tokio::runtime::Handle,
-    ) -> anyhow::Result<(egui::PlatformOutput, egui::TexturesDelta, Vec<ClippedMesh>)> {
+        // handle: tokio::runtime::Handle,
+    ) -> color_eyre::Result<(egui::PlatformOutput, egui::TexturesDelta, Vec<ClippedMesh>)> {
         self.ctx.begin_frame(input);
         {
             let ctx = self.ctx.clone();
@@ -81,7 +81,7 @@ impl Etx {
             self.theme_manager
                 .gui(ctx.clone(), &mut self.enabled_windows.theme_window)?;
             ow.gui(ctx.clone(), &mut self.enabled_windows.overlay_controls, wtx)?;
-            cm.gui(ctx.clone(), &mut self.enabled_windows.config_window, handle)?;
+            cm.gui(ctx.clone(), &mut self.enabled_windows.config_window)?;
             Window::new("Mumble Window")
                 .open(&mut self.enabled_windows.mumble_window)
                 .scroll2([true, true])
@@ -111,7 +111,10 @@ impl Etx {
                 });
         }
         let egui::FullOutput {
-            platform_output, needs_repaint: _, textures_delta, shapes
+            platform_output,
+            needs_repaint: _,
+            textures_delta,
+            shapes,
         } = self.ctx.end_frame();
         let shapes = self.ctx.tessellate(shapes);
         Ok((platform_output, textures_delta, shapes))

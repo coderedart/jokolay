@@ -1,4 +1,4 @@
 pub mod gui;
-pub mod link;
+pub mod player;
 pub mod renderer;
 pub mod window;

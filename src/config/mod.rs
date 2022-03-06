@@ -1,4 +1,4 @@
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
 use glm::{I32Vec2, U32Vec2};
 use jokolink::MumbleConfig;
 use serde::{Deserialize, Serialize};
@@ -15,24 +15,24 @@ pub struct ConfigManager {
     pub needs_save: bool,
 }
 impl ConfigManager {
-    pub fn new(path: PathBuf) -> anyhow::Result<Self> {
+    pub fn new(path: PathBuf) -> color_eyre::Result<Self> {
         if std::fs::metadata(&path).is_err() {
             let default_config = JokoConfig::default();
             std::fs::File::create(&path)?
                 .write_all(
                     serde_json::to_string_pretty(&default_config)
-                        .context("failed to serialize config default")?
+                        .wrap_err("failed to serialize config default")?
                         .as_bytes(),
                 )
-                .context("failed to create default config file")?;
+                .wrap_err("failed to create default config file")?;
         }
         let mut config_src = String::new();
         std::fs::File::open(&path)
-            .context("failed to open config file")?
+            .wrap_err("failed to open config file")?
             .read_to_string(&mut config_src)
-            .context("failed to read config file")?;
+            .wrap_err("failed to read config file")?;
         let config =
-            serde_json::from_str(&config_src).context("failed to deserialize config from file")?;
+            serde_json::from_str(&config_src).wrap_err("failed to deserialize config from file")?;
         Ok(Self {
             path,
             config,
@@ -40,7 +40,7 @@ impl ConfigManager {
             needs_save: false,
         })
     }
-    pub fn save_config(&mut self) -> anyhow::Result<()> {
+    pub fn save_config(&mut self) -> color_eyre::Result<()> {
         if self.needs_save {
             let mut config_file = File::create(&self.path)?;
             let config_string = serde_json::to_string_pretty(&self.config)?;
@@ -71,7 +71,7 @@ impl Default for JokoConfig {
             input_config: InputConfig::default(),
             auto_attach_to_gw2: true,
             theme_name: "default".to_string(),
-            log_level: "info".to_string(),
+            log_level: "warn".to_string(),
         }
     }
 }

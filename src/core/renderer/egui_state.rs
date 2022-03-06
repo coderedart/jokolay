@@ -1,6 +1,5 @@
+use color_eyre::eyre::ContextCompat;
 use std::collections::HashMap;
-
-use anyhow::Context;
 
 use egui::epaint::Vertex;
 use egui::{ClippedMesh, TextureId};
@@ -31,7 +30,7 @@ impl EguiState {
     pub fn new(
         wtx: &mut WgpuContext,
         texture_bindgroup_layout: &BindGroupLayout,
-    ) -> anyhow::Result<Self> {
+    ) -> color_eyre::Result<Self> {
         let bindgroup_layout = wtx
             .device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -128,7 +127,7 @@ impl EguiState {
         shapes: Vec<ClippedMesh>,
         _tex_update: bool,
         textures: &HashMap<TextureId, (Texture, TextureView, BindGroup)>,
-    ) -> anyhow::Result<()> {
+    ) -> color_eyre::Result<()> {
         let size_in_points: [f32; 2] = [
             wtx.config.width as f32 / window.window_state.scale.x,
             wtx.config.height as f32 / window.window_state.scale.y,
@@ -208,7 +207,7 @@ impl EguiState {
                         1,
                         &textures
                             .get(&mesh.1.texture_id)
-                            .context("texture not found")?
+                            .wrap_err("texture not found")?
                             .2,
                         &[],
                     );

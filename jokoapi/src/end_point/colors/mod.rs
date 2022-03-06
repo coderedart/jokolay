@@ -52,7 +52,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn check_color() -> anyhow::Result<()> {
+    async fn check_color() -> color_eyre::Result<()> {
         let client = Client::new();
         let result = Colors::get(client.clone()).await?;
         assert_eq!(

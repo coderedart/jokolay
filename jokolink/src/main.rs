@@ -41,7 +41,7 @@ fn main() {
     let app = JokolinkCli::parse();
     if !app.config.exists() {
         std::fs::File::create(&app.config)
-            .context("failed to create config file")
+            .wrap_err("failed to create config file")
             .unwrap()
             .write_all(
                 serde_json::to_string_pretty(&JokolinkConfig::default())
@@ -67,7 +67,7 @@ fn main() {
     }
 }
 #[cfg(target_os = "windows")]
-fn fake_main(config: JokolinkConfig) -> anyhow::Result<()> {
+fn fake_main(config: JokolinkConfig) -> color_eyre::Result<()> {
     use std::time::Duration;
     use tracing::*;
 
@@ -117,7 +117,7 @@ fn fake_main(config: JokolinkConfig) -> anyhow::Result<()> {
 
     // check that we created shared memory successfully or panic. get ptr to shared memory
     // as we don't really create more than one ptr for the whole lifetime of the program, we will just leak instead of cleaning up handle/link-ptr
-    let (_handle, link_ptr) = link.context("unabled to create mumble link shared memory ")?;
+    let (_handle, link_ptr) = link.wrap_err("unabled to create mumble link shared memory ")?;
 
     // create a shared memory file in /dev/shm/mumble_link_key_name so that jokolay can mumble stuff from there.
     info!(
@@ -200,10 +200,10 @@ fn fake_main(config: JokolinkConfig) -> anyhow::Result<()> {
 
         // write buffer to the file
         shm.write(&buffer)
-            .context("could not write to shared memory file due to error")?;
+            .wrap_err("could not write to shared memory file due to error")?;
         // seek back so that we will write to file again from start
         shm.seek(SeekFrom::Start(0))
-            .context("could not seek to start of shared memory file due to error")?;
+            .wrap_err("could not seek to start of shared memory file due to error")?;
 
         // we sleep for a few milliseconds to avoid reading mumblelink too many times. we will read it around 100 to 200 times per second
         std::thread::sleep(refresh_inverval);
@@ -217,7 +217,7 @@ fn main() {
     panic!("no binary for non-windows platforms");
 }
 
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
 use std::path::{Path, PathBuf};
 use tracing::metadata::LevelFilter;
 /// initializes global logging backend that is used by log macros
@@ -226,12 +226,12 @@ pub fn log_init(
     file_filter: LevelFilter,
     log_directory: &Path,
     log_file_name: &Path,
-) -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard> {
+) -> color_eyre::Result<tracing_appender::non_blocking::WorkerGuard> {
     // let file_appender = tracing_appender::rolling::never(log_directory, log_file_name);
     let file_path = log_directory.join(log_file_name);
     let writer = std::io::BufWriter::new(
         std::fs::File::create(&file_path)
-            .with_context(|| format!("failed to create logfile at path: {:#?}", &file_path))?,
+            .wrap_err_with(|| format!("failed to create logfile at path: {:#?}", &file_path))?,
     );
     let (nb, guard) = tracing_appender::non_blocking(writer);
     tracing_subscriber::fmt()

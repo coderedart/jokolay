@@ -1,4 +1,4 @@
-use anyhow::Context;
+use color_eyre::eyre::{ContextCompat, WrapErr};
 use egui::{CollapsingHeader, FontDefinitions, FontFamily, Style, Window};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -17,14 +17,14 @@ impl ThemeManager {
         theme_folder_path: PathBuf,
         fonts_dir: PathBuf,
         default_theme_name: &str,
-    ) -> anyhow::Result<Self> {
+    ) -> color_eyre::Result<Self> {
         assert!(!default_theme_name.is_empty());
         let mut font_definitions = egui::FontDefinitions::default();
 
         for f in
-            std::fs::read_dir(&fonts_dir).context("failed to read prop fonts directory entries")?
+            std::fs::read_dir(&fonts_dir).wrap_err("failed to read prop fonts directory entries")?
         {
-            let font_path = f.context("failed to get dir entry of fonts dir")?.path();
+            let font_path = f.wrap_err("failed to get dir entry of fonts dir")?.path();
             let mut font_bytes = vec![];
             std::fs::File::open(&font_path)
                 .with_context(|| format!("failed to open font file: {}", font_path.display()))?
@@ -35,7 +35,7 @@ impl ThemeManager {
             let font_data = egui::FontData::from_owned(font_bytes);
             let name = font_path
                 .file_stem()
-                .with_context(|| {
+                .wrap_err_with(|| {
                     format!(
                         "failed to get file stem of font file: {}",
                         font_path.display()
@@ -72,20 +72,20 @@ impl ThemeManager {
             )?;
         }
         for f in std::fs::read_dir(&theme_folder_path)
-            .context("failed to read entries of theme directory")?
+            .wrap_err("failed to read entries of theme directory")?
         {
-            let f = f.context("failed to get dir entry from theme dir")?;
+            let f = f.wrap_err("failed to get dir entry from theme dir")?;
             if f.file_type()
-                .context("failed to get filetype of a theme dir entry")?
+                .wrap_err("failed to get filetype of a theme dir entry")?
                 .is_file()
             {
                 let p = f.path();
                 let theme: Theme =
                     serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(&p)?))
-                        .context("failed to deserialize theme")?;
+                        .wrap_err("failed to deserialize theme")?;
                 list_of_themes.insert(
                     p.file_stem()
-                        .context("invalid file name")?
+                        .wrap_err("invalid file name")?
                         .to_string_lossy()
                         .to_string(),
                     theme,
@@ -94,7 +94,7 @@ impl ThemeManager {
         }
         font_definitions.families = list_of_themes
             .get(default_theme_name)
-            .context("no default theme, impossible")?
+            .wrap_err("no default theme, impossible")?
             .fonts_priority
             .clone();
         Ok(Self {
@@ -104,12 +104,12 @@ impl ThemeManager {
             font_definitions,
         })
     }
-    pub fn get_current_theme(&self) -> anyhow::Result<&Theme> {
+    pub fn get_current_theme(&self) -> color_eyre::Result<&Theme> {
         self.list_of_themes
             .get(&self.active_theme)
-            .context("could not find active theme, impossible")
+            .wrap_err("could not find active theme, impossible")
     }
-    pub fn gui(&mut self, ctx: egui::Context, open: &mut bool) -> anyhow::Result<()> {
+    pub fn gui(&mut self, ctx: egui::Context, open: &mut bool) -> color_eyre::Result<()> {
         let mut delete_themes = vec![];
         let mut fonts_changed = false;
         let mut save = false;
@@ -239,7 +239,7 @@ pub struct Theme {
 }
 
 impl Theme {
-    pub fn save(&self, name: &str, theme_folder_path: &Path) -> anyhow::Result<()> {
+    pub fn save(&self, name: &str, theme_folder_path: &Path) -> color_eyre::Result<()> {
         let tf = std::fs::File::create(theme_folder_path.join(format!("{}.json", name)))?;
         serde_json::to_writer_pretty(std::io::BufWriter::new(tf), self)?;
         Ok(())

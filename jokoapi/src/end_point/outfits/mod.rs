@@ -38,7 +38,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn check_outfit() -> anyhow::Result<()> {
+    async fn check_outfit() -> color_eyre::Result<()> {
         let client = Client::new();
         let result = Outfits::get(client.clone()).await?;
         assert_eq!(

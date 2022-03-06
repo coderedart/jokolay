@@ -1,14 +1,9 @@
 use crate::config::{ConfigManager, VsyncMode};
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
 use egui::{DragValue, Widget, Window};
 
 impl ConfigManager {
-    pub fn gui(
-        &mut self,
-        ctx: egui::Context,
-        open: &mut bool,
-        _handle: tokio::runtime::Handle,
-    ) -> anyhow::Result<()> {
+    pub fn gui(&mut self, ctx: egui::Context, open: &mut bool) -> color_eyre::Result<()> {
         Window::new("Configuration")
             .open(open)
             .scroll2([true, true])
@@ -68,7 +63,7 @@ impl ConfigManager {
                 }
             });
         if self.needs_save {
-            self.save_config().context("failed to save config file")?;
+            self.save_config().wrap_err("failed to save config file")?;
             self.needs_save = false;
         }
         Ok(())

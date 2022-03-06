@@ -8,7 +8,7 @@ impl OverlayWindow {
         ctx: egui::Context,
         open: &mut bool,
         wtx: &mut WgpuContext,
-    ) -> anyhow::Result<()> {
+    ) -> color_eyre::Result<()> {
         egui::Window::new("Window Controls")
             .open(open)
             .scroll2([true, true])

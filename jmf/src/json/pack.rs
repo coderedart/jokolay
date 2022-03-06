@@ -30,6 +30,9 @@ pub struct Pack {
     pub tbins_descriptions: BTreeMap<u16, TBinDescription>,
     #[serde(default)]
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub strings: BTreeMap<u16, String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub cats: BTreeMap<u16, Cat>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -40,6 +43,7 @@ pub struct Pack {
     #[serde(default)]
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub trails: BTreeMap<u32, Trail>,
+
 }
 
 /// This contains all the images and Tbin files referred to by their ID
@@ -69,15 +73,16 @@ pub struct PackDescription {
     /// Authors of the Pack. use this for the "Primary" maintainers of the pack. Contributors can be added to the Category Description Authors field
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub authors: BTreeMap<u16, Author>,
-
 }
-
 
 impl Pack {
     #[tracing::instrument(skip(self))]
-    pub fn save_to_folder_multiple_files(&self, pack_dir: &Path, dirty: &Dirty) -> color_eyre::Result<()> {
-
-        if dirty.pack_desc  {
+    pub fn save_to_folder_multiple_files(
+        &self,
+        pack_dir: &Path,
+        dirty: &Dirty,
+    ) -> color_eyre::Result<()> {
+        if dirty.pack_desc {
             serde_json::to_writer_pretty(
                 std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("pack_desc.json"))?),
                 &self.pack_description,
@@ -93,6 +98,12 @@ impl Pack {
             serde_json::to_writer_pretty(
                 std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("tbin_desc.json"))?),
                 &self.tbins_descriptions,
+            )?;
+        }
+        if dirty.string_desc {
+            serde_json::to_writer_pretty(
+                std::io::BufWriter::new(std::fs::File::create(&pack_dir.join("strings.json"))?),
+                &self.strings,
             )?;
         }
         if dirty.cat_desc {
@@ -114,11 +125,14 @@ impl Pack {
         for map_id in dirty.markers.iter().copied() {
             // shift the marker id to higher bytes.
             let start_marker_id = (map_id as u32) << 16;
-            let end_marker_id =  start_marker_id + u16::MAX as u32;
-            let present_map_markers: BTreeMap<_, _> = self.markers.range(start_marker_id..=end_marker_id).collect();
+            let end_marker_id = start_marker_id + u16::MAX as u32;
+            let present_map_markers: BTreeMap<_, _> = self
+                .markers
+                .range(start_marker_id..=end_marker_id)
+                .collect();
             let map_markers_path = markers_dir.join(&format!("{map_id}.json"));
             if present_map_markers.is_empty() {
-                if  map_markers_path.exists() {
+                if map_markers_path.exists() {
                     std::fs::remove_file(&map_markers_path)?;
                 }
             } else {
@@ -127,16 +141,16 @@ impl Pack {
                     &present_map_markers,
                 )?;
             }
-
         }
         for map_id in dirty.trails.iter().copied() {
             // shift the marker id to higher bytes.
             let start_trail_id = (map_id as u32) << 16;
-            let end_trail_id =  start_trail_id + u16::MAX as u32;
-            let present_map_trails: BTreeMap<_, _> = self.markers.range(start_trail_id..=end_trail_id).collect();
+            let end_trail_id = start_trail_id + u16::MAX as u32;
+            let present_map_trails: BTreeMap<_, _> =
+                self.markers.range(start_trail_id..=end_trail_id).collect();
             let map_trails_path = trails_dir.join(&format!("{map_id}.json"));
             if present_map_trails.is_empty() {
-                if  map_trails_path.exists() {
+                if map_trails_path.exists() {
                     std::fs::remove_file(&map_trails_path)?;
                 }
             } else {
@@ -145,14 +159,17 @@ impl Pack {
                     &present_map_trails,
                 )?;
             }
-
         }
         Ok(())
     }
 }
 
 impl PackData {
-    pub fn save_to_folder_multiple_files(&self, pack_dir: &Path, dirty: &Dirty) -> color_eyre::Result<()> {
+    pub fn save_to_folder_multiple_files(
+        &self,
+        pack_dir: &Path,
+        dirty: &Dirty,
+    ) -> color_eyre::Result<()> {
         let images_dir = pack_dir.join("images");
         std::fs::create_dir_all(&images_dir)?;
         let tbins_dir = pack_dir.join("tbins");
@@ -169,23 +186,29 @@ impl PackData {
         for tbin_id in dirty.tbins.iter() {
             let tbin_path = tbins_dir.join(&format!("{tbin_id}.tbin"));
             if let Some(tbin_bytes) = self.tbins.get(tbin_id) {
-                std::fs::File::create(&tbin_path)?.write_all(bytemuck::cast_slice(tbin_bytes.as_slice()))?;
+                std::fs::File::create(&tbin_path)?
+                    .write_all(bytemuck::cast_slice(tbin_bytes.as_slice()))?;
             } else if tbin_path.exists() {
                 std::fs::remove_file(&tbin_path)?;
             }
         }
         Ok(())
     }
-
 }
 
 impl FullPack {
-    pub fn save_to_folder_multiple_files(&mut self, pack_dir: &Path, full_save: bool) -> color_eyre::Result<()> {
+    pub fn save_to_folder_multiple_files(
+        &mut self,
+        pack_dir: &Path,
+        full_save: bool,
+    ) -> color_eyre::Result<()> {
         if full_save {
             self.dirty = Dirty::full_from_pack(self);
         }
-        self.pack.save_to_folder_multiple_files(pack_dir, &self.dirty)?;
-        self.pack_data.save_to_folder_multiple_files(pack_dir, &self.dirty)?;
+        self.pack
+            .save_to_folder_multiple_files(pack_dir, &self.dirty)?;
+        self.pack_data
+            .save_to_folder_multiple_files(pack_dir, &self.dirty)?;
         self.dirty = Dirty::default();
         Ok(())
     }
