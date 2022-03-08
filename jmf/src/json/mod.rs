@@ -8,12 +8,12 @@ mod trail;
 pub use self::image::{ImageDescription, ImageSrc, OverlayImage};
 pub use author::Author;
 pub use category::{Cat, CatTree};
-pub use marker::{Achievement, Behavior, Dynamic, Info, Marker, MarkerFlags, Trigger};
+pub use marker::*;
 pub use pack::{FullPack, Pack, PackData, PackDescription};
 use std::collections::BTreeSet;
 pub use trail::{TBinDescription, Trail};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Dirty {
     /// ignore the rest of the struct and just save everything (delete the folder first if there's anything left)
     pub pack_desc: bool,

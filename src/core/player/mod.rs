@@ -1,15 +1,12 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::BTreeSet;
 
-pub struct Player {
-
-}
+pub struct Player {}
 
 pub struct Profile {
     pub id: String,
     pub api_key: String,
-    pub characters: BTreeSet<String>
+    pub characters: BTreeSet<String>,
 }
-
 
 /*
 game api data. achievements, maps, items etc..

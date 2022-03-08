@@ -1,7 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use serde::{Serialize, Deserialize};
-use jokolink::mlink::Mount;
 use crate::json::{FullPack, Marker};
+use jokolink::mlink::Mount;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 // use std::collections::HashMap;
 //
@@ -14,9 +14,7 @@ use crate::json::{FullPack, Marker};
 // // #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 // // #[serde(default)]
 // // pub struct MarkerConfig {}
-pub struct MarkerManager {
-
-}
+pub struct MarkerManager {}
 pub struct LivePack {
     pub pack: FullPack,
     pub activation_data: ActivationData,
@@ -24,21 +22,19 @@ pub struct LivePack {
     pub map_cats: BTreeSet<u16>,
     pub mount: Mount,
     pub spec: u16,
-    pub live_markers: Vec<(u32, Mesh)>
+    pub live_markers: Vec<(u32, Mesh)>,
 }
 pub struct LiveMarker {
     pub id: u32,
     pub mesh: Mesh,
     pub marker: Marker,
 }
-pub struct Mesh {
-
-}
+pub struct Mesh {}
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ActivationData {
     pub date: time::Date,
     pub account_data: BTreeMap<String, AccountData>,
-    pub character_data: BTreeMap<String, CharacterData>
+    pub character_data: BTreeMap<String, CharacterData>,
 }
 /*
 pack (edited/deleted) -> current_map (map change) -> enabled cats (cats enabled / edited / deleted / player changed)
@@ -57,7 +53,7 @@ pub struct AccountData {
     pub timer_based: BTreeMap<u32, time::OffsetDateTime>,
     #[serde(skip)]
     pub instance: HashMap<u32, HashSet<u32>>,
-    pub enabled_cats: BTreeSet<u16>
+    pub enabled_cats: BTreeSet<u16>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Default)]

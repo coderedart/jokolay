@@ -98,22 +98,20 @@ mod test {
             &[
                 Token::Struct {
                     name: "ImageDescription",
-                    len: 4,
+                    len: 5,
                 },
                 Token::Str("name"),
                 Token::String("marker"),
                 Token::Str("width"),
-                Token::U16(128),
+                Token::U32(128),
                 Token::Str("height"),
-                Token::U16(128),
+                Token::U32(128),
                 Token::Str("source"),
                 Token::Enum { name: "ImageSrc" },
-                Token::Str("OverlayImage"),
-                Token::Enum {
-                    name: "OverlayImage",
-                },
-                Token::Str("Marker"),
+                Token::Str("FS"),
                 Token::Unit,
+                Token::Str("credit"),
+                Token::String("Joko"),
                 Token::StructEnd,
             ],
         );

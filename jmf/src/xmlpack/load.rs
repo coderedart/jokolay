@@ -9,11 +9,11 @@ use elementtree::Element;
 // use image::GenericImageView;
 use itertools::Itertools;
 
-use crate::json::{Dirty, FullPack, ImageSrc};
+use crate::json::{CopyContents, Dirty, Festivals, Filters, FullPack, ImageSrc, Pack};
 use crate::{
     json::{
-        Achievement, Behavior, Cat, CatTree, ImageDescription, Info, Marker, MarkerFlags,
-        TBinDescription, Trail, Trigger,
+        Achievement, Behavior, Cat, CatTree, ImageDescription, Info, Marker, MarkerFlags, Mounts,
+        Professions, Races, TBinDescription, Trail, Trigger,
     },
     xmlpack::MarkerTemplate,
     INCHES_PER_METER,
@@ -186,7 +186,10 @@ fn get_xml_pack_entries(
                 };
 
                 // start inserting into maps and increment id
-                full_pack.pack_data.images.insert(image_id, fe.file_raw_bytes);
+                full_pack
+                    .pack_data
+                    .images
+                    .insert(image_id, fe.file_raw_bytes);
                 full_pack.pack.images_descriptions.insert(image_id, desc);
                 entries
                     .img_relative_path_id
@@ -204,7 +207,7 @@ fn get_xml_pack_entries(
                 }
                 let mut version_bytes = [0_u8; 4];
                 version_bytes.copy_from_slice(&fe.file_raw_bytes[..4]);
-                let mut _version = u32::from_ne_bytes(version_bytes); // optional as we will convert to version 3
+                let _version = u32::from_ne_bytes(version_bytes); // optional as we will convert to version 3
 
                 let mut map_id_bytes = [0_u8; 4];
                 map_id_bytes.copy_from_slice(&fe.file_raw_bytes[4..8]);
@@ -302,15 +305,14 @@ pub fn xml_to_json_pack(
                 &mut catid_templates,
                 &mut img_relative_path_id,
                 &mut trl_relative_path_id,
-                &mut full_pack.pack.markers,
-                &mut full_pack.pack.trails,
+                &mut full_pack.pack,
+                &mut string_id,
                 p.clone(),
                 &mut warnings,
                 &mut errors,
             );
         }
     }
-
 
     full_pack.dirty = Dirty::full_from_pack(&full_pack);
     (full_pack, warnings, errors)
@@ -333,11 +335,18 @@ fn parse_recursive_mc(
     entry_path: Arc<PathBuf>,
 ) {
     let mut template = parent_template.clone();
-    template.override_from_element(ele, warnings, errors, entry_path.clone());
+    template.override_from_element(
+        ele,
+        strings,
+        string_id,
+        warnings,
+        errors,
+        entry_path.clone(),
+    );
     let mut is_separator = false;
     let mut enabled = false;
-    let mut display_name = if let Some(dn) = ele.get_attr("DisplayName") {
-        if let Some((id, display_name)) = strings.iter().find(|(key, s)| **s == dn) {
+    let display_name = if let Some(dn) = ele.get_attr("DisplayName") {
+        if let Some((id, _)) = strings.iter().find(|(_, s)| s.as_str() == dn) {
             *id
         } else {
             let id = *string_id;
@@ -347,13 +356,12 @@ fn parse_recursive_mc(
         }
     } else {
         errors.push(ErrorWithLocation {
-            file_path: entry_path.clone(),
+            file_path: entry_path,
             tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
             error: XMLPackError::AttributeParseError("missing displayname attribute".to_string()),
         });
         return;
     };
-
 
     if let Some(issep) = ele.get_attr("IsSeparator=") {
         match issep.parse() {
@@ -419,7 +427,7 @@ fn parse_recursive_mc(
                 cat_id,
                 &full_name,
                 strings,
-                string_id
+                string_id,
                 warnings,
                 errors,
                 entry_path.clone(),
@@ -433,6 +441,8 @@ impl MarkerTemplate {
     pub fn override_from_element(
         &mut self,
         ele: &Element,
+        strings: &mut BTreeMap<u16, String>,
+        string_id: &mut u16,
         warnings: &mut Vec<ErrorWithLocation>,
         errors: &mut Vec<ErrorWithLocation>,
         entry_path: Arc<PathBuf>,
@@ -501,9 +511,9 @@ impl MarkerTemplate {
                     });
                 }
                 "autotrigger" => {
-                    self.auto_trigger = Some(match attr_value {
-                        "1" | "true" => 1,
-                        "0" | "false" => 0,
+                    self.auto_trigger = Option::from(match attr_value {
+                        "1" | "true" => true,
+                        "0" | "false" => false,
                         _others => {
                             warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
@@ -547,6 +557,24 @@ impl MarkerTemplate {
                         }
                     };
                 }
+                "copy" => {
+                    if let Some((&id, _)) = strings.iter().find(|(_, s)| s.as_str() == attr_value) {
+                        self.copy = Some(id);
+                    } else {
+                        strings.insert(*string_id, attr_value.to_string());
+                        self.copy = Some(*string_id);
+                        *string_id += 1;
+                    }
+                }
+                "copy-message" => {
+                    if let Some((&id, _)) = strings.iter().find(|(_, s)| s.as_str() == attr_value) {
+                        self.copy_message = Some(id);
+                    } else {
+                        strings.insert(*string_id, attr_value.to_string());
+                        self.copy_message = Some(*string_id);
+                        *string_id += 1;
+                    }
+                }
                 "fadeFar" => {
                     self.fade_far = Some(match attr_value.parse() {
                         Ok(v) => v,
@@ -577,10 +605,48 @@ impl MarkerTemplate {
                         }
                     });
                 }
+                "festival" => {
+                    let mut festival = Festivals::default();
+                    for f in attr_value.split(',') {
+                        match f {
+                            "dragonbash" => {
+                                festival.insert(Festivals::DRAGON_BASH);
+                            }
+                            "festivalofthefourwinds" => {
+                                festival.insert(Festivals::FESTIVAL_OF_THE_FOUR_WINDS);
+                            }
+
+                            "halloween" => {
+                                festival.insert(Festivals::HALLOWEEN);
+                            }
+                            "lunarnewyear" => {
+                                festival.insert(Festivals::LUNAR_NEW_YEAR);
+                            }
+                            "superadventurefestival" => {
+                                festival.insert(Festivals::SUPER_ADVENTURE_BOX);
+                            }
+
+                            "wintersday" => {
+                                festival.insert(Festivals::WINTERSDAY);
+                            }
+                            _ => {
+                                errors.push(ErrorWithLocation {
+                                    file_path: entry_path.clone(),
+                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                    error: XMLPackError::AttributeParseError(
+                                        "festival attribute".to_string(),
+                                    ),
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                    self.festival = Some(festival);
+                }
                 "hasCountdown" => {
                     self.has_countdown = Some(match attr_value {
-                        "1" | "true" => 1,
-                        "0" | "false" => 0,
+                        "1" | "true" => true,
+                        "0" | "false" => false,
                         _others => {
                             errors.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
@@ -608,22 +674,6 @@ impl MarkerTemplate {
                         }
                     });
                 }
-                "inGameVisibility" => {
-                    self.in_game_visibility = Some(match attr_value {
-                        "1" | "true" => 1,
-                        "0" | "false" => 0,
-                        _others => {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                error: XMLPackError::AttributeParseError(
-                                    "inGameVisibility attribute".to_string(),
-                                ),
-                            });
-                            continue;
-                        }
-                    });
-                }
                 "iconFile" => {
                     self.icon_file = Some(attr_value.to_string());
                 }
@@ -642,24 +692,31 @@ impl MarkerTemplate {
                         }
                     });
                 }
-                "keepOnMapEdge" => {
-                    self.keep_on_map_edge = Some(match attr_value {
-                        "1" | "true" => 1,
-                        "0" | "false" => 0,
+                "inGameVisibility" => {
+                    self.in_game_visibility = Option::from(match attr_value {
+                        "1" | "true" => true,
+                        "0" | "false" => false,
                         _others => {
                             errors.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(
-                                    "keepOnMapEdge attribute".to_string(),
+                                    "inGameVisibility attribute".to_string(),
                                 ),
                             });
                             continue;
                         }
                     });
                 }
+
                 "info" => {
-                    self.info = Some(attr_value.to_string());
+                    if let Some((&id, _)) = strings.iter().find(|(_, s)| s.as_str() == attr_value) {
+                        self.info = Some(id);
+                    } else {
+                        strings.insert(*string_id, attr_value.to_string());
+                        self.info = Some(*string_id);
+                        *string_id += 1;
+                    }
                 }
                 "infoRange" => {
                     self.info_range = Some(match attr_value.parse() {
@@ -670,6 +727,22 @@ impl MarkerTemplate {
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
                                 error: XMLPackError::AttributeParseError(
                                     "infoRange attribute".to_string(),
+                                ),
+                            });
+                            continue;
+                        }
+                    });
+                }
+                "keepOnMapEdge" => {
+                    self.keep_on_map_edge = Option::from(match attr_value {
+                        "1" | "true" => true,
+                        "0" | "false" => false,
+                        _others => {
+                            errors.push(ErrorWithLocation {
+                                file_path: entry_path.clone(),
+                                tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                error: XMLPackError::AttributeParseError(
+                                    "keepOnMapEdge attribute".to_string(),
                                 ),
                             });
                             continue;
@@ -708,9 +781,9 @@ impl MarkerTemplate {
                 }
 
                 "mapVisibility" => {
-                    self.map_visibility = Some(match attr_value {
-                        "1" | "true" => 1,
-                        "0" | "false" => 0,
+                    self.map_visibility = Option::from(match attr_value {
+                        "1" | "true" => true,
+                        "0" | "false" => false,
                         _others => {
                             errors.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
@@ -721,6 +794,15 @@ impl MarkerTemplate {
                             });
                             continue;
                         }
+                    });
+                }
+                "maptype" => {
+                    errors.push(ErrorWithLocation {
+                        file_path: entry_path.clone(),
+                        tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                        error: XMLPackError::AttributeParseError(
+                            "maptype attribute NOT SUPPORTED".to_string(),
+                        ),
                     });
                 }
                 "maxSize" => {
@@ -754,9 +836,9 @@ impl MarkerTemplate {
                     });
                 }
                 "miniMapVisibility" => {
-                    self.mini_map_visibility = Some(match attr_value {
-                        "1" | "true" => 1,
-                        "0" | "false" => 0,
+                    self.mini_map_visibility = Option::from(match attr_value {
+                        "1" | "true" => true,
+                        "0" | "false" => false,
                         _others => {
                             errors.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
@@ -768,6 +850,124 @@ impl MarkerTemplate {
                             continue;
                         }
                     });
+                }
+                "mount" => {
+                    let mut mount = Mounts::default();
+                    for m in attr_value.split(',') {
+                        match m {
+                            "griffon" => {
+                                mount.insert(Mounts::GRIFFON);
+                            }
+                            "jackal" => {
+                                mount.insert(Mounts::JACKAL);
+                            }
+                            "raptor" => {
+                                mount.insert(Mounts::RAPTOR);
+                            }
+                            "rollerbeetle" => {
+                                mount.insert(Mounts::ROLLER_BEETLE);
+                            }
+                            "skimmer" => {
+                                mount.insert(Mounts::SKIMMER);
+                            }
+                            "skyscale" => {
+                                mount.insert(Mounts::SKYSCALE);
+                            }
+                            "springer" => {
+                                mount.insert(Mounts::SPRINGER);
+                            }
+
+                            "warclaw" => {
+                                mount.insert(Mounts::WARCLAW);
+                            }
+                            _ => {
+                                errors.push(ErrorWithLocation {
+                                    file_path: entry_path.clone(),
+                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                    error: XMLPackError::AttributeParseError(
+                                        "mount attribute".to_string(),
+                                    ),
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                }
+                "profession" => {
+                    let mut profession = Professions::default();
+                    for p in attr_value.split(',') {
+                        match p {
+                            "guardian" => {
+                                profession.insert(Professions::GUARDIAN);
+                            }
+                            "warrior" => {
+                                profession.insert(Professions::WARRIOR);
+                            }
+                            "engineer" => {
+                                profession.insert(Professions::ENGINEER);
+                            }
+                            "ranger" => {
+                                profession.insert(Professions::RANGER);
+                            }
+                            "thief" => {
+                                profession.insert(Professions::THIEF);
+                            }
+                            "elementalist" => {
+                                profession.insert(Professions::ELEMENTALIST);
+                            }
+                            "mesmer" => {
+                                profession.insert(Professions::MESMER);
+                            }
+                            "necromancer" => {
+                                profession.insert(Professions::NECROMANCER);
+                            }
+                            "revenant" => {
+                                profession.insert(Professions::REVENANT);
+                            }
+                            _ => {
+                                errors.push(ErrorWithLocation {
+                                    file_path: entry_path.clone(),
+                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                    error: XMLPackError::AttributeParseError(
+                                        "profession attribute".to_string(),
+                                    ),
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                }
+                "race" => {
+                    let mut race = Races::default();
+                    for r in attr_value.split(',') {
+                        match r {
+                            "asura" => {
+                                race.insert(Races::ASURA);
+                            }
+                            "charr" => {
+                                race.insert(Races::CHARR);
+                            }
+                            "human" => {
+                                race.insert(Races::HUMAN);
+                            }
+                            "norn" => {
+                                race.insert(Races::NORN);
+                            }
+                            "sylvari" => {
+                                race.insert(Races::SYLVARI);
+                            }
+                            _ => {
+                                errors.push(ErrorWithLocation {
+                                    file_path: entry_path.clone(),
+                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                    error: XMLPackError::AttributeParseError(
+                                        "race attribute".to_string(),
+                                    ),
+                                });
+                                continue;
+                            }
+                        }
+                    }
                 }
                 "resetLength" => {
                     self.reset_length = Some(match attr_value.parse() {
@@ -800,9 +1000,9 @@ impl MarkerTemplate {
                     });
                 }
                 "scaleOnMapWithZoom" => {
-                    self.scale_on_map_with_zoom = Some(match attr_value {
-                        "1" | "true" => 1,
-                        "0" | "false" => 0,
+                    self.scale_on_map_with_zoom = Option::from(match attr_value {
+                        "1" | "true" => true,
+                        "0" | "false" => false,
                         _others => {
                             errors.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
@@ -815,8 +1015,29 @@ impl MarkerTemplate {
                         }
                     });
                 }
+                "specialization" => {
+                    todo!("specialization attribute is not done");
+                }
                 "texture" => {
                     self.texture = Some(attr_value.to_string());
+                }
+                "tip-name" => {
+                    if let Some((&id, _)) = strings.iter().find(|(_, s)| s.as_str() == attr_value) {
+                        self.tip_name = Some(id);
+                    } else {
+                        strings.insert(*string_id, attr_value.to_string());
+                        self.tip_name = Some(*string_id);
+                        *string_id += 1;
+                    }
+                }
+                "tip-description" => {
+                    if let Some((&id, _)) = strings.iter().find(|(_, s)| s.as_str() == attr_value) {
+                        self.tip_description = Some(id);
+                    } else {
+                        strings.insert(*string_id, attr_value.to_string());
+                        self.tip_description = Some(*string_id);
+                        *string_id += 1;
+                    }
                 }
                 "toggleCategory" => {
                     self.toggle_cateogry = Some(attr_value.to_string());
@@ -860,17 +1081,7 @@ impl MarkerTemplate {
                         // these are parsed in category / marker/ trail tags themselves.
                     }
                     rest => {
-                        // "copy" | "tip-name" | "tip-description" | "festival"
-                        //                     | "copy-message" | "schedule" | "schedule-duration"
-                        if rest.starts_with("bh-") {
-                            warnings.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                error: XMLPackError::AttributeParseError(
-                                    "attributes starting with bh- are ignored".to_string(),
-                                ),
-                            })
-                        } else {
+                        if !rest.starts_with("bh-") {
                             warnings.push(ErrorWithLocation {
                                 file_path: entry_path.clone(),
                                 tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
@@ -893,46 +1104,147 @@ fn parse_markers_trails(
     catid_templates: &mut BTreeMap<u16, MarkerTemplate>,
     image_path_id: &mut BTreeMap<String, u16>,
     trail_path_id: &mut BTreeMap<String, (u16, [f32; 3], u32)>,
-    markers: &mut BTreeMap<u32, Marker>,
-    trails: &mut BTreeMap<u32, Trail>,
+    pack: &mut Pack,
+    string_id: &mut u16,
     entry_path: Arc<PathBuf>,
     warnings: &mut Vec<ErrorWithLocation>,
     errors: &mut Vec<ErrorWithLocation>,
 ) {
     if ele.tag().name() == "POIs" {
         for (_, mt) in ele.children().enumerate() {
-            match mt.tag().name() {
-                "POI" => {
-                    if let Some(guid) = mt.get_attr("GUID") {
-                        match base64::decode(guid) {
-                            Ok(uuid_bytes) => {
-                                if let Err(e) = uuid::Uuid::from_slice(&uuid_bytes) {
-                                    warnings.push(ErrorWithLocation {
-                                        file_path: entry_path.clone(),
-                                        tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                        error: XMLPackError::AttributeParseError(format!("decoded uuid bytes are {uuid_bytes:?}. and uuid error: {e:?}")),
-                                    })
-                                }
-                            }
-                            Err(e) => {
-                                warnings.push(ErrorWithLocation {
-                                    file_path: entry_path.clone(),
-                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                    error: XMLPackError::AttributeParseError(format!(
-                                        "GUID attribute is not valid base64. {e:?}"
-                                    )),
-                                });
-                            }
+            if let Some(guid) = mt.get_attr("GUID") {
+                match base64::decode(guid) {
+                    Ok(uuid_bytes) => {
+                        if let Err(e) = uuid::Uuid::from_slice(&uuid_bytes) {
+                            warnings.push(ErrorWithLocation {
+                                file_path: entry_path.clone(),
+                                tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                                error: XMLPackError::AttributeParseError(format!(
+                                    "decoded uuid bytes are {uuid_bytes:?}. and uuid error: {e:?}"
+                                )),
+                            })
                         }
-                    } else {
+                    }
+                    Err(e) => {
                         warnings.push(ErrorWithLocation {
                             file_path: entry_path.clone(),
                             tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                            error: XMLPackError::AttributeParseError(
-                                "GUID attribute missing".to_string(),
-                            ),
+                            error: XMLPackError::AttributeParseError(format!(
+                                "GUID attribute is not valid base64. {e:?}"
+                            )),
                         });
                     }
+                }
+            } else {
+                warnings.push(ErrorWithLocation {
+                    file_path: entry_path.clone(),
+                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
+                    error: XMLPackError::AttributeParseError("GUID attribute missing".to_string()),
+                });
+            }
+            let cat = if let Some(fullname) = mt.get_attr("type") {
+                if let Some(catid) = fullnames_to_catid.get(&fullname.to_lowercase()) {
+                    *catid
+                } else {
+                    errors.push(ErrorWithLocation {
+                        file_path: entry_path.clone(),
+                        tag: Some(mt.attrs().map(|(_, a)| a).join("\n")),
+                        error: XMLPackError::CategoryNotFound {
+                            name: fullname.to_string(),
+                        },
+                    });
+                    continue;
+                }
+            } else {
+                errors.push(ErrorWithLocation {
+                    file_path: entry_path.clone(),
+                    tag: Some(mt.attrs().map(|(_, a)| a).join("\n")),
+                    error: XMLPackError::AttributeParseError("type attribute".to_string()),
+                });
+                continue;
+            };
+            let mut template = catid_templates
+                .get(&cat)
+                .expect("missing cat template")
+                .clone();
+            template.override_from_element(
+                mt,
+                &mut pack.strings,
+                string_id,
+                warnings,
+                errors,
+                entry_path.clone(),
+            );
+            let filters = Filters {
+                achievement: if let Some(aid) = template.achievement_id {
+                    let achievement = Achievement {
+                        id: aid,
+                        bit: template.achievement_bit,
+                    };
+                    Some(achievement)
+                } else {
+                    None
+                },
+                schedule: None,
+                festival: template.festival.unwrap_or_default(),
+                mounts: template.mount.unwrap_or_default(),
+                professions: template.profession.unwrap_or_default(),
+                races: template.race.unwrap_or_default(),
+                specializations: template.specialization.unwrap_or_default(),
+                maptype: template.map_type.unwrap_or_default(),
+            };
+
+            let alpha = template.alpha.map(|a| (a * 255.0) as u8);
+            let fade_range = if template.fade_far.is_some() || template.fade_near.is_some() {
+                Some([
+                    template
+                        .fade_near
+                        .map(|m| m as f32 * INCHES_PER_METER)
+                        .unwrap_or(0.0),
+                    template
+                        .fade_far
+                        .map(|m| m as f32 * INCHES_PER_METER)
+                        .unwrap_or_else(|| {
+                            template
+                                .fade_near
+                                .map(|f| f as f32 * INCHES_PER_METER)
+                                .expect("if far is none, then near should be some")
+                        }),
+                ])
+            } else {
+                None
+            };
+            let mut flags = MarkerFlags::default();
+            flags.set(
+                MarkerFlags::AUTO_TRIGGER,
+                template.auto_trigger.unwrap_or(false),
+            );
+            flags.set(
+                MarkerFlags::COUNT_DOWN,
+                template.has_countdown.unwrap_or(false),
+            );
+            flags.set(
+                MarkerFlags::IN_GAME_VISIBILITY,
+                template.in_game_visibility.unwrap_or(true),
+            );
+            flags.set(
+                MarkerFlags::MAP_SCALE,
+                template.scale_on_map_with_zoom.unwrap_or(false),
+            );
+            flags.set(
+                MarkerFlags::MAP_VISIBILITY,
+                template.map_visibility.unwrap_or(true),
+            );
+            flags.set(
+                MarkerFlags::MINI_MAP_EDGE_HERD,
+                template.keep_on_map_edge.unwrap_or(false),
+            );
+            flags.set(
+                MarkerFlags::MINI_MAP_VISIBILITY,
+                template.mini_map_visibility.unwrap_or(true),
+            );
+            match mt.tag().name() {
+                "POI" => {
                     let mut position = [0_f32; 3];
                     if let Some(xpos) = mt.get_attr("xpos") {
                         match xpos.trim().parse() {
@@ -1029,87 +1341,21 @@ fn parse_markers_trails(
                         continue;
                     };
 
-                    let cat = if let Some(fullname) = mt.get_attr("type") {
-                        if let Some(catid) = fullnames_to_catid.get(&fullname.to_lowercase()) {
-                            *catid
-                        } else {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: Some(mt.attrs().map(|(_, a)| a).join("\n")),
-                                error: XMLPackError::CategoryNotFound {
-                                    name: fullname.to_string(),
-                                },
-                            });
-                            continue;
-                        }
-                    } else {
-                        errors.push(ErrorWithLocation {
-                            file_path: entry_path.clone(),
-                            tag: Some(mt.attrs().map(|(_, a)| a).join("\n")),
-                            error: XMLPackError::AttributeParseError("type attribute".to_string()),
-                        });
-                        continue;
-                    };
-
                     let mut m = Marker {
                         position,
                         cat,
                         ..Default::default()
                     };
-                    let mut template = catid_templates
-                        .get(&cat)
-                        .expect("missing cat template")
-                        .clone();
-                    template.override_from_element(mt, warnings, errors, entry_path.clone());
 
-                    m.alpha = template.alpha.map(|a| (a * 255.0) as u8);
+                    m.alpha = alpha;
                     m.color = template.color;
-                    if template.fade_far.is_some() || template.fade_near.is_some() {
-                        m.fade_range = Some([
-                            template
-                                .fade_near
-                                .map(|m| m as f32 * INCHES_PER_METER)
-                                .unwrap_or(0.0),
-                            template
-                                .fade_far
-                                .map(|m| m as f32 * INCHES_PER_METER)
-                                .unwrap_or(f32::MAX),
-                        ]);
-                    }
+                    m.fade_range = fade_range;
+                    m.flags = flags;
+                    m.filters = filters;
                     if template.min_size.is_some() || template.max_size.is_some() {}
                     m.map_display_size = template.map_display_size;
                     m.map_fade_out_scale_level = template.map_fade_out_scale_level;
                     m.scale = template.icon_size;
-
-                    m.flags.set(
-                        MarkerFlags::AUTO_TRIGGER,
-                        template.auto_trigger.unwrap_or(0) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::COUNT_DOWN,
-                        template.has_countdown.unwrap_or(0) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::IN_GAME_VISIBILITY,
-                        template.in_game_visibility.unwrap_or(1) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::MAP_SCALE,
-                        template.scale_on_map_with_zoom.unwrap_or(1) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::MAP_VISIBILITY,
-                        template.map_visibility.unwrap_or(1) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::MINI_MAP_EDGE_HERD,
-                        template.keep_on_map_edge.unwrap_or(0) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::MINI_MAP_VISIBILITY,
-                        template.mini_map_visibility.unwrap_or(1) != 0,
-                    );
-
                     if let Some(info) = template.info {
                         let info = Info {
                             text: info,
@@ -1117,13 +1363,7 @@ fn parse_markers_trails(
                         };
                         m.dynamic_props.info = Some(info);
                     }
-                    if let Some(aid) = template.achievement_id {
-                        let achievement = Achievement {
-                            id: aid,
-                            bit: template.achievement_bit.unwrap_or(u8::MAX),
-                        };
-                        m.dynamic_props.achievement = Some(achievement);
-                    }
+
                     let range = template.trigger_range.map(|r| r * INCHES_PER_METER);
                     let behavior = if let Some(b) = template.behavior {
                         Some(match b {
@@ -1165,13 +1405,17 @@ fn parse_markers_trails(
                     let toggle_cat = template
                         .toggle_cateogry
                         .and_then(|full_name| fullnames_to_catid.get(&full_name).copied());
-                    if toggle_cat.is_some() || behavior.is_some() {
-                        m.dynamic_props.trigger = Some(Trigger {
-                            range,
-                            behavior,
-                            toggle_cat,
-                        });
-                    }
+                    let copy = template.copy.map(|data| CopyContents {
+                        data,
+                        message: template.copy_message,
+                    });
+
+                    m.dynamic_props.trigger = Trigger {
+                        range,
+                        behavior,
+                        toggle_cat,
+                        copy,
+                    };
                     if let Some(tex) = template.icon_file {
                         m.texture = image_path_id.get(&tex.to_lowercase()).copied();
                         if m.texture.is_none() {
@@ -1185,7 +1429,9 @@ fn parse_markers_trails(
 
                     for marker_id in 0..u16::MAX {
                         let id: u32 = ((map_id as u32) << 16) | (marker_id as u32);
-                        if let std::collections::btree_map::Entry::Vacant(e) = markers.entry(id) {
+                        if let std::collections::btree_map::Entry::Vacant(e) =
+                            pack.markers.entry(id)
+                        {
                             e.insert(m);
                             break;
                         }
@@ -1195,37 +1441,6 @@ fn parse_markers_trails(
                     }
                 }
                 "Trail" => {
-                    if let Some(guid) = mt.get_attr("GUID") {
-                        match base64::decode(guid) {
-                            Ok(uuid_bytes) => {
-                                if let Err(e) = uuid::Uuid::from_slice(&uuid_bytes) {
-                                    warnings.push(ErrorWithLocation {
-                                        file_path: entry_path.clone(),
-                                        tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                        error: XMLPackError::AttributeParseError(format!("decoded uuid bytes are {uuid_bytes:?}. and uuid error: {e:?}")),
-                                    })
-                                }
-                            }
-                            Err(e) => {
-                                warnings.push(ErrorWithLocation {
-                                    file_path: entry_path.clone(),
-                                    tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                                    error: XMLPackError::AttributeParseError(format!(
-                                        "GUID attribute is not valid base64. {e:?}"
-                                    )),
-                                });
-                            }
-                        }
-                    } else {
-                        warnings.push(ErrorWithLocation {
-                            file_path: entry_path.clone(),
-                            tag: Some(ele.attrs().map(|(_, a)| a).join("\n")),
-                            error: XMLPackError::AttributeParseError(
-                                "GUID attribute missing".to_string(),
-                            ),
-                        });
-                        continue;
-                    }
                     let tdfile = match mt.get_attr("trailData") {
                         Some(e) => e,
                         None => {
@@ -1253,27 +1468,7 @@ fn parse_markers_trails(
                                 continue;
                             }
                         };
-                    let cat = if let Some(fullname) = mt.get_attr("type") {
-                        if let Some(catid) = fullnames_to_catid.get(&fullname.to_lowercase()) {
-                            *catid
-                        } else {
-                            errors.push(ErrorWithLocation {
-                                file_path: entry_path.clone(),
-                                tag: Some(mt.attrs().map(|(_, a)| a).join("\n")),
-                                error: XMLPackError::CategoryNotFound {
-                                    name: fullname.to_string(),
-                                },
-                            });
-                            continue;
-                        }
-                    } else {
-                        errors.push(ErrorWithLocation {
-                            file_path: entry_path.clone(),
-                            tag: Some(mt.attrs().map(|(_, a)| a).join("\n")),
-                            error: XMLPackError::AttributeParseError("type attribute".to_string()),
-                        });
-                        continue;
-                    };
+
                     tposition
                         .iter_mut()
                         .for_each(|meter| *meter *= INCHES_PER_METER);
@@ -1283,52 +1478,18 @@ fn parse_markers_trails(
                         cat,
                         ..Default::default()
                     };
-                    let mut template = catid_templates
-                        .get(&cat)
-                        .expect("missing cat template")
-                        .clone();
 
-                    template.override_from_element(mt, warnings, errors, entry_path.clone());
-
-                    m.alpha = template.alpha.map(|a| (a * 255.0) as u8);
+                    m.alpha = alpha;
                     m.color = template.color;
-                    if template.fade_far.is_some() || template.fade_near.is_some() {
-                        m.fade_range = Some([
-                            template.fade_near.unwrap_or_default() as f32,
-                            template.fade_far.unwrap_or_default() as f32,
-                        ]);
-                    }
+                    m.fade_range = fade_range;
                     m.anim_speed = template.anim_speed;
 
                     m.map_display_size = template.map_display_size;
                     m.map_fade_out_scale_level = template.map_fade_out_scale_level;
                     m.scale = template.trail_scale;
 
-                    m.flags.set(
-                        MarkerFlags::IN_GAME_VISIBILITY,
-                        template.in_game_visibility.unwrap_or(1) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::MAP_SCALE,
-                        template.scale_on_map_with_zoom.unwrap_or(1) != 0,
-                    );
-                    m.flags.set(
-                        MarkerFlags::MAP_VISIBILITY,
-                        template.map_visibility.unwrap_or(1) != 0,
-                    );
-
-                    m.flags.set(
-                        MarkerFlags::MINI_MAP_VISIBILITY,
-                        template.mini_map_visibility.unwrap_or(1) != 0,
-                    );
-
-                    if let Some(aid) = template.achievement_id {
-                        let achievement = Achievement {
-                            id: aid,
-                            bit: template.achievement_bit.unwrap_or(u8::MAX),
-                        };
-                        m.achievement = Some(achievement);
-                    }
+                    m.flags = flags;
+                    m.filters = filters;
 
                     if let Some(tex) = template.texture {
                         m.texture = image_path_id.get(&tex.to_lowercase()).copied();
@@ -1343,7 +1504,8 @@ fn parse_markers_trails(
 
                     for trail_id in 0..u16::MAX {
                         let id: u32 = (map_id << 16) | (trail_id as u32);
-                        if let std::collections::btree_map::Entry::Vacant(e) = trails.entry(id) {
+                        if let std::collections::btree_map::Entry::Vacant(e) = pack.trails.entry(id)
+                        {
                             e.insert(m);
                             break;
                         }

@@ -38,7 +38,7 @@ mod tests {
     fn serde_cat_description() {
         let cat_desc = Cat {
             name: "marker category one".to_string(),
-            display_name: "One".to_string(),
+            display_name: 1,
             is_separator: false,
             enabled: false,
             authors: vec![],
@@ -55,7 +55,7 @@ mod tests {
                 Token::Str("name"),
                 Token::String("marker category one"),
                 Token::Str("display_name"),
-                Token::String("One"),
+                Token::U16(1),
                 Token::StructEnd,
             ],
         );

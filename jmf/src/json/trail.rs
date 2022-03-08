@@ -1,16 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 use crate::is_default;
-use crate::json::marker::{Filters};
+use crate::json::marker::Filters;
 
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Trail {
     pub alpha: Option<u8>,
     pub anim_speed: Option<f32>,
     pub cat: u16,
     pub color: Option<[u8; 4]>,
     pub fade_range: Option<[f32; 2]>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
     pub filters: Filters,
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]

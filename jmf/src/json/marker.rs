@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Marker has 3 kinds of Attributes. Core, Filter and Dynamic
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Marker {
     /// initial alpha of marker
     pub alpha: Option<u8>,
@@ -26,6 +26,7 @@ pub struct Marker {
     #[serde(skip_serializing_if = "is_default")]
     pub flags: MarkerFlags,
     pub map_display_size: Option<u16>,
+    pub map_fade_out_scale_level: Option<f32>,
     pub max_size: Option<u16>,
     pub min_size: Option<u16>,
     pub position: [f32; 3],
@@ -39,7 +40,7 @@ pub struct Dynamic {
     #[serde(skip_serializing_if = "is_default")]
     pub trigger: Trigger,
     #[serde(skip_serializing_if = "is_default")]
-    pub info: Info,
+    pub info: Option<Info>,
     #[serde(skip_serializing_if = "is_default")]
     pub tip: Option<u16>,
 }
@@ -50,7 +51,7 @@ pub struct Trigger {
     pub range: Option<f32>,
     pub behavior: Option<Behavior>,
     pub toggle_cat: Option<u16>,
-    pub copy: Option<Copy>,
+    pub copy: Option<CopyContents>,
 }
 
 #[serde_with::skip_serializing_none]
@@ -60,27 +61,27 @@ pub struct Filters {
     #[serde(skip_serializing_if = "is_default")]
     pub achievement: Option<Achievement>,
     #[serde(skip_serializing_if = "is_default")]
-    schedule: Option<Schedule>,
+    pub schedule: Option<Schedule>,
     #[serde(skip_serializing_if = "is_default")]
-    festival: Festivals,
+    pub festival: Festivals,
     #[serde(skip_serializing_if = "is_default")]
-    mounts: Mounts,
+    pub mounts: Mounts,
     #[serde(skip_serializing_if = "is_default")]
-    professions: Professions,
+    pub professions: Professions,
     #[serde(skip_serializing_if = "is_default")]
-    races: Races,
+    pub races: Races,
     /// the corresponding bit will be set for specializations
     #[serde(skip_serializing_if = "is_default")]
-    specializations: Specializations,
-    // /// reference: https://github.com/Archomeda/Gw2Sharp/blob/master/Gw2Sharp/Models/MapType.cs
-    // /// we will not use this for now.
-    // #[serde(skip_serializing_if = "is_default")]
-    // maptype: u32,
+    pub specializations: Specializations,
+    /// reference: https://github.com/Archomeda/Gw2Sharp/blob/master/Gw2Sharp/Models/MapType.cs
+    /// we will not use this for now.
+    #[serde(skip_serializing_if = "is_default")]
+    pub maptype: MapTypes,
 }
 
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Default, Clone, Deserialize, Serialize, Copy, PartialEq)]
-pub struct Copy {
+pub struct CopyContents {
     pub data: u16,
     pub message: Option<u16>,
 }
@@ -95,7 +96,7 @@ pub struct Achievement {
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Info {
-    pub text: Option<u16>,
+    pub text: u16,
     pub range: Option<f32>,
 }
 
@@ -166,7 +167,7 @@ bitflags::bitflags! {
 bitflags::bitflags! {
     /// Filter which professions the marker should be active for. if its null, its available for all professions
     #[derive(Default, Serialize, Deserialize)]
-    pub struct Professions: u8 {
+    pub struct Professions: u16 {
         const ELEMENTALIST  = 0b00000001;
         const ENGINEER  = 0b00000010;
         const GUARDIAN  = 0b00000100;
@@ -283,129 +284,99 @@ bitflags::bitflags! {
         const UNTAMED  = 1 << 71;
     }
 }
-//
-// bitflags::bitflags! {
-//     #[derive(Default, Serialize, Deserialize)]
-//     pub struct MapTypes: u32 {
-//          /// <summary>
-//          /// An unknown map type. Used as fallback.
-//          /// </summary>
-//         Unknown = -1,
-//
-//         /// <summary>
-//         /// Redirect map type, e.g. when logging in while in a PvP match.
-//         /// </summary>
-//         Redirect = 0,
-//
-//         /// <summary>
-//         /// Character create map type.
-//         /// </summary>
-//         CharacterCreate = 1,
-//
-//         /// <summary>
-//         /// PvP map type.
-//         /// </summary>
-//         Pvp = 2,
-//
-//         /// <summary>
-//         /// GvG map type. Unused.
-//         /// Quote from lye: "lol unused ;_;".
-//         /// </summary>
-//         Gvg = 3,
-//
-//         /// <summary>
-//         /// Instance map type, e.g. dungeons and story content.
-//         /// </summary>
-//         Instance = 4,
-//
-//         /// <summary>
-//         /// Public map type, e.g. open world.
-//         /// </summary>
-//         Public = 5,
-//
-//         /// <summary>
-//         /// Tournament map type. Probably unused.
-//         /// </summary>
-//         Tournament = 6,
-//
-//         /// <summary>
-//         /// Tutorial map type.
-//         /// </summary>
-//         Tutorial = 7,
-//
-//         /// <summary>
-//         /// User tournament map type. Probably unused.
-//         /// </summary>
-//         UserTournament = 8,
-//
-//         /// <summary>
-//         /// Eternal Battlegrounds (WvW) map type.
-//         /// </summary>
-//         Center = 9,
-//
-//         /// <summary>
-//         /// Eternal Battlegrounds (WvW) map type.
-//         /// </summary>
-//         EternalBattlegrounds = Center,
-//
-//         /// <summary>
-//         /// Blue Borderlands (WvW) map type.
-//         /// </summary>
-//         BlueHome = 10,
-//
-//         /// <summary>
-//         /// Blue Borderlands (WvW) map type.
-//         /// </summary>
-//         BlueBorderlands = BlueHome,
-//
-//         /// <summary>
-//         /// Green Borderlands (WvW) map type.
-//         /// </summary>
-//         GreenHome = 11,
-//
-//         /// <summary>
-//         /// Green Borderlands (WvW) map type.
-//         /// </summary>
-//         GreenBorderlands = GreenHome,
-//
-//         /// <summary>
-//         /// Red Borderlands (WvW) map type.
-//         /// </summary>
-//         RedHome = 12,
-//
-//         /// <summary>
-//         /// Red Borderlands (WvW) map type.
-//         /// </summary>
-//         RedBorderlands = RedHome,
-//
-//         /// <summary>
-//         /// Fortune's Vale. Unused.
-//         /// </summary>
-//         FortunesVale = 13,
-//
-//         /// <summary>
-//         /// Obsidian Sanctum (WvW) map type.
-//         /// </summary>
-//         JumpPuzzle = 14,
-//
-//         /// <summary>
-//         /// Obsidian Sanctum (WvW) map type.
-//         /// </summary>
-//         ObsidianSanctum = JumpPuzzle,
-//
-//         /// <summary>
-//         /// Edge of the Mists (WvW) map type.
-//         /// </summary>
-//         EdgeOfTheMists = 15,
-//
-//         /// <summary>
-//         /// Mini public map type, e.g. Dry Top, the Silverwastes and Mistlock Sanctuary.
-//         /// </summary>
-//         PublicMini = 16,
-//
-//         /// <summary>
-//         /// WvW lounge map type, e.g. Armistice Bastion.
-//         /// </summary>
-//         WvwLounge = 18
-//     }
-// }
+
+bitflags::bitflags! {
+    #[derive(Default, Serialize, Deserialize)]
+    pub struct MapTypes: u32 {
+        /// <summary>
+        /// Redirect map type, e.g. when logging in while in a PvP match.
+        /// </summary>
+        const REDIRECT = 1 << 0;
+
+        /// <summary>
+        /// Character create map type.
+        /// </summary>
+        const CHARACTER_CREATE = 1 << 1;
+
+        /// <summary>
+        /// PvP map type.
+        /// </summary>
+        const PVP = 1 << 2;
+
+        /// <summary>
+        /// GvG map type. Unused.
+        /// Quote from lye: "lol unused ;_;".
+        /// </summary>
+        const GVG = 1 << 3;
+
+        /// <summary>
+        /// Instance map type, e.g. dungeons and story content.
+        /// </summary>
+        const INSTANCE = 1 << 4;
+
+        /// <summary>
+        /// Public map type, e.g. open world.
+        /// </summary>
+        const PUBLIC = 1 << 5;
+
+        /// <summary>
+        /// Tournament map type. Probably unused.
+        /// </summary>
+        const TOURNAMENT = 1 << 6;
+
+        /// <summary>
+        /// Tutorial map type.
+        /// </summary>
+        const TUTORIAL = 1 << 7;
+
+        /// <summary>
+        /// User tournament map type. Probably unused.
+        /// </summary>
+        const USER_TOURNAMENT = 1 << 8;
+
+        /// <summary>
+        /// Eternal Battlegrounds (WvW) map type.
+        /// </summary>
+        const ETERNAL_BATTLEGROUNDS = 1 << 9;
+
+        /// <summary>
+        /// Blue Borderlands (WvW) map type.
+        /// </summary>
+        const BLUE_BORDERLANDS = 1 << 10;
+
+        /// <summary>
+        /// Green Borderlands (WvW) map type.
+        /// </summary>
+        const GREEN_BORDERLANDS = 1 << 11;
+
+        /// <summary>
+        /// Red Borderlands (WvW) map type.
+        /// </summary>
+        const RED_BORDERLANDS = 1 << 12;
+
+        /// <summary>
+        /// Fortune's Vale. Unused.
+        /// </summary>
+        const FORTUNES_VALE = 1 << 13;
+
+        /// <summary>
+        /// Obsidian Sanctum (WvW) map type.
+        /// </summary>
+        const OBSIDIAN_SANCTUM = 1 << 14;
+
+        /// <summary>
+        /// Edge of the Mists (WvW) map type.
+        /// </summary>
+        const EDGE_OF_THE_MISTS = 1 << 15;
+
+        /// <summary>
+        /// Mini public map type, e.g. Dry Top, the Silverwastes and Mistlock Sanctuary.
+        /// </summary>
+        const PUBLIC_MINI = 1 << 16;
+
+        /// <summary>
+        /// WvW lounge map type, e.g. Armistice Bastion.
+        /// </summary>
+        const WVW_LOUNGE = 1 << 18;
+    }
+}

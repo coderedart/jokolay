@@ -10,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 
 pub mod config;
 pub mod core;
+#[allow(unused_macros)]
 macro_rules! fl {
     ($message_id:literal) => {{
         i18n_embed_fl::fl!($crate::YOUR_STATIC_LOADER, $message_id)
