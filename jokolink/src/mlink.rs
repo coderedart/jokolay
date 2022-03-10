@@ -94,6 +94,11 @@ pub enum Mount {
     Warclaw = 7,
     Skyscale = 8,
 }
+impl Default for Mount {
+    fn default() -> Self {
+        Self::None
+    }
+}
 
 bitflags! {
     /// The Uistate enum to represent what is happening in game

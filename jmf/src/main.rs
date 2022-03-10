@@ -1,5 +1,5 @@
 use color_eyre::eyre::WrapErr;
-use jmf::json::FullPack;
+use jmf::json::Pack;
 use std::path::Path;
 use tracing::info;
 
@@ -49,22 +49,35 @@ async fn main() -> color_eyre::Result<()> {
             guard
         };
 
-        let (mut pack, warnings, errors) =
-            jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tw"));
+        // dbg!("before pack deserializing");
+        // std::thread::sleep(std::time::Duration::from_secs(10));
+        //
+        // let (mut pack, warnings, errors) =
+        //     jmf::xmlpack::load::xml_to_json_pack(std::path::Path::new("./assets/packs/tw"));
+        //
+        // tracing::warn!("{:#?}", &warnings);
+        // tracing::error!("{:#?}", &errors);
+        // let _ = std::fs::remove_dir_all("./assets/packs/tw_json");
+        // std::fs::create_dir_all("./assets/packs/tw_json").unwrap();
+        // dbg!("saving pack now");
+        // std::thread::sleep(std::time::Duration::from_secs(10));
+        //
+        // pack.save_to_folder_multiple_files(std::path::Path::new("./assets/packs/tw_json"), true)
+        //     .unwrap();
+        // dbg!("saved pack");
+        std::thread::sleep(std::time::Duration::from_secs(10));
 
-        tracing::warn!("{:#?}", &warnings);
-        tracing::error!("{:#?}", &errors);
-        let _ = std::fs::remove_dir_all("./assets/packs/tw_json");
-        std::fs::create_dir_all("./assets/packs/tw_json").unwrap();
-
-        pack.save_to_folder_multiple_files(std::path::Path::new("./assets/packs/tw_json"), true)
-            .unwrap();
-        let full_pack = FullPack::open(Path::new("./assets/packs/tw_json"))
+        // let full_pack = FullPack::open(Path::new("./assets/packs/tw_json"))
+        //     .await
+        //     .wrap_err("failed to load full pack")
+        //     .unwrap();
+        let pack = Pack::open(Path::new("./assets/packs/tw_json"))
             .await
-            .wrap_err("failed to load full pack")
+            .wrap_err("failed to load pack")
             .unwrap();
-        dbg!(pack == full_pack);
-
+        // dbg!(pack == full_pack);
+        dbg!("pack deserialized", pack.markers.len());
+        std::thread::sleep(std::time::Duration::from_secs(15));
         // serde_json::to_writer_pretty(
         //     std::io::BufWriter::new(std::fs::File::create("./assets/packs/pack.json").unwrap()),
         //     &pack.pack,

@@ -44,7 +44,7 @@ tap = "1.0.1"
 circular-queue = "0.2"
 # it takes barely 50 microseconds to update the mouse/keyboard states. so, this is fast. and also supports callbacks now.
 # but it doesn't support sending events, only querying for them.
-device_query = {version = "*", git = "https://github.com/coderedart/device_query.git"}
+device_query = {version = "*", git = "https://github.com/ostrosco/device_query.git"}
 # to *send* inputs, rather than just listen. no macro support yet, so keep them disabled
 #rdev = "*"
 #inputbot = { version = "*", git = "https://github.com/obv-mikhail/InputBot.git" }

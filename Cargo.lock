@@ -723,7 +723,7 @@ dependencies = [
 [[package]]
 name = "device_query"
 version = "1.0.0"
-source = "git+https://github.com/coderedart/device_query.git#967f05582bfe4e1460fef284d01dc80159ee4fd0"
+source = "git+https://github.com/ostrosco/device_query.git#2282ff0213c72f636e5a902726f40bcb593bf60a"
 dependencies = [
  "input-event-codes",
  "lazy_static",

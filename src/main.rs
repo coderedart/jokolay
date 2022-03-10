@@ -7,6 +7,7 @@ use rfd::{MessageButtons, MessageLevel};
 
 use jokolay::config::ConfigManager;
 
+use jokolay::core::marker::MarkerManager;
 use tracing::instrument;
 use tracing_appender::non_blocking::WorkerGuard;
 
@@ -19,6 +20,7 @@ async fn fake_main(
         worker_guard,
         themes_dir,
         fonts_dir,
+        data_dir,
     } = pre_logging_setup().map_err(|e| {
         rfd::MessageDialog::new()
             .set_title("Jokolay failed to start")
@@ -59,11 +61,12 @@ async fn fake_main(
     let window_id: u32 = (window.window.get_x11_window() as usize)
         .try_into()
         .wrap_err("failed to put x11 window id into u32")?;
-    let mut mm = jokolink::MumbleCtx::new(
+    let mut mctx = jokolink::MumbleCtx::new(
         cm.config.mumble_config.clone(),
         window_id,
         window.glfw.get_time(),
     )?;
+    let mut mm = MarkerManager::new(data_dir.join("marker_packs")).await?;
     let mut timer = std::time::Instant::now();
     let mut fps = 0u32;
     let mut sys = sysinfo::System::new();
@@ -77,9 +80,15 @@ async fn fake_main(
         }
 
         let input = window.tick(&mut renderer.wtx)?;
-        let (output, textures_delta, shapes) =
-            etx.tick(input, &mut window, &mut renderer.wtx, &mut cm, &mut mm)?;
-        mm.tick(window.window_state.glfw_time, &mut sys)?;
+        let (output, textures_delta, shapes) = etx.tick(
+            input,
+            &mut window,
+            &mut renderer.wtx,
+            &mut cm,
+            &mut mctx,
+            &mut mm,
+        )?;
+        mctx.tick(window.window_state.glfw_time, &mut sys)?;
         if !output.copied_text.is_empty() {
             window.window.set_clipboard_string(&output.copied_text);
         }
@@ -126,9 +135,10 @@ struct BeforeLogData {
     worker_guard: WorkerGuard,
     themes_dir: PathBuf,
     fonts_dir: PathBuf,
+    data_dir: PathBuf,
 }
 fn pre_logging_setup() -> color_eyre::Result<BeforeLogData> {
-    let [config_dir, _data_dir, _cache_dir, _markers_dir, logs_dir, themes_dir, fonts_dir] =
+    let [config_dir, data_dir, _cache_dir, _markers_dir, logs_dir, themes_dir, fonts_dir] =
         jokolay::get_config_data_cache_markers_dirs().wrap_err("failed to get current dir")?;
 
     let cm = ConfigManager::new(config_dir.join("joko_config.json"))
@@ -141,5 +151,6 @@ fn pre_logging_setup() -> color_eyre::Result<BeforeLogData> {
         worker_guard,
         themes_dir,
         fonts_dir,
+        data_dir,
     })
 }

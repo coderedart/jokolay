@@ -19,12 +19,14 @@ use crate::core::renderer::egui_state::EguiState;
 use crate::core::window::OverlayWindow;
 
 mod egui_state;
+pub mod marker_state;
 
 pub struct Renderer {
     pub egui_state: EguiState,
+
     pub textures: HashMap<TextureId, (Texture, TextureView, BindGroup)>,
-    pub egui_linear_bindgroup_layout: BindGroupLayout,
-    pub egui_linear_sampler: Sampler,
+    pub linear_bindgroup_layout: BindGroupLayout,
+    pub linear_sampler: Sampler,
     pub wtx: WgpuContext,
 }
 
@@ -36,7 +38,7 @@ impl Renderer {
     ) -> color_eyre::Result<Self> {
         let mut wtx = WgpuContext::new(window, config).await?;
 
-        let egui_linear_sampler = wtx.device.create_sampler(&SamplerDescriptor {
+        let linear_sampler = wtx.device.create_sampler(&SamplerDescriptor {
             label: Some("egui linear sampler"),
             address_mode_u: AddressMode::ClampToEdge,
             address_mode_v: AddressMode::ClampToEdge,
@@ -50,7 +52,7 @@ impl Renderer {
             anisotropy_clamp: None,
             border_color: None,
         });
-        let egui_linear_bindgroup_layout =
+        let linear_bindgroup_layout =
             wtx.device
                 .create_bind_group_layout(&BindGroupLayoutDescriptor {
                     label: Some("egui linear bindgroup layout"),
@@ -73,13 +75,13 @@ impl Renderer {
                         },
                     ],
                 });
-        let egui_state = EguiState::new(&mut wtx, &egui_linear_bindgroup_layout)?;
+        let egui_state = EguiState::new(&mut wtx, &linear_bindgroup_layout)?;
 
         Ok(Self {
             wtx,
             egui_state,
-            egui_linear_sampler,
-            egui_linear_bindgroup_layout,
+            linear_sampler,
+            linear_bindgroup_layout,
             textures: HashMap::new(),
         })
     }
@@ -147,11 +149,11 @@ impl Renderer {
                 });
                 let bindgroup = self.wtx.device.create_bind_group(&BindGroupDescriptor {
                     label: Some(&format!("bindgroup {:#?}", id)),
-                    layout: &self.egui_linear_bindgroup_layout,
+                    layout: &self.linear_bindgroup_layout,
                     entries: &[
                         BindGroupEntry {
                             binding: 0,
-                            resource: BindingResource::Sampler(&self.egui_linear_sampler),
+                            resource: BindingResource::Sampler(&self.linear_sampler),
                         },
                         BindGroupEntry {
                             binding: 1,

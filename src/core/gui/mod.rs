@@ -1,5 +1,6 @@
 use crate::config::ConfigManager;
 use crate::core::gui::theme::ThemeManager;
+use crate::core::marker::MarkerManager;
 use crate::core::renderer::WgpuContext;
 use color_eyre::eyre::WrapErr;
 use egui::{ClippedMesh, Color32, RawInput, RichText, WidgetText, Window};
@@ -45,7 +46,8 @@ impl Etx {
         ow: &mut OverlayWindow,
         wtx: &mut WgpuContext,
         cm: &mut ConfigManager,
-        mm: &mut MumbleCtx,
+        mctx: &mut MumbleCtx,
+        mm: &mut MarkerManager,
         // handle: tokio::runtime::Handle,
     ) -> color_eyre::Result<(egui::PlatformOutput, egui::TexturesDelta, Vec<ClippedMesh>)> {
         self.ctx.begin_frame(input);
@@ -78,10 +80,12 @@ impl Etx {
                     );
                 });
             });
+
             self.theme_manager
                 .gui(ctx.clone(), &mut self.enabled_windows.theme_window)?;
             ow.gui(ctx.clone(), &mut self.enabled_windows.overlay_controls, wtx)?;
             cm.gui(ctx.clone(), &mut self.enabled_windows.config_window)?;
+            self.marker_gui(mm, mctx)?;
             Window::new("Mumble Window")
                 .open(&mut self.enabled_windows.mumble_window)
                 .scroll2([true, true])
@@ -90,23 +94,23 @@ impl Etx {
 
                     ui.horizontal(|ui| {
                         ui.label("mumble link name: ");
-                        ui.label(&mm.config.link_name);
+                        ui.label(&mctx.config.link_name);
                     });
                     ui.label("time since the last change");
                     ui.label(&format!(
                         "uitick change: {:.1}",
-                        ow.window_state.glfw_time - mm.src.last_uitick_update
+                        ow.window_state.glfw_time - mctx.src.last_uitick_update
                     ));
                     ui.label(&format!(
                         "dimensions change: {:.1}",
-                        ow.window_state.glfw_time - mm.src.last_pos_size_update
+                        ow.window_state.glfw_time - mctx.src.last_pos_size_update
                     ));
-                    ui.label(&format!("gw2 pid: {}", mm.src.gw2_pid));
-                    ui.label(&format!("gw2 xid: {}", mm.src.gw2_window_handle));
-                    ui.label(&format!("gw2 position: {:#?}", mm.src.gw2_pos));
-                    ui.label(&format!("gw2 size: {:#?}", mm.src.gw2_size));
+                    ui.label(&format!("gw2 pid: {}", mctx.src.gw2_pid));
+                    ui.label(&format!("gw2 xid: {}", mctx.src.gw2_window_handle));
+                    ui.label(&format!("gw2 position: {:#?}", mctx.src.gw2_pos));
+                    ui.label(&format!("gw2 size: {:#?}", mctx.src.gw2_size));
                     ui.collapsing("mumble link data", |ui| {
-                        ui.label(&format!("{:#?}", mm.src.get_link()));
+                        ui.label(&format!("{:#?}", mctx.src.get_link()));
                     });
                 });
         }
