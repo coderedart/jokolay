@@ -1,18 +1,16 @@
 use crate::core::renderer::WgpuContext;
 use crate::core::window::OverlayWindow;
-use color_eyre::eyre::{ContextCompat, WrapErr};
-use egui::epaint::Vertex;
-use egui::{ClippedMesh, TextureId};
+
+
+use egui::{TextureId};
 use std::collections::HashMap;
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+
 use wgpu::{
-    include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent,
-    BlendFactor, BlendOperation, BlendState, BufferAddress, BufferBinding, BufferBindingType,
-    BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, CommandEncoder,
-    FragmentState, FrontFace, IndexFormat, LoadOp, Operations, PipelineLayout,
+    include_wgsl, BindGroup, BindGroupLayout, BlendComponent,
+    BlendFactor, BlendOperation, BlendState, Color, ColorTargetState, ColorWrites, CommandEncoder,
+    FragmentState, FrontFace, LoadOp, Operations, PipelineLayout,
     PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, ShaderModule, ShaderStages,
+    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, ShaderModule,
     Texture, TextureView, VertexBufferLayout, VertexState, VertexStepMode,
 };
 
@@ -102,9 +100,9 @@ impl MarkerState {
         &mut self,
         fbv: &TextureView,
         encoder: &mut CommandEncoder,
-        window: &OverlayWindow,
-        wtx: &WgpuContext,
-        textures: &HashMap<TextureId, (Texture, TextureView, BindGroup)>,
+        _window: &OverlayWindow,
+        _wtx: &WgpuContext,
+        _textures: &HashMap<TextureId, (Texture, TextureView, BindGroup)>,
     ) -> color_eyre::Result<()> {
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {

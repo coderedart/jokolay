@@ -54,13 +54,12 @@ pub fn log_initialize(log_file_path: &Path, log_level: String) -> Result<WorkerG
     Ok(guard)
 }
 
-pub fn get_config_data_cache_markers_dirs() -> Result<[std::path::PathBuf; 7]> {
+pub fn get_config_data_cache_markers_dirs() -> Result<[std::path::PathBuf; 6]> {
     let current_dir =
         std::env::current_dir().wrap_err("failed to get current directory from env")?;
     let config_dir_path = current_dir.join("config");
     let data_dir_path = current_dir.join("data");
     let cache_dir_path = current_dir.join("cache");
-    let markers_dir_path = current_dir.join("markers_dir_path");
     let logs_dir_path = current_dir.join("logs");
     let themes_dir_path = data_dir_path.join("themes");
     let fonts_dir_path = data_dir_path.join("fonts");
@@ -68,7 +67,6 @@ pub fn get_config_data_cache_markers_dirs() -> Result<[std::path::PathBuf; 7]> {
         config_dir_path,
         data_dir_path,
         cache_dir_path,
-        markers_dir_path,
         logs_dir_path,
         themes_dir_path,
         fonts_dir_path,

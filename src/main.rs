@@ -138,7 +138,7 @@ struct BeforeLogData {
     data_dir: PathBuf,
 }
 fn pre_logging_setup() -> color_eyre::Result<BeforeLogData> {
-    let [config_dir, data_dir, _cache_dir, _markers_dir, logs_dir, themes_dir, fonts_dir] =
+    let [config_dir, data_dir, _cache_dir, logs_dir, themes_dir, fonts_dir] =
         jokolay::get_config_data_cache_markers_dirs().wrap_err("failed to get current dir")?;
 
     let cm = ConfigManager::new(config_dir.join("joko_config.json"))
