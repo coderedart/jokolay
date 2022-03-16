@@ -1,17 +1,16 @@
 use crate::core::renderer::WgpuContext;
 use crate::core::window::OverlayWindow;
 
-
-use egui::{TextureId};
+use egui::TextureId;
 use std::collections::HashMap;
 
 use wgpu::{
-    include_wgsl, BindGroup, BindGroupLayout, BlendComponent,
-    BlendFactor, BlendOperation, BlendState, Color, ColorTargetState, ColorWrites, CommandEncoder,
-    FragmentState, FrontFace, LoadOp, Operations, PipelineLayout,
-    PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, ShaderModule,
-    Texture, TextureView, VertexBufferLayout, VertexState, VertexStepMode,
+    include_wgsl, BindGroup, BindGroupLayout, BlendComponent, BlendFactor, BlendOperation,
+    BlendState, Color, ColorTargetState, ColorWrites, CommandEncoder, FragmentState, FrontFace,
+    LoadOp, Operations, PipelineLayout, PipelineLayoutDescriptor, PrimitiveState,
+    PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, ShaderModule, Texture, TextureView, VertexBufferLayout, VertexState,
+    VertexStepMode,
 };
 
 pub struct MarkerState {

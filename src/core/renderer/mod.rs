@@ -89,7 +89,7 @@ impl Renderer {
     pub fn tick(
         &mut self,
         textures_delta: egui::TexturesDelta,
-        shapes: Vec<egui::ClippedMesh>,
+        shapes: Vec<egui::ClippedPrimitive>,
         window: &OverlayWindow,
     ) -> color_eyre::Result<()> {
         let tex_update = !textures_delta.set.is_empty() || !textures_delta.free.is_empty();

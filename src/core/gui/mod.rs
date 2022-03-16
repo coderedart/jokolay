@@ -3,7 +3,7 @@ use crate::core::gui::theme::ThemeManager;
 use crate::core::marker::MarkerManager;
 use crate::core::renderer::WgpuContext;
 use color_eyre::eyre::WrapErr;
-use egui::{ClippedMesh, Color32, RawInput, RichText, WidgetText, Window};
+use egui::{ClippedPrimitive, Color32, RawInput, RichText, WidgetText, Window};
 use jokolink::MumbleCtx;
 use std::path::PathBuf;
 
@@ -40,7 +40,7 @@ impl Etx {
             theme_manager,
         })
     }
-    pub fn tick(
+    pub async fn tick(
         &mut self,
         input: RawInput,
         ow: &mut OverlayWindow,
@@ -49,7 +49,11 @@ impl Etx {
         mctx: &mut MumbleCtx,
         mm: &mut MarkerManager,
         // handle: tokio::runtime::Handle,
-    ) -> color_eyre::Result<(egui::PlatformOutput, egui::TexturesDelta, Vec<ClippedMesh>)> {
+    ) -> color_eyre::Result<(
+        egui::PlatformOutput,
+        egui::TexturesDelta,
+        Vec<ClippedPrimitive>,
+    )> {
         self.ctx.begin_frame(input);
         {
             let ctx = self.ctx.clone();
@@ -85,7 +89,7 @@ impl Etx {
                 .gui(ctx.clone(), &mut self.enabled_windows.theme_window)?;
             ow.gui(ctx.clone(), &mut self.enabled_windows.overlay_controls, wtx)?;
             cm.gui(ctx.clone(), &mut self.enabled_windows.config_window)?;
-            self.marker_gui(mm, mctx)?;
+            self.marker_gui(mm, mctx).await?;
             Window::new("Mumble Window")
                 .open(&mut self.enabled_windows.mumble_window)
                 .scroll2([true, true])

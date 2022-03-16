@@ -66,7 +66,9 @@ async fn fake_main(
         window_id,
         window.glfw.get_time(),
     )?;
-    let mut mm = MarkerManager::new(data_dir.join("marker_packs")).await?;
+    let mut mm = MarkerManager::new(data_dir.join("marker_packs"))
+        .await
+        .wrap_err("failed to create marker manager")?;
     let mut timer = std::time::Instant::now();
     let mut fps = 0u32;
     let mut sys = sysinfo::System::new();
@@ -80,14 +82,16 @@ async fn fake_main(
         }
 
         let input = window.tick(&mut renderer.wtx)?;
-        let (output, textures_delta, shapes) = etx.tick(
-            input,
-            &mut window,
-            &mut renderer.wtx,
-            &mut cm,
-            &mut mctx,
-            &mut mm,
-        )?;
+        let (output, textures_delta, shapes) = etx
+            .tick(
+                input,
+                &mut window,
+                &mut renderer.wtx,
+                &mut cm,
+                &mut mctx,
+                &mut mm,
+            )
+            .await?;
         mctx.tick(window.window_state.glfw_time, &mut sys)?;
         if !output.copied_text.is_empty() {
             window.window.set_clipboard_string(&output.copied_text);
@@ -120,14 +124,15 @@ async fn fake_main(
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> color_eyre::Result<()> {
     {
         // the logger guard. as long as we have this alive, the logger will keep writing to file
         let mut guard = None;
         if let Err(e) = fake_main(&mut guard).await {
             tracing::error!("{:#?}", &e);
-            dbg!(e);
+            return Err(e);
         }
+        Ok(())
     }
 }
 struct BeforeLogData {

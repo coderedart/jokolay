@@ -71,6 +71,8 @@ pub struct PackDescription {
     /// Authors of the Pack. use this for the "Primary" maintainers of the pack. Contributors can be added to the Category Description Authors field
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub authors: BTreeMap<u16, Author>,
+    #[serde(skip)]
+    pub edited_author: Option<u16>,
 }
 
 impl Pack {
@@ -78,41 +80,48 @@ impl Pack {
     pub async fn open(pack_dir: &Path) -> color_eyre::Result<Self> {
         let mut buffer = String::new();
         File::open(&pack_dir.join("pack_description.json"))
-            .await?
+            .await
+            .wrap_err("failed to open pack description")?
             .read_to_string(&mut buffer)
-            .await?;
+            .await
+            .wrap_err("failed to read packdescription")?;
         let pack_description =
             serde_json::from_str(&buffer).wrap_err("failed to deserialize pack_desc.json")?;
         buffer.clear();
         File::open(&pack_dir.join("images_descriptions.json"))
-            .await?
+            .await
+            .wrap_err("failed to open image description")?
             .read_to_string(&mut buffer)
             .await?;
         let images_descriptions = serde_json::from_str(&buffer)
             .wrap_err("failed to deserialize images_description.json")?;
         buffer.clear();
         File::open(&pack_dir.join("tbins_descriptions.json"))
-            .await?
+            .await
+            .wrap_err("failed to open tbins description")?
             .read_to_string(&mut buffer)
             .await?;
         let tbins_descriptions = serde_json::from_str(&buffer)
             .wrap_err("failed to deserialize tbins_description.json")?;
         buffer.clear();
         File::open(&pack_dir.join("strings.json"))
-            .await?
+            .await
+            .wrap_err("failed to open strings.json")?
             .read_to_string(&mut buffer)
             .await?;
         let strings =
             serde_json::from_str(&buffer).wrap_err("failed to deserialize strings.json")?;
         buffer.clear();
         File::open(&pack_dir.join("cats_descriptions.json"))
-            .await?
+            .await
+            .wrap_err("failed to open cats description")?
             .read_to_string(&mut buffer)
             .await?;
         let cats = serde_json::from_str(&buffer).wrap_err("failed to deserialize cats.json")?;
         buffer.clear();
         File::open(&pack_dir.join("cat_tree.json"))
-            .await?
+            .await
+            .wrap_err("failed to open cattree")?
             .read_to_string(&mut buffer)
             .await?;
         let cat_tree =
@@ -123,7 +132,8 @@ impl Pack {
         while let Some(marker_file_entry) = entries.next_entry().await? {
             buffer.clear();
             File::open(marker_file_entry.path())
-                .await?
+                .await
+                .wrap_err("failed to open marker_file")?
                 .read_to_string(&mut buffer)
                 .await?;
             let map_markers: BTreeMap<u32, Marker> =
@@ -140,7 +150,8 @@ impl Pack {
         while let Some(trail_file_entry) = entries.next_entry().await? {
             buffer.clear();
             File::open(trail_file_entry.path())
-                .await?
+                .await
+                .wrap_err("failed to open trail file")?
                 .read_to_string(&mut buffer)
                 .await?;
             let map_trails: BTreeMap<u32, Trail> =

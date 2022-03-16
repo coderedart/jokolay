@@ -2,7 +2,7 @@ use color_eyre::eyre::ContextCompat;
 use std::collections::HashMap;
 
 use egui::epaint::Vertex;
-use egui::{ClippedMesh, TextureId};
+use egui::{ClippedPrimitive, TextureId};
 
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
@@ -124,7 +124,7 @@ impl EguiState {
         encoder: &mut CommandEncoder,
         window: &OverlayWindow,
         wtx: &WgpuContext,
-        shapes: Vec<ClippedMesh>,
+        shapes: Vec<ClippedPrimitive>,
         _tex_update: bool,
         textures: &HashMap<TextureId, (Texture, TextureView, BindGroup)>,
     ) -> color_eyre::Result<()> {
@@ -151,9 +151,28 @@ impl EguiState {
             }],
         });
 
-        let vb_size: usize = shapes.iter().map(|cm| cm.1.vertices.len()).sum::<usize>()
+        let vb_size: usize = shapes
+            .iter()
+            .map(|cm| {
+                if let egui::epaint::Primitive::Mesh(m) = &cm.primitive {
+                    m.vertices.len()
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>()
             * std::mem::size_of::<egui::epaint::Vertex>();
-        let ib_size: usize = shapes.iter().map(|cm| cm.1.indices.len()).sum::<usize>() * 4;
+        let ib_size: usize = shapes
+            .iter()
+            .map(|cm| {
+                if let egui::epaint::Primitive::Mesh(m) = &cm.primitive {
+                    m.indices.len()
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>()
+            * 4;
         let vb = wtx.device.create_buffer(&BufferDescriptor {
             label: Some("egui vertex buffer"),
             size: vb_size as BufferAddress,
@@ -195,60 +214,66 @@ impl EguiState {
                 let mut vb_offset: usize = 0;
                 let mut ib_offset: usize = 0;
 
-                for mesh in shapes {
-                    let vb_len = mesh.1.vertices.len() * 20;
-                    let ib_len = mesh.1.indices.len() * std::mem::size_of::<u32>();
-                    vb_view[vb_offset..(vb_offset + vb_len)].copy_from_slice(
-                        bytemuck::cast_slice::<Vertex, u8>(mesh.1.vertices.as_slice()),
-                    );
-                    ib_view[ib_offset..(ib_offset + ib_len)]
-                        .copy_from_slice(bytemuck::cast_slice(mesh.1.indices.as_slice()));
-                    render_pass.set_bind_group(
-                        1,
-                        &textures
-                            .get(&mesh.1.texture_id)
-                            .wrap_err("texture not found")?
-                            .2,
-                        &[],
-                    );
-                    let clip_rect = mesh.0;
-                    // Transform clip rect to physical pixels:
-                    let pixels_per_point = window.window_state.scale.x;
-                    let clip_min_x = pixels_per_point * clip_rect.min.x;
-                    let clip_min_y = pixels_per_point * clip_rect.min.y;
-                    let clip_max_x = pixels_per_point * clip_rect.max.x;
-                    let clip_max_y = pixels_per_point * clip_rect.max.y;
-
-                    // // Make sure clip rect can fit within a `u32`:
-                    // let clip_min_x = clip_min_x.clamp(0.0, wtx.config.width as f32);
-                    // let clip_min_y = clip_min_y.clamp(0.0, wtx.config.height as f32);
-                    // let clip_max_x = clip_max_x.clamp(clip_min_x, wtx.config.width as f32);
-                    // let clip_max_y = clip_max_y.clamp(clip_min_y, wtx.config.height as f32);
-
-                    // let clip_min_x = clip_min_x.round() as i32;
-                    // let clip_min_y = clip_min_y.round() as i32;
-                    // let clip_max_x = clip_max_x.round() as i32;
-                    // let clip_max_y = clip_max_y.round() as i32;
-                    // wgpu cannot handle zero sized scissor rectangles, so this workaround is necessary
-                    // https://github.com/gfx-rs/wgpu/issues/1750
-                    if (clip_max_y - clip_min_y) >= 1.0 && (clip_max_x - clip_min_x) >= 1.0 {
-                        render_pass.set_scissor_rect(
-                            clip_min_x as u32,
-                            (clip_min_y) as u32,
-                            (clip_max_x - clip_min_x) as u32,
-                            (clip_max_y - clip_min_y) as u32,
+                for primitive in shapes {
+                    let ClippedPrimitive {
+                        clip_rect,
+                        primitive,
+                    } = primitive;
+                    if let egui::epaint::Primitive::Mesh(mesh) = primitive {
+                        let vb_len = mesh.vertices.len() * 20;
+                        let ib_len = mesh.indices.len() * std::mem::size_of::<u32>();
+                        vb_view[vb_offset..(vb_offset + vb_len)].copy_from_slice(
+                            bytemuck::cast_slice::<Vertex, u8>(mesh.vertices.as_slice()),
+                        );
+                        ib_view[ib_offset..(ib_offset + ib_len)]
+                            .copy_from_slice(bytemuck::cast_slice(mesh.indices.as_slice()));
+                        render_pass.set_bind_group(
+                            1,
+                            &textures
+                                .get(&mesh.texture_id)
+                                .wrap_err("texture not found")?
+                                .2,
+                            &[],
                         );
 
-                        render_pass.draw_indexed(
-                            ((ib_offset / 4) as u32)
-                                ..(((ib_offset / 4) + mesh.1.indices.len()) as u32),
-                            (vb_offset / 20).try_into()?,
-                            0..1,
-                        );
+                        // Transform clip rect to physical pixels:
+                        let pixels_per_point = window.window_state.scale.x;
+                        let clip_min_x = pixels_per_point * clip_rect.min.x;
+                        let clip_min_y = pixels_per_point * clip_rect.min.y;
+                        let clip_max_x = pixels_per_point * clip_rect.max.x;
+                        let clip_max_y = pixels_per_point * clip_rect.max.y;
+
+                        // // Make sure clip rect can fit within a `u32`:
+                        // let clip_min_x = clip_min_x.clamp(0.0, wtx.config.width as f32);
+                        // let clip_min_y = clip_min_y.clamp(0.0, wtx.config.height as f32);
+                        // let clip_max_x = clip_max_x.clamp(clip_min_x, wtx.config.width as f32);
+                        // let clip_max_y = clip_max_y.clamp(clip_min_y, wtx.config.height as f32);
+
+                        // let clip_min_x = clip_min_x.round() as i32;
+                        // let clip_min_y = clip_min_y.round() as i32;
+                        // let clip_max_x = clip_max_x.round() as i32;
+                        // let clip_max_y = clip_max_y.round() as i32;
+                        // wgpu cannot handle zero sized scissor rectangles, so this workaround is necessary
+                        // https://github.com/gfx-rs/wgpu/issues/1750
+                        if (clip_max_y - clip_min_y) >= 1.0 && (clip_max_x - clip_min_x) >= 1.0 {
+                            render_pass.set_scissor_rect(
+                                clip_min_x as u32,
+                                (clip_min_y) as u32,
+                                (clip_max_x - clip_min_x) as u32,
+                                (clip_max_y - clip_min_y) as u32,
+                            );
+
+                            render_pass.draw_indexed(
+                                ((ib_offset / 4) as u32)
+                                    ..(((ib_offset / 4) + mesh.indices.len()) as u32),
+                                (vb_offset / 20).try_into()?,
+                                0..1,
+                            );
+                        }
+
+                        vb_offset += vb_len;
+                        ib_offset += ib_len;
                     }
-
-                    vb_offset += vb_len;
-                    ib_offset += ib_len;
                 }
             }
             vb.unmap();
