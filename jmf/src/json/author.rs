@@ -3,7 +3,7 @@ use serde::*;
 /// Describes a person who has made markers. used for both pack and category descriptions
 /// please consider privacy when you are exposing your details. especially email or real name.
 #[serde_with::skip_serializing_none]
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(default)]
 pub struct Author {
     /// either Real name or just an Alias
@@ -21,7 +21,16 @@ pub struct Author {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub extra: String,
 }
-
+impl Default for Author {
+    fn default() -> Self {
+        Self {
+            name: "your name".to_string(),
+            email: "".to_string(),
+            ign: "".to_string(),
+            extra: "".to_string(),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use crate::json::author::Author;

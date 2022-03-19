@@ -2,12 +2,12 @@ use crate::config::ConfigManager;
 use crate::core::gui::theme::ThemeManager;
 use crate::core::marker::MarkerManager;
 use crate::core::renderer::WgpuContext;
+use crate::core::window::OverlayWindow;
+use cached::TimedCache;
 use color_eyre::eyre::WrapErr;
-use egui::{ClippedPrimitive, Color32, RawInput, RichText, WidgetText, Window};
+use egui::{ClippedPrimitive, Color32, RawInput, RichText, TextureHandle, WidgetText, Window};
 use jokolink::MumbleCtx;
 use std::path::PathBuf;
-
-use crate::core::window::OverlayWindow;
 
 mod config;
 pub mod marker;
@@ -18,6 +18,7 @@ pub struct Etx {
     pub ctx: egui::Context,
     pub enabled_windows: WindowEnabled,
     pub theme_manager: ThemeManager,
+    pub hash_textures: TimedCache<u64, TextureHandle>,
 }
 
 impl Etx {
@@ -34,10 +35,12 @@ impl Etx {
 
         ctx.set_fonts(theme_manager.font_definitions.clone());
         ctx.set_style(theme_manager.get_current_theme()?.style.clone());
+        let hash_textures = TimedCache::with_lifespan_and_refresh(300, true);
         Ok(Self {
             ctx,
             enabled_windows,
             theme_manager,
+            hash_textures,
         })
     }
     pub async fn tick(

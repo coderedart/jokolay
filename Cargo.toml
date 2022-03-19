@@ -57,7 +57,11 @@ i18n-embed = { version = "0.13", features = ["fluent-system", "desktop-requester
 rust-embed = "6"
 unic-langid = "0.9"
 i18n-embed-fl = "0.6"
-
+derive_more = "0.99"
+strum = {version = "0.24.0", features = ["derive"]}
+cached = {version = "0.34.0"}
+image = {version = "0.24"}
+xxhash-rust = "0.8.4"
 #[target.'cfg(unix)'.dependencies]
 #x11rb = { version = "0.9.0", features = ["all-extensions"] }
 # because color_eyre performs bad in debug builds according to their docs

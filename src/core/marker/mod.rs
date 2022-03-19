@@ -1,12 +1,14 @@
-use color_eyre::eyre::WrapErr;
-use jmf::json::{Marker, Pack};
+use color_eyre::eyre::{ContextCompat, WrapErr};
+
+use jmf::json::{Dirty, Marker, Pack};
 use jmf::xmlpack::load::ErrorWithLocation;
 use jokolink::mlink::Mount;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
+use strum::{AsRefStr, EnumIter};
 use tokio::io::AsyncReadExt;
-
+use tracing::{error, warn};
 // use std::collections::HashMap;
 //
 // // use crate::json::{pack::ActivationData, SinglePack};
@@ -21,8 +23,27 @@ use tokio::io::AsyncReadExt;
 
 pub struct MarkerManager {
     pub path: PathBuf,
-    pub packs: HashMap<u16, LivePack>,
+    pub packs: BTreeMap<u16, LivePack>,
+    pub selected_pack: Option<u16>,
     pub latest_errors: Option<(Vec<ErrorWithLocation>, Vec<ErrorWithLocation>)>,
+}
+
+#[derive(Debug, Default)]
+pub struct PackEditorState {
+    pub selected_field: Option<SelectedField>,
+    pub selected_author: Option<u16>,
+    pub selected_image: Option<u16>,
+    pub preview_image: bool,
+}
+#[derive(Debug, EnumIter, AsRefStr, PartialEq, Copy, Clone)]
+pub enum SelectedField {
+    PackDescription,
+    ImagesDescriptions,
+    TbinsDescriptions,
+    Markers,
+    Trails,
+    Cats,
+    CatTree,
 }
 impl MarkerManager {
     #[tracing::instrument]
@@ -37,7 +58,8 @@ impl MarkerManager {
             .wrap_err("failed to read markers directory")?;
         let mut mm = Self {
             path: marker_dir,
-            packs: HashMap::new(),
+            packs: Default::default(),
+            selected_pack: Default::default(),
             latest_errors: None,
         };
         while let Some(entry) = pack_entries
@@ -64,13 +86,13 @@ impl MarkerManager {
         Ok(mm)
     }
     #[tracing::instrument(skip(self))]
-    pub async fn load_pack(&mut self, pack_dir: PathBuf) -> color_eyre::Result<LivePack> {
-        let pack = Pack::open(pack_dir.join("pack").as_path())
+    pub async fn load_pack(&mut self, packs_dir: PathBuf) -> color_eyre::Result<()> {
+        let pack = Pack::open(packs_dir.join("pack").as_path())
             .await
             .wrap_err_with(|| {
                 format!(
                     "failed to load Pack from directory: {}",
-                    pack_dir.join("pack").display()
+                    packs_dir.join("pack").display()
                 )
             })?;
         let mut s = String::new();
@@ -78,7 +100,7 @@ impl MarkerManager {
         tokio::fs::OpenOptions::new()
             .write(true)
             .create(true)
-            .open(pack_dir.join("metadata.json"))
+            .open(packs_dir.join("metadata.json"))
             .await
             .wrap_err("failed to open metadata file of pack")?
             .read_to_string(&mut s)
@@ -86,17 +108,30 @@ impl MarkerManager {
             .unwrap_or_default();
         let metadata = serde_json::from_str(&s).unwrap_or_default();
         let lp = LivePack {
-            path: pack_dir,
+            path: packs_dir.clone(),
             pack,
+            loaded_textures: Default::default(),
             metadata,
+            pack_editor_state: Default::default(),
+            dirty: Dirty::default(),
             map_cats: Default::default(),
             mount: Default::default(),
             spec: 0,
             live_markers: vec![],
             bind_range: vec![],
         };
+        let pack_id = packs_dir
+            .file_name()
+            .wrap_err("failed to get pack directory name")?
+            .to_str()
+            .wrap_err("failed to parse utf-8 string from pack directory name")?
+            .parse()
+            .wrap_err("failed to get a u16 from pack directory name")?;
+        if self.packs.insert(pack_id, lp).is_some() {
+            unimplemented!()
+        }
 
-        Ok(lp)
+        Ok(())
     }
     pub async fn import_xml_pack(&mut self) -> color_eyre::Result<()> {
         if let Some(taco_pack_path) = rfd::AsyncFileDialog::new()
@@ -108,17 +143,20 @@ impl MarkerManager {
 
             let (mut full_pack, errors, warnings) =
                 jmf::xmlpack::load::xml_to_json_pack(folder.path());
-
+            error!("{:#?}", &errors);
+            warn!("{:#?}", &warnings);
             self.latest_errors = Some((errors, warnings));
+
             for i in 0..u16::MAX {
                 if !self.packs.contains_key(&i) {
-                    let pack_path = self.path.join(format!("{i}/pack"));
+                    let pack_root_path = self.path.join(format!("{i}"));
+                    let pack_path = pack_root_path.join("pack");
                     if pack_path.exists() {
                         tokio::fs::remove_dir_all(&pack_path).await?;
                     }
                     tokio::fs::create_dir_all(&pack_path).await?;
                     full_pack.save_to_folder_multiple_files(&pack_path, true)?;
-                    self.load_pack(pack_path).await?;
+                    self.load_pack(pack_root_path).await?;
                     break;
                 }
             }
@@ -132,7 +170,10 @@ impl MarkerManager {
 pub struct LivePack {
     pub path: PathBuf,
     pub pack: Pack,
+    pub loaded_textures: BTreeMap<u16, u64>,
     pub metadata: PackMetaData,
+    pub dirty: Dirty,
+    pub pack_editor_state: PackEditorState,
     pub map_cats: BTreeSet<u16>,
     pub mount: Mount,
     pub spec: u16,

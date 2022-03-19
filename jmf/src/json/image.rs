@@ -13,7 +13,7 @@ pub struct ImageDescription {
     #[serde(skip_serializing_if = "is_default")]
     pub source: ImageSrc,
     #[serde(skip_serializing_if = "is_default")]
-    pub credit: String,
+    pub credit: Option<u16>,
     #[serde(skip_serializing_if = "is_default")]
     pub extra: String,
 }
@@ -25,7 +25,7 @@ impl Default for ImageDescription {
             width: 64,
             height: 64,
             source: Default::default(),
-            credit: "".to_string(),
+            credit: None,
             extra: "".to_string(),
         }
     }
@@ -80,6 +80,7 @@ impl Default for OverlayImage {
 #[cfg(test)]
 mod test {
     use crate::json::image::{ImageDescription, ImageSrc};
+    use crate::json::Author;
     use serde_test::{assert_tokens, Token};
 
     #[test]
@@ -89,7 +90,7 @@ mod test {
             width: 128,
             height: 128,
             source: ImageSrc::FS,
-            credit: "Joko".to_string(),
+            credit: None,
             extra: "".to_string(),
         };
 
@@ -98,7 +99,7 @@ mod test {
             &[
                 Token::Struct {
                     name: "ImageDescription",
-                    len: 5,
+                    len: 4,
                 },
                 Token::Str("name"),
                 Token::String("marker"),
@@ -110,8 +111,6 @@ mod test {
                 Token::Enum { name: "ImageSrc" },
                 Token::Str("FS"),
                 Token::Unit,
-                Token::Str("credit"),
-                Token::String("Joko"),
                 Token::StructEnd,
             ],
         );
