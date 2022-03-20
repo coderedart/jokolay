@@ -27,7 +27,7 @@ pub struct MarkerManager {
     pub selected_pack: Option<u16>,
     pub latest_errors: Option<(Vec<ErrorWithLocation>, Vec<ErrorWithLocation>)>,
 }
-
+pub struct MarkerManagerImpl {}
 #[derive(Debug, Default)]
 pub struct PackEditorState {
     pub selected_field: Option<SelectedField>,
