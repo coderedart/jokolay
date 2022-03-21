@@ -41,8 +41,8 @@ impl Etx {
                 });
                 ui.separator();
                 if let Some(selected_pack_id) = mm.selected_pack {
-                    if let Some(pack) = mm.packs.get_mut(&selected_pack_id) {
-                        live_pack_editor(pack, &mut self.hash_textures, ui);
+                    if let Some(_pack) = mm.packs.get_mut(&selected_pack_id) {
+                        // live_pack_editor(pack, wtx, ui);
                     }
                 }
                 // if let Some(id) = mm.pack_editor.pack_id {

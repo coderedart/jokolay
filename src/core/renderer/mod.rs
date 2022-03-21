@@ -1,266 +1,193 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 
-use color_eyre::eyre::{bail, ContextCompat, WrapErr};
-use egui::{Color32, ImageData, TextureId};
-use tracing::{info, warn};
+use color_eyre::eyre::{ContextCompat, WrapErr};
+use glm::U32Vec2;
+use tokio::io::AsyncReadExt;
+use tokio::task;
+use tracing::{error, info, warn};
 
 use crate::config::{JokoConfig, VsyncMode};
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
-    CommandEncoderDescriptor, Device, Extent3d, Features, FilterMode, ImageCopyTexture,
-    ImageDataLayout, Origin3d, Queue, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages,
-    SurfaceConfiguration, SurfaceError, Texture, TextureAspect, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureView,
-    TextureViewDescriptor, TextureViewDimension,
+    CommandEncoderDescriptor, Device, Extent3d, Features, FilterMode, Queue, Sampler,
+    SamplerBindingType, SamplerDescriptor, ShaderStages, SurfaceConfiguration, SurfaceTexture,
+    Texture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
+    TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
 };
+use xxhash_rust::xxh3::xxh3_64;
 
-use crate::core::renderer::egui_state::EguiState;
 use crate::core::window::OverlayWindow;
+use crate::WgpuContext;
 
-mod egui_state;
-pub mod marker_state;
-
-pub struct Renderer {
-    pub egui_state: EguiState,
-
-    pub textures: HashMap<TextureId, (Texture, TextureView, BindGroup)>,
+pub struct WgpuContextImpl {
+    pub fb: Option<(SurfaceTexture, TextureView)>,
+    loaded_textures: BTreeMap<u64, LoadedTexture>,
     pub linear_bindgroup_layout: BindGroupLayout,
     pub linear_sampler: Sampler,
-    pub wtx: WgpuContext,
-}
-
-impl Renderer {
-    pub async fn new(
-        window: &OverlayWindow,
-        config: &JokoConfig,
-        _validation: bool,
-    ) -> color_eyre::Result<Self> {
-        let mut wtx = WgpuContext::new(window, config).await?;
-
-        let linear_sampler = wtx.device.create_sampler(&SamplerDescriptor {
-            label: Some("egui linear sampler"),
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: Default::default(),
-            mag_filter: FilterMode::Linear,
-            min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Linear,
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 0.0,
-            compare: None,
-            anisotropy_clamp: None,
-            border_color: None,
-        });
-        let linear_bindgroup_layout =
-            wtx.device
-                .create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: Some("egui linear bindgroup layout"),
-                    entries: &[
-                        BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: ShaderStages::FRAGMENT,
-                            ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: ShaderStages::FRAGMENT,
-                            ty: BindingType::Texture {
-                                sample_type: TextureSampleType::Float { filterable: true },
-                                view_dimension: TextureViewDimension::D2,
-                                multisampled: false,
-                            },
-                            count: None,
-                        },
-                    ],
-                });
-        let egui_state = EguiState::new(&mut wtx, &linear_bindgroup_layout)?;
-
-        Ok(Self {
-            wtx,
-            egui_state,
-            linear_sampler,
-            linear_bindgroup_layout,
-            textures: HashMap::new(),
-        })
-    }
-
-    pub fn tick(
-        &mut self,
-        textures_delta: egui::TexturesDelta,
-        shapes: Vec<egui::ClippedPrimitive>,
-        window: &OverlayWindow,
-    ) -> color_eyre::Result<()> {
-        let tex_update = !textures_delta.set.is_empty() || !textures_delta.free.is_empty();
-
-        for (id, delta) in textures_delta.set {
-            let whole = delta.is_whole();
-            let width = delta.image.width() as u32;
-            let height = delta.image.height() as u32;
-            let pixels: Vec<u8> = match delta.image {
-                ImageData::Color(c) => c
-                    .pixels
-                    .into_iter()
-                    .flat_map(|c32| c32.to_array())
-                    .collect(),
-                ImageData::Alpha(a) => a
-                    .pixels
-                    .into_iter()
-                    .flat_map(|a8| Color32::from_white_alpha(a8).to_array())
-                    .collect(),
-            };
-            let size = pixels.len() as u32;
-            let position = [
-                delta.pos.unwrap_or([0, 0])[0] as u32,
-                delta.pos.unwrap_or([0, 0])[1] as u32,
-            ];
-            assert_eq!(size, width * height * 4);
-            if whole {
-                let format = TextureFormat::Rgba8UnormSrgb;
-                let dimension = TextureDimension::D2;
-                let mip_level_count = if id != TextureId::Managed(0) {
-                    f32::floor(f32::log2(width.max(height) as f32)) as u32 + 1
-                } else {
-                    1
-                };
-                let new_texture = self.wtx.device.create_texture(&TextureDescriptor {
-                    label: Some(&format!("{:#?}", id)),
-                    size: Extent3d {
-                        width: width as u32,
-                        height: height as u32,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count,
-                    sample_count: 1,
-                    dimension,
-                    format,
-                    usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-                });
-                let view = new_texture.create_view(&TextureViewDescriptor {
-                    label: Some(&format!("view {:#?}", id)),
-                    format: Some(format),
-                    dimension: Some(TextureViewDimension::D2),
-                    aspect: TextureAspect::All,
-                    base_mip_level: 0,
-                    mip_level_count: Some(mip_level_count.try_into()?),
-                    base_array_layer: 0,
-                    array_layer_count: Some(1.try_into()?),
-                });
-                let bindgroup = self.wtx.device.create_bind_group(&BindGroupDescriptor {
-                    label: Some(&format!("bindgroup {:#?}", id)),
-                    layout: &self.linear_bindgroup_layout,
-                    entries: &[
-                        BindGroupEntry {
-                            binding: 0,
-                            resource: BindingResource::Sampler(&self.linear_sampler),
-                        },
-                        BindGroupEntry {
-                            binding: 1,
-                            resource: BindingResource::TextureView(&view),
-                        },
-                    ],
-                });
-                self.textures.insert(id, (new_texture, view, bindgroup));
-            }
-            if let Some((tex, _view, _bindgroup)) = self.textures.get(&id) {
-                self.wtx.queue.write_texture(
-                    ImageCopyTexture {
-                        texture: tex,
-                        mip_level: 0,
-                        origin: Origin3d {
-                            x: position[0],
-                            y: position[1],
-                            z: 0,
-                        },
-                        aspect: TextureAspect::All,
-                    },
-                    pixels.as_slice(),
-                    ImageDataLayout {
-                        offset: 0,
-                        bytes_per_row: Some((width as u32 * 4).try_into()?),
-                        rows_per_image: None,
-                    },
-                    Extent3d {
-                        width,
-                        height,
-                        depth_or_array_layers: 1,
-                    },
-                )
-            }
-        }
-        // if we fail to get a framebuffer, we return. so, make sure to do any texture updates before this point
-        match self.wtx.surface.get_current_texture() {
-            Ok(fb) => {
-                if fb.suboptimal {
-                    warn!("suboptimal");
-                    self.wtx
-                        .surface
-                        .configure(&self.wtx.device, &self.wtx.config);
-                }
-                if self.wtx.config.width != window.window_state.framebuffer_size.x
-                    || self.wtx.config.height != window.window_state.framebuffer_size.y
-                {
-                    warn!("surface config is not equal to window state. surface config: {:#?}, and window config :{:#?}", &self.wtx.config, window.window_state.framebuffer_size);
-                }
-                let mut encoder =
-                    self.wtx
-                        .device
-                        .create_command_encoder(&CommandEncoderDescriptor {
-                            label: Some("Render encoder"),
-                        });
-                {
-                    let fbv = fb.texture.create_view(&TextureViewDescriptor {
-                        label: Some("frambuffer view"),
-                        format: Option::from(self.wtx.config.format),
-                        dimension: Some(TextureViewDimension::D2),
-                        aspect: TextureAspect::All,
-                        base_mip_level: 0,
-                        mip_level_count: None,
-                        base_array_layer: 0,
-                        array_layer_count: None,
-                    });
-
-                    self.egui_state.tick(
-                        &fbv,
-                        &mut encoder,
-                        window,
-                        &self.wtx,
-                        shapes,
-                        tex_update,
-                        &self.textures,
-                    )?;
-                }
-
-                self.wtx.queue.submit(std::iter::once(encoder.finish()));
-                fb.present();
-            }
-            Err(e) => match e {
-                SurfaceError::Outdated => {
-                    self.wtx
-                        .surface
-                        .configure(&self.wtx.device, &self.wtx.config);
-                }
-                rest => {
-                    bail!("surface error: {:#?}", rest);
-                }
-            },
-        };
-        for id in textures_delta.free {
-            self.textures.remove(&id);
-        }
-        Ok(())
-    }
-}
-
-pub struct WgpuContext {
     pub surface: wgpu::Surface,
     pub config: SurfaceConfiguration,
     pub queue: Queue,
     pub device: Device,
 }
+impl WgpuContextImpl {
+    pub fn init_framebuffer_view(&mut self, framebuffer_size: U32Vec2) {
+        if self.config.width != framebuffer_size.x || self.config.height != framebuffer_size.y {
+            self.config.width = framebuffer_size.x;
+            self.config.height = framebuffer_size.y;
+            self.surface.configure(&self.device, &self.config);
+        }
+        // if we fail to get a framebuffer, we return. so, make sure to do any texture updates before this point
+        if let Ok(fb) = self.surface.get_current_texture() {
+            if fb.suboptimal {
+                warn!("suboptimal");
+                self.surface.configure(&self.device, &self.config);
+            }
 
-impl WgpuContext {
+            let _encoder = self
+                .device
+                .create_command_encoder(&CommandEncoderDescriptor {
+                    label: Some("Render encoder"),
+                });
+            let fbv = fb.texture.create_view(&TextureViewDescriptor {
+                label: Some("frambuffer view"),
+                format: Option::from(self.config.format),
+                dimension: Some(TextureViewDimension::D2),
+                aspect: TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            });
+
+            self.fb = Some((fb, fbv));
+        };
+    }
+    pub fn present_framebuffer_view(&mut self) {
+        if let Some((fb, _fbv)) = self.fb.take() {
+            fb.present();
+        }
+    }
+}
+pub fn load_texture_from_path(wtx: WgpuContext, image_path: PathBuf) -> LiveTextureHandle {
+    let load_signaller = Arc::new(AtomicU64::new(0));
+    let signaller = load_signaller.clone();
+
+    let _ = task::spawn(async move {
+        let _ = match tokio::fs::File::open(image_path.as_path()).await {
+            Ok(mut f) => {
+                let mut image_bytes = vec![];
+                f.read_to_end(&mut image_bytes)
+                    .await
+                    .expect("failed to read image bytes");
+                match image::load_from_memory(image_bytes.as_slice()) {
+                    Ok(i) => {
+                        let rgba8_image = i.to_rgba8();
+                        let width = rgba8_image.width();
+                        let height = rgba8_image.height();
+                        let format = TextureFormat::Rgba8UnormSrgb;
+                        let dimension = TextureDimension::D2;
+                        let mip_level_count =
+                            f32::floor(f32::log2(width.max(height) as f32)) as u32 + 1;
+                        let hash_id = xxh3_64(rgba8_image.as_flat_samples().as_slice());
+                        let mut wtx = wtx.write();
+                        let new_texture = wtx.device.create_texture(&TextureDescriptor {
+                            label: Some(&image_path.display().to_string()),
+                            size: Extent3d {
+                                width: width as u32,
+                                height: height as u32,
+                                depth_or_array_layers: 1,
+                            },
+                            mip_level_count,
+                            sample_count: 1,
+                            dimension,
+                            format,
+                            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                        });
+                        let view = new_texture.create_view(&TextureViewDescriptor {
+                            label: Some(&image_path.display().to_string()),
+                            format: Some(format),
+                            dimension: Some(TextureViewDimension::D2),
+                            aspect: TextureAspect::All,
+                            base_mip_level: 0,
+                            mip_level_count: Some(
+                                mip_level_count
+                                    .try_into()
+                                    .expect("mip level count in texture view nonzero"),
+                            ),
+                            base_array_layer: 0,
+                            array_layer_count: Some(
+                                1.try_into()
+                                    .expect("array layer count in texture view nonzero"),
+                            ),
+                        });
+                        let bindgroup = wtx.device.create_bind_group(&BindGroupDescriptor {
+                            label: Some(&image_path.display().to_string()),
+                            layout: &wtx.linear_bindgroup_layout,
+                            entries: &[
+                                BindGroupEntry {
+                                    binding: 0,
+                                    resource: BindingResource::Sampler(&wtx.linear_sampler),
+                                },
+                                BindGroupEntry {
+                                    binding: 1,
+                                    resource: BindingResource::TextureView(&view),
+                                },
+                            ],
+                        });
+                        let unix_time = time::OffsetDateTime::now_utc().unix_timestamp();
+                        wtx.loaded_textures.insert(
+                            hash_id,
+                            LoadedTexture {
+                                id: signaller,
+                                still_being_used: AtomicU64::new(
+                                    unix_time
+                                        .try_into()
+                                        .expect("failed to put unix timestamp into u64"),
+                                ),
+                                native_texture: NativeTexture {
+                                    texture: new_texture,
+                                    texture_view: view,
+                                    bindgroup,
+                                },
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        error!("failed to decode image {image_path:?} due to error {e}");
+                    }
+                }
+            }
+            Err(e) => {
+                error!("failed to load image {image_path:?} file due to error {e}")
+            }
+        };
+    });
+    LiveTextureHandle { id: load_signaller }
+}
+
+#[derive(Clone)]
+pub struct LiveTextureHandle {
+    id: Arc<AtomicU64>,
+}
+
+pub struct NativeTexture {
+    texture: Texture,
+    texture_view: TextureView,
+    bindgroup: BindGroup,
+}
+pub struct LoadedTexture {
+    id: Arc<AtomicU64>,
+    still_being_used: AtomicU64,
+    native_texture: NativeTexture,
+}
+
+pub type TexHandle = Arc<u64>;
+
+impl WgpuContextImpl {
     pub async fn new(window: &OverlayWindow, config: &JokoConfig) -> color_eyre::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
         let surface = unsafe { instance.create_surface(&window.window) };
@@ -303,8 +230,8 @@ impl WgpuContext {
             format: surface
                 .get_preferred_format(&adapter)
                 .wrap_err("surface has no preferred format")?,
-            width: window.window_state.framebuffer_size.x,
-            height: window.window_state.framebuffer_size.y,
+            width: window.window_state.read().framebuffer_size.x,
+            height: window.window_state.read().framebuffer_size.y,
             present_mode: match config.overlay_window_config.vsync {
                 VsyncMode::Immediate => wgpu::PresentMode::Immediate,
                 VsyncMode::Fifo => wgpu::PresentMode::Fifo,
@@ -312,7 +239,48 @@ impl WgpuContext {
         };
         info!("using surface configuration: {:#?}", &config);
         surface.configure(&device, &config);
+
+        let linear_sampler = device.create_sampler(&SamplerDescriptor {
+            label: Some("egui linear sampler"),
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: Default::default(),
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mipmap_filter: FilterMode::Linear,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 0.0,
+            compare: None,
+            anisotropy_clamp: None,
+            border_color: None,
+        });
+        let linear_bindgroup_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("egui linear bindgroup layout"),
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
         Ok(Self {
+            fb: None,
+            loaded_textures: Default::default(),
+            linear_bindgroup_layout,
+            linear_sampler,
             surface,
             queue,
             device,

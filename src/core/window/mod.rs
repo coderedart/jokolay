@@ -4,6 +4,7 @@
 // mod windows;
 
 use circular_queue::CircularQueue;
+use std::sync::Arc;
 // use flume::Sender;
 // use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
@@ -18,25 +19,26 @@ use glm::{I32Vec2, U32Vec2, Vec2};
 
 use color_eyre::eyre::{bail, WrapErr};
 use device_query::{DeviceQuery, DeviceState, Keycode, MouseState};
+use parking_lot::RwLock;
 
 use crate::config::JokoConfig;
-use crate::core::renderer::WgpuContext;
+use crate::WgpuContext;
 use jokolink::WindowDimensions;
 use tracing::{trace, warn};
 
 /// This is the overlay window which wraps the window functions like resizing or getting the present size etc..
 /// we will cache a few attributes to avoid calling into system for high frequency variables like
-#[derive(Debug)]
 pub struct OverlayWindow {
     pub window: glfw::Window,
     pub glfw: Glfw,
     pub ds: DeviceState,
     pub events: Receiver<(f64, WindowEvent)>,
-    pub window_state: WindowState,
+    pub window_state: Arc<RwLock<WindowState>>,
 }
 
 #[derive(Debug)]
 pub struct WindowState {
+    pub frame_number: usize,
     pub size: U32Vec2,
     pub position: I32Vec2,
     // pub transient_for: Option<usize>,
@@ -51,12 +53,13 @@ pub struct WindowState {
     pub glfw_time: f64,
     pub average_frame_rate: u16,
     pub previous_fps_reset: f64,
-    pub current_frame_number: u16,
+    frame_number_this_second: u16,
 }
 
 impl Default for WindowState {
     fn default() -> Self {
         Self {
+            frame_number: Default::default(),
             size: Default::default(),
             position: Default::default(),
             framebuffer_size: Default::default(),
@@ -70,7 +73,7 @@ impl Default for WindowState {
             glfw_time: Default::default(),
             average_frame_rate: Default::default(),
             previous_fps_reset: Default::default(),
-            current_frame_number: Default::default(),
+            frame_number_this_second: Default::default(),
         }
     }
 }
@@ -166,7 +169,7 @@ impl OverlayWindow {
             kb_state: [kb.clone(), kb],
             ..Default::default()
         };
-        warn!("{:#?}", &window_state);
+        let window_state = Arc::new(RwLock::new(window_state));
         Ok(Self {
             window,
             events,
@@ -176,22 +179,22 @@ impl OverlayWindow {
         })
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub fn set_framebuffer_size(&mut self, width: u32, height: u32) {
         self.window.set_size(width as i32, height as i32);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub fn set_inner_position(&mut self, xpos: i32, ypos: i32) {
         self.window.set_pos(xpos, ypos);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub fn set_decorations(&mut self, decorated: bool) {
         self.window.set_decorated(decorated);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub fn set_passthrough(&mut self, passthrough: bool) {
         self.window.set_mouse_passthrough(passthrough);
     }
@@ -203,19 +206,19 @@ impl OverlayWindow {
         self.window.set_clipboard_string(s);
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub fn get_text_clipboard(&mut self) -> Option<String> {
         let t = self.window.get_clipboard_string();
         tracing::debug!("getting clipboard contents. contents: {:?}", &t);
         t
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub fn should_close(&mut self) -> bool {
         self.window.should_close()
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub fn attach_to_gw2window(&mut self, new_windim: WindowDimensions) {
         self.set_inner_position(new_windim.x, new_windim.y);
         self.set_framebuffer_size(new_windim.width as u32, new_windim.height as u32);
@@ -232,66 +235,67 @@ impl OverlayWindow {
         // glfw.window_hint(glfw::WindowHint::Decorated(false));
     }
 
-    pub fn tick(&mut self, wtx: &mut WgpuContext) -> color_eyre::Result<RawInput> {
+    pub fn tick(&mut self) -> color_eyre::Result<RawInput> {
         self.glfw.poll_events();
+        let mut window_state = self.window_state.write();
         let cursor_position = self.window.get_cursor_pos().pipe(|cp| {
             Vec2::new(
-                cp.0 as f32 / self.window_state.scale.x,
-                cp.1 as f32 / self.window_state.scale.y,
+                cp.0 as f32 / window_state.scale.x,
+                cp.1 as f32 / window_state.scale.y,
             )
         });
-        self.window_state.glfw_time = self.glfw.get_time();
-        self.window_state.present_time = OffsetDateTime::now_utc();
-        let delta = self.window_state.glfw_time - self.window_state.previous_fps_reset;
-        self.window_state.current_frame_number += 1;
+        window_state.glfw_time = self.glfw.get_time();
+        window_state.present_time = OffsetDateTime::now_utc();
+        let delta = window_state.glfw_time - window_state.previous_fps_reset;
+        window_state.frame_number_this_second += 1;
         if delta > 1.0 {
-            self.window_state.average_frame_rate = self.window_state.current_frame_number;
-            self.window_state.previous_fps_reset = self.window_state.glfw_time;
-            self.window_state.current_frame_number = 0;
+            window_state.average_frame_rate = window_state.frame_number_this_second;
+            window_state.previous_fps_reset = window_state.glfw_time;
+            window_state.frame_number_this_second = 0;
         }
 
         let mut input = RawInput {
-            time: Some(self.window_state.glfw_time),
-            pixels_per_point: Some(self.window_state.scale.x),
+            time: Some(window_state.glfw_time),
+            pixels_per_point: Some(window_state.scale.x),
             screen_rect: Some(egui::Rect::from_two_pos(
                 Default::default(),
                 [
-                    self.window_state.framebuffer_size.x as f32 / self.window_state.scale.x,
-                    self.window_state.framebuffer_size.y as f32 / self.window_state.scale.y,
+                    window_state.framebuffer_size.x as f32 / window_state.scale.x,
+                    window_state.framebuffer_size.y as f32 / window_state.scale.y,
                 ]
                 .into(),
             )),
             ..Default::default()
         };
-        if cursor_position != self.window_state.cursor_position {
-            self.window_state.cursor_position = cursor_position;
+        if cursor_position != window_state.cursor_position {
+            window_state.cursor_position = cursor_position;
             input.events.push(Event::PointerMoved(
                 [cursor_position.x, cursor_position.y].into(),
             ))
         }
-        self.window_state.mouse_state[0] = self.window_state.mouse_state[1].clone();
-        self.window_state.kb_state[0] = self.window_state.kb_state[1].clone();
-        self.window_state.mouse_state[1] = self.ds.get_mouse();
-        self.window_state.kb_state[1] = self.ds.get_keys();
+        window_state.mouse_state[0] = window_state.mouse_state[1].clone();
+        window_state.kb_state[0] = window_state.kb_state[1].clone();
+        window_state.mouse_state[1] = self.ds.get_mouse();
+        window_state.kb_state[1] = self.ds.get_keys();
         for (_, event) in glfw::flush_messages(&self.events) {
             if let &glfw::WindowEvent::CursorPos(..) = &event {
                 continue;
             }
-            self.window_state.latest_local_events.push(event.clone());
+            window_state.latest_local_events.push(event.clone());
             if let Some(ev) = match event {
                 glfw::WindowEvent::FramebufferSize(w, h) => {
-                    self.window_state.framebuffer_size = WindowState::i32_to_u32((w, h))?;
+                    window_state.framebuffer_size = WindowState::i32_to_u32((w, h))?;
                     input.screen_rect = Some(egui::Rect::from_two_pos(
                         Default::default(),
                         [
-                            w as f32 / self.window_state.scale.x,
-                            h as f32 / self.window_state.scale.y,
+                            w as f32 / window_state.scale.x,
+                            h as f32 / window_state.scale.y,
                         ]
                         .into(),
                     ));
-                    wtx.config.width = w as u32;
-                    wtx.config.height = h as u32;
-                    wtx.surface.configure(&wtx.device, &wtx.config);
+                    // wtx.config.width = w as u32;
+                    // wtx.config.height = h as u32;
+                    // wtx.surface.configure(&wtx.device, &wtx.config);
                     tracing::debug!("window framebuffer size update: {} {}", w, h);
                     None
                 }
@@ -308,8 +312,8 @@ impl OverlayWindow {
                 glfw::WindowEvent::CursorPos(..) => None,
                 glfw::WindowEvent::Scroll(x, y) => Some(Event::Scroll(
                     [
-                        x as f32 * self.window_state.scroll_power * self.window_state.scale.x,
-                        y as f32 * self.window_state.scroll_power * self.window_state.scale.x,
+                        x as f32 * window_state.scroll_power * window_state.scale.x,
+                        y as f32 * window_state.scroll_power * window_state.scale.x,
                     ]
                     .into(),
                 )),
@@ -356,7 +360,7 @@ impl OverlayWindow {
                 glfw::WindowEvent::ContentScale(x, y) => {
                     tracing::warn!("content scale event: {}", x);
                     input.pixels_per_point = Some(x);
-                    self.window_state.scale = [x, y].into();
+                    window_state.scale = [x, y].into();
                     None
                 }
                 glfw::WindowEvent::Close => {
@@ -366,12 +370,12 @@ impl OverlayWindow {
                 }
                 glfw::WindowEvent::Pos(x, y) => {
                     tracing::info!("window position changed. {} {}", x, y);
-                    self.window_state.position = I32Vec2::new(x, y);
+                    window_state.position = I32Vec2::new(x, y);
                     None
                 }
                 glfw::WindowEvent::Size(x, y) => {
                     tracing::info!("window size changed. {} {}", x, y);
-                    self.window_state.size = WindowState::i32_to_u32((x, y))?;
+                    window_state.size = WindowState::i32_to_u32((x, y))?;
                     None
                 }
                 glfw::WindowEvent::Refresh => {

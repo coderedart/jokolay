@@ -80,7 +80,6 @@ impl Default for OverlayImage {
 #[cfg(test)]
 mod test {
     use crate::json::image::{ImageDescription, ImageSrc};
-    use crate::json::Author;
     use serde_test::{assert_tokens, Token};
 
     #[test]

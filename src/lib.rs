@@ -1,6 +1,11 @@
+use crate::core::player::PlayerContextImpl;
+use crate::core::renderer::WgpuContextImpl;
+use crate::core::window::OverlayWindow;
 use color_eyre::eyre::WrapErr;
 use color_eyre::Result;
+use parking_lot::{Mutex, RwLock};
 use std::path::Path;
+use std::sync::Arc;
 use tracing::warn;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_error::ErrorLayer;
@@ -76,3 +81,8 @@ pub fn get_config_data_cache_markers_dirs() -> Result<[std::path::PathBuf; 6]> {
     }
     Ok(result)
 }
+pub struct AppContext {}
+pub type OverlayWindowContext = Arc<Mutex<OverlayWindow>>;
+pub type WgpuContext = Arc<RwLock<WgpuContextImpl>>;
+
+pub type PlayerContext = Arc<RwLock<PlayerContextImpl>>;

@@ -1,6 +1,8 @@
 use color_eyre::eyre::WrapErr;
 use jokolay::log_initialize;
+use parking_lot::RwLock;
 use std::path::PathBuf;
+use std::sync::Arc;
 use sysinfo::SystemExt;
 
 use rfd::{MessageButtons, MessageLevel};
@@ -53,11 +55,12 @@ async fn fake_main(
     //
     // dbg!(i18n_embed_fl::fl!(loader, "hello"));
     let mut window = jokolay::core::window::OverlayWindow::create(&cm.config)?;
-    let mut renderer = jokolay::core::renderer::Renderer::new(&window, &cm.config, true)
+    let wtx = jokolay::core::renderer::WgpuContextImpl::new(&window, &cm.config)
         .await
         .wrap_err("failed to create renderer")?;
+    let mut wtx = Arc::new(RwLock::new(wtx));
     let mut etx =
-        jokolay::core::gui::Etx::new(&window, themes_dir, &cm.config.theme_name, fonts_dir)?;
+        jokolay::core::gui::Etx::new(wtx.clone(), themes_dir, &cm.config.theme_name, fonts_dir)?;
     let window_id: u32 = (window.window.get_x11_window() as usize)
         .try_into()
         .wrap_err("failed to put x11 window id into u32")?;
@@ -66,9 +69,9 @@ async fn fake_main(
         window_id,
         window.glfw.get_time(),
     )?;
-    let mut mm = MarkerManager::new(data_dir.join("marker_packs"))
-        .await
-        .wrap_err("failed to create marker manager")?;
+    // let mut mm = MarkerManager::new(data_dir.join("marker_packs"))
+    //     .await
+    //     .wrap_err("failed to create marker manager")?;
     let mut timer = std::time::Instant::now();
     let mut fps = 0u32;
     let mut sys = sysinfo::System::new();
@@ -81,18 +84,19 @@ async fn fake_main(
             timer = std::time::Instant::now();
         }
 
-        let input = window.tick(&mut renderer.wtx)?;
+        let input = window.tick()?;
+        wtx.write()
+            .init_framebuffer_view(window.window_state.read().framebuffer_size);
+        if wtx.read().fb.is_none() {
+            println!("no framebuffer view, so skipping");
+            continue;
+        }
         let (output, textures_delta, shapes) = etx
-            .tick(
-                input,
-                &mut window,
-                &mut renderer.wtx,
-                &mut cm,
-                &mut mctx,
-                &mut mm,
-            )
+            .tick(input, &mut window, wtx.clone(), &mut cm, &mut mctx)
             .await?;
-        mctx.tick(window.window_state.glfw_time, &mut sys)?;
+        let time = window.window_state.read().glfw_time;
+        let mouse_state = window.window_state.read().mouse_state.clone();
+        mctx.tick(time, &mut sys)?;
         if !output.copied_text.is_empty() {
             window.window.set_clipboard_string(&output.copied_text);
         }
@@ -102,12 +106,9 @@ async fn fake_main(
                 // check if we have been clicked, while we are not passthrough but not focused either. it means mouse is being captured by gw2
                 // and we will need to force focus to break that capture.
                 if !window.window.is_mouse_passthrough()
-                    && ((!window.window_state.mouse_state[0].button_pressed[1]
-                        && window.window_state.mouse_state[1].button_pressed[1])
-                        || (!window.window_state.mouse_state[0].button_pressed[2]
-                            && window.window_state.mouse_state[1].button_pressed[2])
-                        || (!window.window_state.mouse_state[0].button_pressed[3]
-                            && window.window_state.mouse_state[1].button_pressed[3]))
+                    && ((!mouse_state[0].button_pressed[1] && mouse_state[1].button_pressed[1])
+                        || (!mouse_state[0].button_pressed[2] && mouse_state[1].button_pressed[2])
+                        || (!mouse_state[0].button_pressed[3] && mouse_state[1].button_pressed[3]))
                     && !window.window.is_focused()
                 {
                     window.window.focus();
@@ -117,7 +118,10 @@ async fn fake_main(
         } else {
             window.window.set_mouse_passthrough(true);
         }
-        renderer.tick(textures_delta, shapes, &window)?;
+        let framebuffer_size = window.window_state.read().framebuffer_size;
+        let framebuffer_scale = window.window_state.read().scale;
+        etx.draw_egui(wtx.clone(), textures_delta, shapes, framebuffer_scale)?;
+        wtx.write().present_framebuffer_view();
     }
 
     Ok(())

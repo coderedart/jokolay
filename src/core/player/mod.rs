@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-pub struct Player {}
+pub struct PlayerContextImpl {}
 
 pub struct Profile {
     pub id: String,
