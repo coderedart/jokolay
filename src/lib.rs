@@ -1,4 +1,3 @@
-use crate::core::player::PlayerContextImpl;
 use crate::core::renderer::WgpuContextImpl;
 use crate::core::window::OverlayWindow;
 use color_eyre::eyre::WrapErr;
@@ -15,6 +14,7 @@ use tracing_subscriber::EnvFilter;
 
 pub mod config;
 pub mod core;
+pub mod player;
 #[allow(unused_macros)]
 macro_rules! fl {
     ($message_id:literal) => {{
@@ -84,5 +84,4 @@ pub fn get_config_data_cache_markers_dirs() -> Result<[std::path::PathBuf; 6]> {
 pub struct AppContext {}
 pub type OverlayWindowContext = Arc<Mutex<OverlayWindow>>;
 pub type WgpuContext = Arc<RwLock<WgpuContextImpl>>;
-
-pub type PlayerContext = Arc<RwLock<PlayerContextImpl>>;
+// pub type PlayerContext = Arc<RwLock<PlayerContextImpl>>;

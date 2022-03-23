@@ -2,7 +2,7 @@ use crate::config::ConfigManager;
 use crate::core::gui::theme::ThemeManager;
 use crate::core::marker::MarkerManager;
 use crate::core::window::OverlayWindow;
-use crate::WgpuContext;
+use crate::{WgpuContext, WgpuContextImpl};
 use color_eyre::eyre::WrapErr;
 use egui::epaint::Vertex;
 use egui::{
@@ -242,11 +242,7 @@ impl Etx {
 
             self.theme_manager
                 .gui(ctx.clone(), &mut self.enabled_windows.theme_window)?;
-            ow.gui(
-                ctx.clone(),
-                &mut self.enabled_windows.overlay_controls,
-                wtx.clone(),
-            )?;
+            ow.gui(ctx.clone(), &mut self.enabled_windows.overlay_controls, wtx)?;
             cm.gui(ctx.clone(), &mut self.enabled_windows.config_window)?;
             // self.marker_gui(mm, mctx).await?;
             Window::new("Mumble Window")
@@ -287,7 +283,7 @@ impl Etx {
         framebuffer_scale: Vec2,
     ) -> color_eyre::Result<()> {
         let _tex_update = !textures_delta.set.is_empty() || !textures_delta.free.is_empty();
-        let wtx = wtx.write();
+        let mut wtx = wtx.write();
         for (id, delta) in textures_delta.set {
             assert_eq!(id, TextureId::Managed(0));
             let whole = delta.is_whole();
@@ -445,25 +441,23 @@ impl Etx {
             usage: BufferUsages::INDEX,
             mapped_at_creation: true,
         });
-
-        if let Some((_fb, fbv)) = wtx.fb.as_ref() {
-            let mut encoder = wtx
-                .device
-                .create_command_encoder(&CommandEncoderDescriptor {
-                    label: Some("egui command encoder"),
+        let WgpuContextImpl { fb, ce, .. } = &mut *wtx;
+        if let Some((_fb, fbv)) = fb.as_ref() {
+            let mut render_pass = ce
+                .as_mut()
+                .expect("failed to find command encoder at egui render pass")
+                .begin_render_pass(&RenderPassDescriptor {
+                    label: Some("Render Pass"),
+                    color_attachments: &[RenderPassColorAttachment {
+                        view: fbv,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Load,
+                            store: true,
+                        },
+                    }],
+                    depth_stencil_attachment: None,
                 });
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[RenderPassColorAttachment {
-                    view: fbv,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Load,
-                        store: true,
-                    },
-                }],
-                depth_stencil_attachment: None,
-            });
             render_pass.set_pipeline(&self.egui_render_state.pipeline);
             render_pass.set_bind_group(0, &ub_bindgroup, &[]);
             render_pass.set_vertex_buffer(0, vb.slice(..));
@@ -535,8 +529,6 @@ impl Etx {
             }
             vb.unmap();
             ib.unmap();
-            drop(render_pass);
-            wtx.queue.submit(std::iter::once(encoder.finish()));
         }
 
         Ok(())

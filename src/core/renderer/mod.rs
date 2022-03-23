@@ -12,7 +12,7 @@ use tracing::{error, info, warn};
 use crate::config::{JokoConfig, VsyncMode};
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, CommandEncoder,
     CommandEncoderDescriptor, Device, Extent3d, Features, FilterMode, Queue, Sampler,
     SamplerBindingType, SamplerDescriptor, ShaderStages, SurfaceConfiguration, SurfaceTexture,
     Texture, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
@@ -25,6 +25,7 @@ use crate::WgpuContext;
 
 pub struct WgpuContextImpl {
     pub fb: Option<(SurfaceTexture, TextureView)>,
+    pub ce: Option<CommandEncoder>,
     loaded_textures: BTreeMap<u64, LoadedTexture>,
     pub linear_bindgroup_layout: BindGroupLayout,
     pub linear_sampler: Sampler,
@@ -40,6 +41,13 @@ impl WgpuContextImpl {
             self.config.height = framebuffer_size.y;
             self.surface.configure(&self.device, &self.config);
         }
+        assert!(self.ce.is_none());
+        self.ce = Some(
+            self.device
+                .create_command_encoder(&CommandEncoderDescriptor {
+                    label: Some("primary command encoder"),
+                }),
+        );
         // if we fail to get a framebuffer, we return. so, make sure to do any texture updates before this point
         if let Ok(fb) = self.surface.get_current_texture() {
             if fb.suboptimal {
@@ -47,11 +55,6 @@ impl WgpuContextImpl {
                 self.surface.configure(&self.device, &self.config);
             }
 
-            let _encoder = self
-                .device
-                .create_command_encoder(&CommandEncoderDescriptor {
-                    label: Some("Render encoder"),
-                });
             let fbv = fb.texture.create_view(&TextureViewDescriptor {
                 label: Some("frambuffer view"),
                 format: Option::from(self.config.format),
@@ -67,6 +70,12 @@ impl WgpuContextImpl {
         };
     }
     pub fn present_framebuffer_view(&mut self) {
+        self.queue.submit(std::iter::once(
+            self.ce
+                .take()
+                .expect("command encoder is missing when trying to present framebuffer_view")
+                .finish(),
+        ));
         if let Some((fb, _fbv)) = self.fb.take() {
             fb.present();
         }
@@ -278,6 +287,7 @@ impl WgpuContextImpl {
 
         Ok(Self {
             fb: None,
+            ce: None,
             loaded_textures: Default::default(),
             linear_bindgroup_layout,
             linear_sampler,
