@@ -1,0 +1,10 @@
+<OverlayData xmlns="$LOCAL_SCHEMA$" xmlns="">
+    <MarkerCategory name="parent" displayName="Parent" >
+        <MarkerCategory name="child1" displayName="Child 1">
+        </MarkerCategory>
+    </MarkerCategory>
+    <POIs>
+        <POI type="parent" mapID="15" xpos="1.0" ypos="1.0" zpos="1.0" iconFile="marker.png"></POI>
+        <Trail type="parent.child1" mapID="15" texture="trail.png" trailData="basic.trl" ></Trail>
+    </POIs>
+</OverlayData>
