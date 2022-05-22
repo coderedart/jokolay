@@ -1,10 +1,13 @@
-**/target
+# rust compilation stuff
+/target
+# IDE / text editor specific files
 /.vscode
-/assets
 /.idea
-*.log
-*spv
-/logs
-/cache
-/config
-/data
+# assets like marker packs we use temporarily
+/assets
+# folders created by Jokolay
+/jokolay_dir
+# any bytehound related files we use when dealing with memory usage/leaks issues
+*bytehound*
+# the wasm build of crate
+/dist

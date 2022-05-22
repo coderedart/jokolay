@@ -9,7 +9,14 @@
       <sourceFolder url="file://$MODULE_DIR$/jokolink/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/jokotypes/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/jmf/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/jokoapi/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/jokolay/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/jokolink/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bevy_glfw/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bevy_glfw/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/bevy_glfw/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

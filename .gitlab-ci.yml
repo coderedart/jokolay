@@ -1,6 +1,6 @@
 variables:
   CARGO_HOME: $CI_PROJECT_DIR/.cargo
-
+# cannot add Cargo deny yet because of some dependencies still being "git" like wgpu and its friends.
 cache:
   paths:
     - target/
@@ -28,7 +28,7 @@ build-code:
   stage: build
   script:
     - rustup component add rustfmt
-    - cargo fmt -- --check
+    - cargo fmt --all -- --check
     - rustup component add clippy
     - cargo clippy --workspace --all-targets --all-features --  -D warnings -W clippy::all
     - cargo test --workspace --all-targets --all-features
