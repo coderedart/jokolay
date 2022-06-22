@@ -1,0 +1,8 @@
+# copied from bevy repo :)
+edition = "2021"
+use_field_init_shorthand = true
+newline_style = "Unix"
+# wrap_comments = true
+# comment_width = 100
+# normalize_comments = true
+# fn_args_layout = "Vertical"

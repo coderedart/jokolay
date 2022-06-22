@@ -1,0 +1,46 @@
+[package]
+name = "jokolink"
+description = "A crate to copy MumbleLink of Guild Wars 2 by running in wine and copying it to linux filesystem for native access by linux apps"
+license = "MIT"
+repository = "https://github.com/coderedart/jokolink.git"
+version = "0.4.0"
+authors = ["coderedart <redartofcode@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+thiserror = "1"
+color-eyre = "0.6"
+tracing-error = "*"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+widestring = "0"
+bytemuck = { version = "1.8", features = ["derive"] }
+clap = { version = "3.1.0", features = [
+    "default",
+    "derive",
+    "std",
+    "cargo",
+    "color",
+    "suggestions",
+    "env",
+] }
+bitflags = "1"
+num-derive = "0"
+num-traits = "0"
+tracing-appender = { version = "0" }
+tracing-subscriber = { version = "0" }
+tracing = "0"
+git-version = "0"
+sysinfo = "0.23"
+#[target.'cfg(linux)'.dependencies]
+[target.'cfg(unix)'.dependencies]
+x11rb = { version = "0.9.0", features = ["all-extensions"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0", features = [
+    "Win32_System_Memory",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+] }
