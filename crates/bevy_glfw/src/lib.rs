@@ -130,6 +130,7 @@ pub fn glfw_runner_with(mut app: App) {
     trace!("Entering glfw event loop");
 
     loop {
+        handle_create_window_events(&mut app.world);
         {
             // check if there's any new events
             app.world
@@ -157,7 +158,6 @@ pub fn glfw_runner_with(mut app: App) {
                 handle_glfw_events(&world, *window_id, b_window, window_state);
             }
         }
-
         app.update();
     }
     // if window is closed before its surface is destroyed, then we get a segmentation fault.
@@ -175,13 +175,13 @@ pub fn glfw_runner_with(mut app: App) {
 /// so, it is only run when we add the GlfwPlugin to the app.
 fn handle_create_window_events(world: &mut World) {
     let world = world.cell();
-    let mut windows = world.get_resource_mut::<Windows>().unwrap();
-    let create_window_events = world.get_resource::<Events<CreateWindow>>().unwrap();
-    let mut window_created_events = world.get_resource_mut::<Events<WindowCreated>>().unwrap();
-    for create_window_event in create_window_events
-        .get_reader()
-        .iter(&create_window_events)
+    for create_window_event in world
+        .get_resource_mut::<Events<CreateWindow>>()
+        .unwrap()
+        .drain()
     {
+        let mut windows = world.get_resource_mut::<Windows>().unwrap();
+        let mut window_created_events = world.get_resource_mut::<Events<WindowCreated>>().unwrap();
         let window = world
             .get_non_send_mut::<GlfwBackend>()
             .expect("failed to get glfw context from world")

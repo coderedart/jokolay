@@ -39,8 +39,8 @@ dev = ["bevy/dynamic"]
 
 [dependencies]
 bevy = { version = "0.7", default-features = false }
-bevy_kira_audio = { version = "0.9" }
-bevy_asset_loader = { version = "0.10" }
+bevy_kira_audio = { version = "0.10.0" }
+bevy_asset_loader = { version = "0.11.0" }
 rand = "0.8.3"
 # until bevy_egui merges the PR to remove bevy_winit dependency.
 bevy_egui = { version = "0.14.0", git = "https://github.com/coderedart/bevy_egui.git" }
