@@ -3,10 +3,10 @@
 
 use bevy::app::CoreStage;
 use bevy::prelude::{
-    App, ClearColor, Color, EventWriter, Msaa, NonSendMut, Res, ResMut, WindowDescriptor, Windows,
+    App, ClearColor, Color, Msaa, NonSendMut, Res, ResMut, WindowDescriptor, Windows,
 };
 
-use bevy::window::{CreateWindow, PresentMode, WindowCommand, WindowId};
+use bevy::window::PresentMode;
 use bevy::DefaultPlugins;
 use bevy_egui::{EguiContext, EguiPlugin};
 
