@@ -22,6 +22,7 @@ members = [
     #    "crates/jokolink",
     "crates/jmf",
     #    "crates/jokoapi",
+    "crates/joko_plugins",
     "crates/bevy_glfw",
 ]
 

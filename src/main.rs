@@ -3,7 +3,7 @@
 
 use bevy::app::CoreStage;
 use bevy::prelude::{
-    App, ClearColor, Color, Msaa, NonSendMut, Res, ResMut, WindowDescriptor, Windows,
+    App, ClearColor, Color, Msaa, NonSendMut, Res, ResMut, WindowDescriptor, Windows, Local,
 };
 
 use bevy::window::PresentMode;
@@ -61,7 +61,7 @@ fn egui_glfw_passthrough(
     }
 }
 
-fn temp_window(mut ectx: ResMut<EguiContext>, mut windows: ResMut<Windows>) {
+fn temp_window(mut print_count: Local<usize>, mut ectx: ResMut<EguiContext>, mut windows: ResMut<Windows>) {
     let ctx = ectx.ctx_mut();
     bevy_egui::egui::Window::new("title").show(ctx, |ui| {
         ui.label("hello");
@@ -70,6 +70,10 @@ fn temp_window(mut ectx: ResMut<EguiContext>, mut windows: ResMut<Windows>) {
         }
         if ui.button("disable decorations").clicked() {
             windows.get_primary_mut().unwrap().set_decorations(false);
+        }
+        if ui.button("print something").clicked() {
+            *print_count = *print_count + 1;
+            dbg!(print_count);
         }
     });
 }
