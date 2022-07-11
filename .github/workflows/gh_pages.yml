@@ -41,7 +41,6 @@ jobs:
       - name: Prepare package # prepare the website into a single folder called wasm 
         run: |
           wasm-bindgen --no-typescript --out-name bevy_game --out-dir wasm --target web target/wasm32-unknown-unknown/release/${{ env.binary }}.wasm
-          cp -r assets wasm/
           ls -a wasm/
       
       - name: Deploy # deploy that website as root
