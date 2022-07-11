@@ -17,8 +17,10 @@ jobs:
           override: true
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
+      - name: Downlaod and Install Trunk binary
+        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Build # build
-        run:  trunk build --release
+        run: ./trunk build --release
       - name: Deploy # deploy that website as root
         uses: JamesIves/github-pages-deploy-action@v4
         with:
