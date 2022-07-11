@@ -223,6 +223,7 @@ pub fn get_link_buffer(
         buffer.copy_from_slice(unsafe {
             std::slice::from_raw_parts(link_ptr as *const u8, C_MUMBLE_LINK_SIZE)
         });
+
         buffer
     }
 }
@@ -275,20 +276,18 @@ pub fn get_xid(link_ptr: *const CMumbleLink) -> Result<u32> {
 
 pub fn get_process_handle(pid: u32) -> Result<HANDLE> {
     unsafe {
-        let process_handle = OpenProcess(
+        OpenProcess(
             PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
             false,
             pid,
-        );
-        if process_handle.is_invalid() {
-            bail!(
+        )
+        .wrap_err_with(|| {
+            format!(
                 "failed to get handle for process id: {} due to error {:?}",
                 pid,
                 GetLastError()
             )
-        } else {
-            Ok(process_handle)
-        }
+        })
     }
 }
 pub fn check_process_alive(process_handle: HANDLE) -> Result<bool> {
@@ -346,15 +345,13 @@ pub fn create_link_shared_mem(key: &str) -> Result<(HANDLE, *const CMumbleLink)>
             0,
             C_MUMBLE_LINK_SIZE as u32,
             PCSTR(key_cstr.as_ptr() as _),
-        );
-
-        // if failed to create shared memory
-        if file_handle.is_invalid() {
-            bail!(
+        )
+        .wrap_err_with(|| {
+            format!(
                 "could not create file map handle, error code: {:#?}",
                 GetLastError()
-            );
-        }
+            )
+        })?;
 
         // map the shared memory into the address space of our process using the handle we got from creating the shm
         let cml_ptr = MapViewOfFile(file_handle, FILE_MAP_ALL_ACCESS, 0, 0, C_MUMBLE_LINK_SIZE);
