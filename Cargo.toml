@@ -1,6 +1,6 @@
 [package]
 name = "jokolay"                                  # ToDo
-version = "0.1.0"
+version = "0.1.1"
 publish = false
 authors = ["Red Artist <redartofcode@gmail.com>"]
 edition = "2021"

@@ -30,4 +30,6 @@ raw-window-handle = "0.4.2"
 features = ["x11"]
 
 [dev-dependencies]
-bevy = {version = "0.7.0"}
+bevy = { version = "0.7.0", default-features = false, features = [
+    "bevy_core_pipeline", "render"
+] }
