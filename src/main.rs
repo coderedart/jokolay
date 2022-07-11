@@ -15,7 +15,7 @@ fn main() {
 
     // if on wasm, just go with the default plugins with winit.
     #[cfg(target_arch = "wasm32")]
-    app.add_plugins(DefaultPlugins);
+    app.add_plugins(bevy::DefaultPlugins);
 
     // add the rest of the stuff which is used regardless of the platform
     app.add_plugin(EguiPlugin);
