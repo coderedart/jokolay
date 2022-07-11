@@ -4,6 +4,7 @@ mod converters;
 mod events;
 mod glfw_windows;
 
+use bevy_log::info;
 pub use glfw_windows::*;
 
 use bevy_app::{App, AppExit, CoreStage, Plugin};
@@ -48,11 +49,13 @@ fn change_window(world: &mut World) {
 
     for bevy_window in windows.iter_mut() {
         let id = bevy_window.id();
-        let window: &mut Window = &mut glfw_windows
-            .windows
-            .get_mut(&id)
-            .expect("failed to find window")
-            .window;
+        let window: &mut Window = match glfw_windows.windows.get_mut(&id) {
+            Some(state) => &mut state.window,
+            None => panic!(
+                "failed to find window. list of windows: {:#?}",
+                &glfw_windows.windows
+            ),
+        };
         for command in bevy_window.drain_commands() {
             match command {
                 bevy_window::WindowCommand::SetWindowMode {
@@ -187,6 +190,10 @@ fn handle_create_window_events(world: &mut World) {
             .expect("failed to get glfw context from world")
             .create_window(create_window_event.id, &create_window_event.descriptor);
         windows.add(window);
+        info!(
+            "new glfw window created with window_id: {:#?}",
+            &create_window_event.id
+        );
         window_created_events.send(WindowCreated {
             id: create_window_event.id,
         });

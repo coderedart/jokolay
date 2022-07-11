@@ -16,6 +16,7 @@ pub struct GlfwBackend {
     _not_send_sync: core::marker::PhantomData<*const ()>,
 }
 
+#[derive(Debug)]
 pub struct WindowState {
     pub(crate) window: glfw::Window,
     pub(crate) events_receiver: Receiver<(f64, glfw::WindowEvent)>,

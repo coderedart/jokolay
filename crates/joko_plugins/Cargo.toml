@@ -9,3 +9,7 @@ edition = "2021"
 bevy = { version = "*", default-features = false }
 url = "*"
 semver = "*"
+bevy_mod_scripting = { git = "https://github.com/coderedart/bevy_mod_scripting.git", features = [
+    "luajit",
+] }
+bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git" }
