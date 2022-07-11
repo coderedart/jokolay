@@ -8,7 +8,7 @@ env:
 permissions:
   contents: write
 
-  
+
 jobs:
 
   # Build for wasm
@@ -18,28 +18,35 @@ jobs:
     steps:
       - uses: little-core-labs/get-git-tag@v3.0.1
         id: get_version
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+
+      - uses: actions/checkout@v2 # repo checkout
+
+      - uses: actions-rs/toolchain@v1 # get rust toolchain for wasm
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
           override: true
-      - name: install wasm-bindgen-cli
+
+      - name: Rust Cache # cache the rust build artefacts
+        uses: Swatinem/rust-cache@v1
+
+      - name: install wasm-bindgen-cli # install wasmbindgen cli for building the website
         run: |
           cargo install wasm-bindgen-cli
 
-      - name: Build
+      - name: Build # build
         run: |
           cargo build --release --target wasm32-unknown-unknown
 
-      - name: Prepare package
+      - name: Prepare package # prepare the website into a single folder called wasm 
         run: |
           wasm-bindgen --no-typescript --out-name bevy_game --out-dir wasm --target web target/wasm32-unknown-unknown/release/${{ env.binary }}.wasm
           cp -r assets wasm/
           ls -a wasm/
-      - name: Deploy 
+      
+      - name: Deploy # deploy that website as root
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: pages
+          folder: wasm
 
   
