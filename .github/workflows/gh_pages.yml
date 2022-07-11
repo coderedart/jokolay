@@ -8,27 +8,18 @@ permissions:
 jobs:
   build-github-pages:
     runs-on: ubuntu-latest
-
     steps:
-
       - uses: actions/checkout@v2 # repo checkout
-
       - uses: actions-rs/toolchain@v1 # get rust toolchain for wasm
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
           override: true
-
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-
-       - name: Build # build
-        run: |
-          trunk build --release --target wasm32-unknown-unknown
-
+      - name: Build # build
+        run:  trunk build --release
       - name: Deploy # deploy that website as root
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
-
-  
