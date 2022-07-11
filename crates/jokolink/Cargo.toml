@@ -13,9 +13,9 @@ color-eyre = "0.6"
 tracing-error = "*"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-widestring = "0"
+widestring = "1"
 bytemuck = { version = "1.8", features = ["derive"] }
-clap = { version = "3.1.0", features = [
+clap = { version = "3.2.8", features = [
     "default",
     "derive",
     "std",
@@ -31,10 +31,10 @@ tracing-appender = { version = "0" }
 tracing-subscriber = { version = "0" }
 tracing = "0"
 git-version = "0"
-sysinfo = "0.23"
+sysinfo = "0.24.6"
 #[target.'cfg(linux)'.dependencies]
 [target.'cfg(unix)'.dependencies]
-x11rb = { version = "0.9.0", features = ["all-extensions"] }
+x11rb = { version = "0.10.1", features = ["all-extensions"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0", features = [
