@@ -21,6 +21,10 @@ jobs:
         run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Build # build
         run: ./trunk build --release
+      - name: Make paths relative # replace "/index" with "./index", and "jokolay" with "./jokolay" to use relative paths. otherwise, it won't work https://github.com/thedodd/trunk/issues/395
+        run: |
+          sed -i 's/\/index/.\/index/g' dist/index.html
+          sed -i 's/\/jokolay/.\/jokolay/g' dist/index.html
       - name: Deploy # deploy that website as root
         uses: JamesIves/github-pages-deploy-action@v4
         with:
