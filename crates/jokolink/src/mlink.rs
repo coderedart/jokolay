@@ -307,7 +307,7 @@ pub enum MumbleIdentityError {
     #[error("Mumble Identity String missing null terminator error")]
     U16CStrMissingNullTerminator(#[from] widestring::error::MissingNulTerminator),
     #[error("Mumble Identity String is not valid utf-8")]
-    Utf16To8Error(#[from] std::string::FromUtf16Error),
+    Utf16To8Error(#[from] widestring::error::Utf16Error),
     #[error("Mumble Identity is not valid json")]
     JsonError(#[from] serde_json::Error),
 }
