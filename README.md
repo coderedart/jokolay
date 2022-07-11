@@ -20,15 +20,15 @@ An Overlay for Guild Wars 2 in Rust
       
 I will primarily be testing this on Endeavour (Arch) OS / KDE Plasma latest. need more guinea pigs to test things on other DEs. 
 
-### the steps to complete jokolay are 8. 
-[] get a very stable core renderer working. especially texture manage ment. 
-[*] rawinput from keyboard mouse while not in focus. //done using device_query
-[*] get a very stable egui/user interface working. // done. but need to write bindings for lua
-[] Documentation/tutorials // delayed until jokolay is like 70% done ,so we can create github wiki with screenshots for easy tutorials.
-[] start adding features like timer windows/kp lookup/switching markers. // need to start
-[] Marker/trail recorder/editor // once we figure out whether to support undo, we can start with this ez
-[] Notification system like Gw2Pao // delayed until we get the other features polished. 
-[] polish and collaborate with other projects for extension of markers format/modules like blish/customization and such.
+### the steps to complete jokolay are 8 
+- [x] get a very stable core renderer working. especially texture manage ment. //done, we just use bevy now which will take care of rendering for us.
+- [x] rawinput from keyboard mouse while not in focus. //done using device_query
+- [x] get a very stable egui/user interface working. // done. using luaegui
+- [ ] Documentation/tutorials // delayed until jokolay is like 70% done ,so we can create github wiki with screenshots for easy tutorials.
+- [ ] start adding features like timer windows/kp lookup/switching markers. // need to start
+- [ ] Marker/trail recorder/editor // once we figure out whether to support undo, we can start with this ez
+- [ ] Notification system like Gw2Pao // delayed until we get the other features polished. 
+- [ ] polish and collaborate with other projects for extension of markers format/modules like blish/customization and such.
 
 
 
@@ -41,5 +41,5 @@ most gpu after gtx 750 should be okay.
 #### Requires X11
 Wayland is NOT supported. 
 ### Compiling
-Just check the CI workflow file. 
+TODO
 

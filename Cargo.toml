@@ -1,6 +1,6 @@
 [package]
 name = "jokolay"                                  # ToDo
-version = "0.1.0"
+version = "0.1.1"
 publish = false
 authors = ["Red Artist <redartofcode@gmail.com>"]
 edition = "2021"
@@ -19,34 +19,29 @@ codegen-units = 1
 [workspace]
 resolver = "2"
 members = [
-    #    "crates/jokolink",
+    "crates/jokolink",
     "crates/jmf",
-    #    "crates/jokoapi",
+    "crates/jokoapi",
+    "crates/joko_plugins",
     "crates/bevy_glfw",
+    "crates/joko_desktop",
 ]
 
 
 [features]
-default = [
-    "bevy/bevy_winit",
-    "bevy/render",
-    "bevy/png",
-    "bevy/x11",
-    "bevy_kira_audio/ogg",
-]
 
-dev = ["bevy/dynamic"]
 
 [dependencies]
-bevy = { version = "0.7", default-features = false }
-bevy_kira_audio = { version = "0.10.0" }
-bevy_asset_loader = { version = "0.11.0" }
-rand = "0.8.3"
-# until bevy_egui merges the PR to remove bevy_winit dependency.
-bevy_egui = { version = "0.14.0", git = "https://github.com/coderedart/bevy_egui.git" }
+
+# fork because https://github.com/bevyengine/bevy/issues/4649
+bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy_glfw = { version = "*", path = "crates/bevy_glfw" }
+joko_desktop = { version = "*", path = "crates/joko_desktop" }
+bevy = { version = "0.7", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bevy = { version = "0.7", default-features = false, features = ["bevy_winit"] }
 
 [build-dependencies]
 embed-resource = "1.4"
