@@ -11,7 +11,7 @@ bevy = { version = "0.7", default-features = false, features = [
     "bevy_core_pipeline",
 ] }
 bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git" }
-
+jokolink = { path = "../jokolink" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy_glfw = { version = "*", path = "../bevy_glfw" }

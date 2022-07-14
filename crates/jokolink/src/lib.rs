@@ -10,19 +10,10 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "bevy")]
+pub mod bevy;
 pub mod mlink;
-
-#[cfg(target_os = "linux")]
-pub mod linux;
-#[cfg(target_os = "windows")]
-pub mod win;
-
-#[cfg(target_os = "linux")]
-pub use linux::MumbleOnly;
-
-#[cfg(target_os = "windows")]
-pub use win::MumbleOnly;
-
+pub mod mumble_file;
 use crate::mlink::MumbleLink;
 
 /// The default mumble link name. can only be changed by passing the `-mumble` options to gw2 for multiboxing

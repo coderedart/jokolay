@@ -1,45 +1,28 @@
 use crate::mlink::{MumbleLink, USEFUL_C_MUMBLE_LINK_SIZE};
+use crate::WindowDimensions;
 use color_eyre::eyre::{bail, WrapErr};
 use color_eyre::Result;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use sysinfo::SystemExt;
-use tracing::warn;
+use std::sync::Arc;
+use sysinfo::{Pid, ProcessRefreshKind, System, SystemExt};
 use x11rb::protocol::xproto::{change_property, get_property, intern_atom, AtomEnum, PropMode};
 use x11rb::rust_connection::RustConnection;
 
+use super::{MumbleFile, MumbleFileTrait, UpdatedMumbleData};
+
+pub type MumbleBackend = std::fs::File;
 const LINK_BUFFER_SIZE: usize = USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<isize>();
 type LinkBuffer = [u8; LINK_BUFFER_SIZE];
-/// This source will be the used to abstract the linux/windows way of getting MumbleLink
-/// on windows, this represents the shared memory pointer to mumblelink, and as long as one of gw2 or a client like us is alive, the shared memory will stay alive
-/// on linux, this will be a File in /dev/shm that will only exist if jokolink created it at some point in time. this lives in ram, so reading from it is pretty much free.
-#[derive(Debug)]
-pub struct MumbleSource {
-    pub mfile: File,
-    pub xc: RustConnection,
-    pub ow_window_handle: u32,
-    pub gw2_window_handle: u32,
-    pub gw2_pid: u32,
-    pub gw2_pos: [i32; 2],
-    pub gw2_size: [u32; 2],
-    pub link: MumbleLink,
-    pub last_uitick_update: f64,
-    pub last_pos_size_update: f64,
-}
 
-pub struct MumbleOnly {
-    pub mfile: File,
-    pub last_ui_tick_update: f64,
-    pub last_ui_tick: u32,
-}
-impl MumbleOnly {
-    pub fn new(key: &str, glfw_time: f64) -> Result<Self> {
+impl MumbleFileTrait for MumbleFile {
+    fn new(link_name: &str, latest_time: f64) -> Result<Self> {
         let mut f = File::options()
             .read(true)
             .write(true)
             .create(true)
-            .open(format!("/dev/shm/{}", key))
-            .wrap_err_with(|| format!("MumbleFile open error: {key}."))?;
+            .open(format!("/dev/shm/{}", link_name))
+            .wrap_err_with(|| format!("MumbleFile open error: {link_name}."))?;
         let buffer = get_link_buffer(&mut f)?;
 
         let mut link = MumbleLink::default();
@@ -48,137 +31,72 @@ impl MumbleOnly {
         } else {
             MumbleLink::default()
         };
+        let xid: u32 = xid_from_buffer(&buffer);
+
         Ok(Self {
-            mfile: f,
-            last_ui_tick_update: glfw_time,
-            last_ui_tick: link.ui_tick,
+            link_name: Arc::from(link_name),
+            backend: f,
+            last_ui_tick_changed_time: latest_time,
+            last_link_update: latest_time,
+            previous_ui_tick: link.ui_tick,
+            previous_unique_id: xid,
         })
     }
-    pub fn tick(&mut self, latest_time: f64) -> Result<Option<(u32, MumbleLink)>> {
-        let previous_tick = self.last_ui_tick;
+    fn get_link(&mut self, latest_time: f64) -> Result<Option<UpdatedMumbleData>> {
+        let previous_tick = self.previous_ui_tick;
 
-        // to make sure that self.link is always "valid" and without any errors while updating from buffer,
-        // we will use a new link and after checking that its valid, we will assign it.
         let mut present_link = MumbleLink::default();
-        let buffer = get_link_buffer(&mut self.mfile)?;
+        let buffer = get_link_buffer(&mut self.backend)?;
         present_link.update_from_slice(&buffer)?;
         let present_tick = present_link.ui_tick;
         let xid: u32 = xid_from_buffer(&buffer);
-        // case where mumble is not initialized or mumble is not changed from last frame (either game dead or game fps low)
-        if present_tick == 0 || previous_tick == present_tick {
-            return Ok(None);
+        // because we could successfully parse the mumble link, we can update the latest updatetime.
+        self.last_link_update = latest_time;
+        // if present_tick zero, mumble is not init, so we return None
+        // if previous unique id and present unique id are same AND previous ui tick and present ui tick are same, then there's been no update to mumble data
+        // since last frame.
+        // we check for unique id too to cover the edge case of two gw2 instances running at the same time and updating the link with the same uitick.
+        // by checking that the unique id is same, we can guarantee that there's been no change at all
+        if present_tick == 0 || (previous_tick == present_tick && xid == self.previous_unique_id) {
+            Ok(None)
+        } else {
+            // there's been a change in mumble link, so we are in this branch. update the previous values to current values.
+            self.previous_ui_tick = present_tick;
+            self.last_ui_tick_changed_time = latest_time;
+            Ok(Some(UpdatedMumbleData {
+                unique_id: xid,
+                link: present_link,
+            }))
         }
-
-        self.last_ui_tick_update = latest_time;
-        self.last_ui_tick = present_tick;
-        Ok(Some((xid, present_link)))
     }
 }
-impl MumbleSource {
+
+pub struct GW2InstanceData {
+    xid: u32,
+    pid: i32,
+}
+impl GW2InstanceData {
     /// try to open the Mumble Link file created by jokolink under /dev/shm . creates empty file if it doesn't exist
-    pub fn new(key: &str, glfw_time: f64, ow_window_handle: u32) -> Result<MumbleSource> {
-        let mut f = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(format!("/dev/shm/{}", key))
-            .wrap_err_with(|| format!("MumbleFile open error: {key}."))?;
-        let (xc, _display) = RustConnection::connect(None)
-            .wrap_err("failed to connect to x11 with rust connection")?;
-
-        // we pre-initialize mumble link. if there's garbage data from gw2's previous run,
-        // then when we check for previouslink.tick != present_tick in tick() method,
-        // we don't know if it is due to frame advancing with a normal gw2 or
-        // present frame uitick being from garbage and previoustick from default link being 0.
-        let buffer = get_link_buffer(&mut f)?;
-
-        let mut link = MumbleLink::default();
-        let link = if link.update_from_slice(&buffer).is_ok() {
-            link
-        } else {
-            MumbleLink::default()
-        };
-
-        let resultsrc = MumbleSource {
-            mfile: f,
-            ow_window_handle,
-            xc,
-            gw2_pid: 0,
-            gw2_window_handle: 0,
-            gw2_pos: [0, 0],
-            gw2_size: [0, 0],
-            last_pos_size_update: glfw_time,
-            link,
-            last_uitick_update: glfw_time,
-        };
-        Ok(resultsrc)
+    pub fn new(unique_id: usize, xc: &RustConnection) -> Result<Self> {
+        let xid = unique_id.try_into().expect("cannot fit window id into u32");
+        let pid = get_pid_from_xid(xc, xid)
+            .wrap_err("failed to get PID from xid")?
+            .try_into()
+            .expect("failed to fit pid into i32");
+        Ok(Self { xid, pid })
     }
-
-    pub fn tick(&mut self, latest_time: f64, sys: &mut sysinfo::System) -> Result<()> {
-        let previous_tick = self.link.ui_tick;
-
-        // to make sure that self.link is always "valid" and without any errors while updating from buffer,
-        // we will use a new link and after checking that its valid, we will assign it.
-        let mut present_link = MumbleLink::default();
-        let buffer = get_link_buffer(&mut self.mfile)?;
-        present_link.update_from_slice(&buffer)?;
-        let present_tick = present_link.ui_tick;
-
-        // case where mumble is not initialized or mumble is not changed from last frame (either game dead or game fps low)
-        if present_tick == 0 || previous_tick == present_tick {
-            return Ok(());
-        }
-
-        // if gw2 crashes, then it will start uitick from zero. so, we need to get new pid/window ids
-        // case where new game resets present_tick
-        if previous_tick > present_tick {
-            warn!("previous tick: {previous_tick} is greater than present_tick: {present_tick}. ");
-            self.gw2_window_handle = 0;
-            self.gw2_pid = 0;
-        }
-        // we handled present == previous and present < previous. so, we know that present is greater than previous
-        self.last_uitick_update = latest_time;
-        // by updating link here, if gw2 is dead, we make sure that next frame, if mumble doesn't update, we don't reach the checking for xid again.
-        self.link = present_link;
-
-        // we only update pos/size atleast a second after previous successful update
-        if latest_time - self.last_pos_size_update > 1.0 {
-            // for linux, first get window xid from jokolink using "wine_x11" thingy and then get pid from NET_WM_PID
-            self.gw2_window_handle = xid_from_buffer(&buffer);
-            // if window handle is still zero, it means jokolink didn't update the window xid yet, so we skip getting sizes
-            // if gw2pid is zero, but window handle is not zero, it means we just got gw2's window handle, so we try to set gw2 pid from "NET WM PID"
-            // and as we just found gw2 window, we set transient for
-            if self.gw2_window_handle != 0 && self.gw2_pid == 0 {
-                self.gw2_pid = get_pid_from_xid(&self.xc, self.gw2_window_handle)
-                    .wrap_err("failed to get pid when tick is greater than zero")?;
-                assert_ne!(self.gw2_pid, 0);
-                set_transient_for(&self.xc, self.ow_window_handle, self.gw2_window_handle)
-                    .wrap_err("failed to set transient for")?;
-            }
-            // if gw2_pid is set, it means we got gw2 window as well as process id.
-            if self.gw2_pid != 0 {
-                // before we do anything, we first check if gw2 is still alive, otherwise, we just set pid/xid to zero, so that we can start over
-                // pid_t is i32 in libc
-                let pid: i32 = self
-                    .gw2_pid
-                    .try_into()
-                    .wrap_err("failed to convert gw2 pid into unix pid")?;
-                if !sys.refresh_process(sysinfo::Pid::from(pid)) {
-                    self.gw2_pid = 0;
-                    self.gw2_window_handle = 0;
-                    return Ok(());
-                }
-                // if gw2 is alive, we get the dimensions and set them.
-                let (x, y, w, h) = get_window_dimensions(&self.xc, self.gw2_window_handle)?;
-                self.gw2_pos = [x, y];
-                self.gw2_size = [w, h];
-                self.last_pos_size_update = latest_time;
-            }
-        }
-        Ok(())
+    pub fn is_alive(&self, sys: &mut System) -> bool {
+        sys.refresh_process_specifics(Pid::from(self.pid), ProcessRefreshKind::new())
     }
-    pub fn get_link(&self) -> &MumbleLink {
-        &self.link
+    pub fn get_window_dimensions(&self, xc: &RustConnection) -> Result<WindowDimensions> {
+        let (x, y, w, h) =
+            get_window_dimensions(&xc, self.xid).wrap_err("failed to get window dimensions")?;
+        Ok(WindowDimensions {
+            x,
+            y,
+            width: w,
+            height: h,
+        })
     }
 }
 

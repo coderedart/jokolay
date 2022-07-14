@@ -1,7 +1,7 @@
 #!/bin/bash
 # WARNING!!! Jokolink will run forever unless someone else force closes it. 
 # This behavior is necessary because gw2 might crash/restart itself.
-# so, we have no way of knowing when gw2 has quit. 
+# so, we have no way of knowing when gw2 has quit completely within the same wine session. 
 # fortunately, lutris force closes all scripts. 
 # we could make it a daemon so it will keep running forever, but then you cannot change 
 # runners or their settings in lutris while jokolink is running in background. 

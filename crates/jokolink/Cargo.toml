@@ -7,6 +7,10 @@ version = "0.4.0"
 authors = ["coderedart <redartofcode@gmail.com>"]
 edition = "2021"
 
+[features]
+default = ["bevy_plugin"]
+bevy_plugin = ["bevy", "bevy_glfw", "bevy_egui"]
+
 [dependencies]
 thiserror = "1"
 color-eyre = "0.6"
@@ -32,7 +36,13 @@ tracing-subscriber = { version = "0" }
 tracing = "0"
 git-version = "0"
 sysinfo = "0.24.6"
-#[target.'cfg(linux)'.dependencies]
+indexmap = "1.9.1"
+bevy = { version = "0.7", default-features = false, optional = true, features = [
+    "trace",
+] }
+bevy_glfw = { path = "../bevy_glfw", optional = true }
+bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git", optional = true }
+
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.10.1", features = ["all-extensions"] }
 

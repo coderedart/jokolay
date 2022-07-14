@@ -14,6 +14,7 @@ pub fn add_desktop_addons(app: &mut App) {
     app.add_plugins(bevy::DefaultPlugins);
     app.add_plugin(bevy_glfw::GlfwPlugin);
     app.add_system_to_stage(CoreStage::Last, egui_glfw_passthrough);
+    app.add_plugin(jokolink::bevy::MumblePlugin);
 }
 fn egui_glfw_passthrough(
     mut ectx: ResMut<EguiContext>,

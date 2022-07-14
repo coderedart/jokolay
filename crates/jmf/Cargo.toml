@@ -15,7 +15,7 @@ elementtree = { version = "*" }
 fs-err = "2.7.0"
 # for marker / trail attributes
 bitflags = "1.3.2"
-bytemuck = "1" # for trl files
+bytemuck = "1"     # for trl files
 hex = "0.4.3"
 # uuid = { version = "1.0.0-alpha.1", features = ["v3"] }
 # for downloading packs?
@@ -37,7 +37,7 @@ cxx = "1.0"
 # for marker pack versions
 semver = { version = "1.0.9", features = ["serde"] }
 # to embed PKG version to compare with repository's format version
-shadow-rs = "0.12.0"
+shadow-rs = "0.13.0"
 
 bevy_math = "0.7.0"
 
@@ -48,9 +48,15 @@ serde_test = { version = "1" }
 rstest = "0.15.0"
 # rstest_reuse = "0.3.0"
 similar-asserts = "1.2.0"
-test-log = {version = "0.2.10", default-features = false, features = ["trace"] }
-tracing-subscriber = { version = "0" , features = ["env-filter", "registry", "fmt"]}
+test-log = { version = "0.2.10", default-features = false, features = [
+    "trace",
+] }
+tracing-subscriber = { version = "0", features = [
+    "env-filter",
+    "registry",
+    "fmt",
+] }
 
 [build-dependencies]
 cxx-build = "1.0"
-shadow-rs = "0.12.0"
+shadow-rs = "0.13.0"

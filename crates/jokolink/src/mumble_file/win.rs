@@ -15,6 +15,19 @@ use windows::{
         UI::WindowsAndMessaging::*,
     },
 };
+
+pub struct MumbleBackend {
+    pub link_ptr: *const CMumbleLink,
+    mumble_handle: HANDLE,
+}
+impl Drop for MumbleBackend {
+    fn drop(&mut self) {
+        unsafe {
+            UnmapViewOfFile(self.link_ptr as *const std::ffi::c_void);
+            CloseHandle(self.mumble_handle);
+        }
+    }
+}
 /// This source will be the used to abstract the linux/windows way of getting MumbleLink
 /// on windows, this represents the shared memory pointer to mumblelink, and as long as one of gw2 or a client like us is alive, the shared memory will stay alive
 /// on linux, this will be a File in /dev/shm that will only exist if jokolink created it at some point in time. this lives in ram, so reading from it is pretty much free.
