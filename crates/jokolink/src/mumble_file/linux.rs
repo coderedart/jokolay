@@ -12,7 +12,7 @@ use x11rb::rust_connection::RustConnection;
 use super::{MumbleFile, MumbleFileTrait, UpdatedMumbleData};
 
 pub type MumbleBackend = std::fs::File;
-const LINK_BUFFER_SIZE: usize = USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<isize>();
+const LINK_BUFFER_SIZE: usize = USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<u32>();
 type LinkBuffer = [u8; LINK_BUFFER_SIZE];
 
 impl MumbleFileTrait for MumbleFile {
@@ -116,6 +116,7 @@ pub fn get_link_buffer(mfile: &mut File) -> Result<LinkBuffer> {
 /// panics if ui_tick is zero
 pub fn xid_from_buffer(buffer: &LinkBuffer) -> u32 {
     let mut xid_buffer = [0u8; std::mem::size_of::<u32>()];
+    assert_eq!(xid_buffer.len(), 4);
     xid_buffer.copy_from_slice(&buffer[USEFUL_C_MUMBLE_LINK_SIZE..]);
     u32::from_ne_bytes(xid_buffer)
 }

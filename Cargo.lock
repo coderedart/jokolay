@@ -2346,6 +2346,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112c678d4050afce233f4f2852bb2eb519230b3cf12f33585275537d7e41578d"
 
 [[package]]
+name = "iyes_loopless"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de41e79e600b6d8a49878c3a15c1ab0852c2d982dd638dfacd95d7eadab5193"
+dependencies = [
+ "bevy_app",
+ "bevy_core",
+ "bevy_ecs",
+ "bevy_utils",
+]
+
+[[package]]
 name = "jmf"
 version = "0.1.0"
 dependencies = [
@@ -2461,6 +2473,7 @@ dependencies = [
  "color-eyre",
  "git-version",
  "indexmap",
+ "iyes_loopless",
  "num-derive",
  "num-traits",
  "serde",
