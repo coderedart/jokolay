@@ -289,18 +289,19 @@ fn match_window_gw2_instance(
                 .data
                 .get_window_dimensions(&xc)
                 .expect("failed to get window dimensions");
-            info!("dimensions: {:#?}", &dimensions);
             let pos = window.position().expect("failed to get window position");
             let (width, height) = (window.width(), window.height());
-            info!(
-                "bevy window dimensions: x {} y {} width {} height {}",
-                pos.x, pos.y, width, height
-            );
+
             if dimensions.x != pos.x
                 || dimensions.y != pos.y
                 || dimensions.width != width as u32
                 || dimensions.height != height as u32
             {
+                info!("dimensions: {:#?}", &dimensions);
+                info!(
+                    "bevy window dimensions: x {} y {} width {} height {}",
+                    pos.x, pos.y, width, height
+                );
                 info!("resizing bevy window to fit the position / size of gw2 instance window");
                 window.set_position([dimensions.x, dimensions.y].into());
                 window.set_resolution(dimensions.width as f32, dimensions.height as f32);
