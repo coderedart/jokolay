@@ -1,4 +1,5 @@
 use crate::is_default;
+use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 
 /// Marker has 3 kinds of Attributes. Core, Filter and Dynamic
@@ -12,7 +13,7 @@ pub(crate) struct Marker {
     pub alpha: Option<u8>,
     /// category id to which marker belongs to
     /// Validation: Category with this id must exist
-    pub cat: u16,
+    pub cat: Utf8PathBuf,
 
     /// The color tint to be mixed with the Marker
     /// format is sRGBA
@@ -38,7 +39,12 @@ pub(crate) struct Marker {
     #[serde(skip_serializing_if = "is_default")]
     pub position: [f32; 3],
 }
-
+impl PartialOrd for Marker {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // to sort markers by their category
+        self.cat.partial_cmp(&other.cat)
+    }
+}
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(default)]

@@ -28,27 +28,32 @@ impl Pack {
         }
 
         zip_writer
-            .add_directory("images", FileOptions::default())
-            .wrap_err("failed to create images directory ")?;
-        for (image_name, image_data) in self.images.iter() {
+            .add_directory("textures", FileOptions::default())
+            .wrap_err("failed to create textures directory ")?;
+        for (texture_name, texture_data) in self.textures.iter() {
             zip_writer
-                .start_file(format!("images/{image_name}.png"), FileOptions::default())
-                .wrap_err_with(|| format!("failed to create png file {image_name}.png"))?;
+                .start_file(
+                    format!("textures/{texture_name}.png"),
+                    FileOptions::default(),
+                )
+                .wrap_err_with(|| format!("failed to create png file {texture_name}.png"))?;
             zip_writer
-                .write_all(image_data)
-                .wrap_err_with(|| format!("failed to write {image_name}.png"))?;
+                .write_all(texture_data)
+                .wrap_err_with(|| format!("failed to write {texture_name}.png"))?;
         }
 
         zip_writer
-            .add_directory("tbins", FileOptions::default())
-            .wrap_err("failed to create tbins directory ")?;
-        for (name, data) in self.tbins.iter() {
+            .add_directory("trls", FileOptions::default())
+            .wrap_err("failed to create trls directory ")?;
+        for (name, data) in self.trls.iter() {
             zip_writer
-                .start_file(format!("tbins/{name}.tbin"), FileOptions::default())
-                .wrap_err_with(|| format!("failed to create file {name}.tbin"))?;
+                .start_file(format!("trls/{name}.trl"), FileOptions::default())
+                .wrap_err_with(|| format!("failed to create file {name}.trl"))?;
             zip_writer
-                .write_all(cast_slice(data))
-                .wrap_err_with(|| format!("failed to write {name}.tbin"))?;
+                .write(data.map_id.to_ne_bytes().as_slice())
+                .and(zip_writer.write(data.version.to_ne_bytes().as_slice()))
+                .and(zip_writer.write(cast_slice(&data.nodes)))
+                .wrap_err_with(|| format!("failed to write {name}.trl"))?;
         }
         Ok(zip_writer
             .finish()

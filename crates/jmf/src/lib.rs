@@ -37,8 +37,9 @@
 
 extern crate core;
 
+#[cfg(feature = "desktop")]
+pub mod bevy;
 pub mod manager;
-
 // for compile time build info like pkg version or build timestamp or git hash etc..
 shadow_rs::shadow!(build);
 

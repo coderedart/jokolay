@@ -1,118 +1,66 @@
-//! Categories need to be made as easy to edit as possible.
-//! MarkerCategory tags of xml packs lead to three issues.
-//! example:
-//! ```xml
 //!
-//! <MarkerCategory name="parent" displayName="parent name" isSeparator="0" default_toggle="1" >
-//!   <MarkerCategory name="child" displayName="child name" >
-//!     <MarkerCategory name="subchild" displayName="SubChild" />
-//!   </MarkerCategory>
-//! </MarkerCategory>
-//!
-//! ```
-//!
-//! 1. markers need to refer to the categories by xpath "parent.child.subchild". so
-//!     if we change the menu relationship (move categories around), ALL markers that refer to
-//!     the changed categories need to change their category xpath dealing with such strings
-//!     will also be a mess regardless of other issues that come with string attributes like
-//!     case sensitivity.
-//! 2. categories are spread across different xml files. very error prone. for example, the
+//! In XML Packs, we have the following issues:
+//! 1. Categories are spread across different xml files. very error prone. for example, the
 //!     other file may have child.parent.subchild order instead of the above parent.child.subchild
-//! 3. marker categories have attributes that are inherited, which makes editing complicated.
+//! 2. Categories have attributes that are inherited, which makes editing complicated.
 //!     it makes dealing with the whole markers complicated. you need to search around in the
 //!     whole chain of inheritance from where a particular attribute is affecting the marker.
+//! 3. Markers / Trails refer to categories using a `parent.child.sub_child` format. it makes
+//!     us write custom functions to manipulate that category path.
 //!
-//! to make json categories simply we will tackle the above issues one by one.
-//! 1. we will add a id field to category to uniquely identify it. and markers can refer to that
-//!     category using the id. so, even if the category itself is moved around inside the menu
-//!     tree, its id will still be the same. the id will be a u16 for now.
-//! 2. there will be a cats.json file which will contain only categories and there will only be one
-//!     cats.json file per pack.
-//! 3. categories will not have any inheritable attributes at all. they only need:
-//!     id, display name for menu, default_toggle for first time pack menu selection, is_separator.
+//! To fix the above issues, we will make the following changes:
+//! 1. there will be a cats.json file which will contain only categories (in a tree structure) and there
+//!     will only be one cats.json file per pack.
+//! 2. categories will not have any inheritable attributes at all. they only need:
+//!     name, display name for menu, default_toggle for first time pack menu selection, is_separator.
+//! 3. Markers / Trails will refer to categories using `parent/child/sub_child` format. this allows
+//!     us to use the existing `std::path::Path` module for path manipulation and much more. ofcourse,
+//!     we can also use `crates.io` ecosystem to deal with these now.
 //!
-//! now, categories can be edited separately without affecting markers.
+//! Category is basically a node with the following properties:
+//! 1. name: used as an ID.
+//!     not visible to users.
+//!     must be unique within a level (vec) of categories.
+//!     cannot be empty.
+//! 2. display_name: used as the visible ID for category menu.
+//! 3. is_separator: marks that this is not a category, but just a label.
+//!     cannot have children.
+//!     cannot have any "enabled" or "disabled" toggle status
+//!     used to divide sections of categories in a certain menu level.
+//!     used as "heading" for a series of categories
+//! 4. default_toggle: whether a category is enabled when it is first imported by `Jokolay`.
+//!     
+//! 5. children: list of Categories.
 //!     
 
+use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 
 /// The Category struct that stores its own info and none of the marker/trail attributes.
 /// we skip the name attribute as we will just use the id as its name for xpath in xml packs.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Category {
-    id: u16,
+    pub name: String,
     pub display_name: String,
     pub is_separator: bool,
     pub default_toggle: bool,
-    children: Vec<Category>,
+    pub children: Vec<Category>,
 }
+
 impl Category {
-    fn new(new_id: u16) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
-            id: new_id,
-            display_name: "New Category".to_string(),
+            name: name.to_lowercase(),
+            display_name: name,
             is_separator: false,
             default_toggle: true,
             children: vec![],
-        }
-    }
-    pub fn get_id(&self) -> u16 {
-        self.id
-    }
-    pub fn get_children(&self) -> &[Category] {
-        self.children.as_slice()
-    }
-    pub fn get_children_mut(&mut self) -> &mut [Self] {
-        self.children.as_mut_slice()
-    }
-    fn add_child(&mut self, new_id: u16) -> &mut Self {
-        self.children.push(Self::new(new_id));
-        self.children
-            .last_mut()
-            .expect("unreachable because we just added a category")
-    }
-
-    fn recurse_get_cat_mut(categories: &mut [Category], category_id: u16) -> Option<&mut Self> {
-        for cat in categories {
-            if cat.id == category_id {
-                return Some(cat);
-            }
-            if let Some(child) = Self::recurse_get_cat_mut(&mut cat.children, category_id) {
-                return Some(child);
-            }
-        }
-        None
-    }
-    fn recurse_get_cat(categories: &[Category], category_id: u16) -> Option<&Self> {
-        for cat in categories {
-            if cat.id == category_id {
-                return Some(cat);
-            }
-            if let Some(child) = Self::recurse_get_cat(&cat.children, category_id) {
-                return Some(child);
-            }
-        }
-        None
-    }
-    /// This will recursively go through a slice of `Category` and remove their ids from the
-    /// `remaining_ids` set. if the set doesn't contain that ID it means there's a duplicate ID somewhere.
-    /// so, we will panic as that must never happen.
-    ///
-    /// Arguments:
-    /// * cats: a slice of categories for the function to get the used ids from.
-    /// * remaining_ids: A set which contains *atleast* all ids which are used in `cats` slice or their children.
-    fn recurse_remove_used_ids(cats: &[Category], remaining_ids: &mut BTreeSet<u16>) {
-        for cat in cats {
-            assert!(remaining_ids.remove(&cat.id));
-            Self::recurse_remove_used_ids(&cat.children, remaining_ids);
         }
     }
 }
 
 /// The category menu is the struct that keeps the categories. this will encapsulate the category struct
 /// it must keep its fields private to ensure that it will maintain its invariants
-/// like no duplicate ids inside categories
 /// Ideally, all external api should work with this and its fields should not be exposed
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct CategoryMenu {
@@ -120,123 +68,164 @@ pub struct CategoryMenu {
 }
 
 impl CategoryMenu {
-    pub fn get_category(&self, category_id: u16) -> Option<&Category> {
-        Category::recurse_get_cat(&self.cats, category_id)
-    }
-    pub fn get_category_mut(&mut self, category_id: u16) -> Option<&mut Category> {
-        Category::recurse_get_cat_mut(&mut self.cats, category_id)
-    }
-    /// checks if there is a Category inside the menu with the given ID
-    pub fn does_id_exist(&self, id_to_check: u16) -> bool {
-        Category::recurse_get_cat(&self.cats, id_to_check).is_some()
-    }
-
-    /// This will recurse through the cats contained within the `CategoryMenu` and
-    /// find a id which is unused. this `u16` id can be used for a new category which
-    /// needs to be inserted into the `CategoryMenu`
-    fn get_unused_id(&self) -> u16 {
-        // contains all possible IDS
-        let mut all_ids: BTreeSet<u16> = (0..=u16::MAX).collect();
-        // removes all existing ids
-        Category::recurse_remove_used_ids(&self.cats, &mut all_ids);
-
-        // only ids which are not used are contained in the set now
-        all_ids
-            .into_iter()
-            .take(1) // take the first id that is not used
-            .next()
-            .expect("cannot get unused category ID because its full") // will probably won't happen anytime soon
-    }
-
-    /// Create a new category at the end of the children of a category with id `parent_id`
-    /// we use a new id which is the smallest unused u16 in the CategoryMenu
-    /// panics if there's no category with id `parent_id`
-    /// Arguments:
-    /// * parent_id: if this is None, we will create a category at root without any parent.
-    pub fn create_child_category(&mut self, parent_id: Option<u16>) -> &mut Category {
-        let new_id = self.get_unused_id();
-        if let Some(parent_id) = parent_id {
-            Category::recurse_get_cat_mut(&mut self.cats, parent_id)
-                .expect("failed to get parent category to insert child")
-                .add_child(new_id)
-        } else {
-            self.cats.push(Category::new(new_id));
-            self.cats
-                .last_mut()
-                .expect("just inserted category. unreachable")
+    /// this will traverse the path given to create the category and will create any parent categories if missing.
+    /// once this function runs, we can be sure that the given path exists.
+    pub fn create_category(&mut self, path: &Utf8Path) {
+        let mut root = &mut self.cats;
+        for name in path {
+            root = match root.iter_mut().position(|c| c.name == name) {
+                Some(c) => &mut root[c],
+                None => {
+                    root.push(Category::new(name.to_string()));
+                    root.last_mut()
+                        .expect("just pushed new category. must exist")
+                }
+            }
+            .children
+            .as_mut();
         }
+    }
+
+    /// removes the category (including its children) if it exists.
+    /// cannot delete root, so providing "" (empty) as path will just do nothing
+    pub fn delete_category(&mut self, path: &Utf8Path) {
+        // if root, just return
+        if path.as_str() == "" {
+            return;
+        }
+
+        let mut root = &mut self.cats;
+        // if parent is not root, then we just traverse tree until we reach the parent of the category and assign it to root
+        // if parent is root, we will just use the root directly as `path.parent()` returns `None`
+        if let Some(parent) = path.parent() {
+            for name in parent {
+                root = &mut match root.iter_mut().find(|c| c.name == name) {
+                    Some(c) => c,
+                    None => return, // short circuit. if we miss any node while traversing the path, we can just return as the category doesn't exist.
+                }
+                .children;
+            }
+        };
+        root.retain(|c| !path.ends_with(&c.name));
+    }
+    pub fn has_category(&self, path: &Utf8Path) -> bool {
+        let mut root = &self.cats;
+        for name in path {
+            root = &match root.iter().position(|c| c.name == name) {
+                Some(index) => &root[index],
+                None => return false,
+            }
+            .children;
+        }
+        true
+    }
+    fn get_category<'a>(cats: &'a [Category], path: &Utf8Path) -> Option<&'a Category> {
+        path.components() // get components
+            .next() // if there's no components, we return None
+            .map(|base| {
+                // if there's a base component, we will check the current level of categories for a cat with base component as its name
+                cats.iter()
+                    .position(|c| c.name == base.as_str()) // if there's no category with base componenet as its name, we return None
+                    .map(|cat_index| {
+                        // but if there is a category
+                        match path
+                            .strip_prefix(base) // we strip the path of the base
+                            .ok() // and check if there's any more remaining path components.
+                            .map(|remaining_path| {
+                                Self::get_category(&cats[cat_index].children, remaining_path)
+                            }) {
+                            Some(c) => return c, // if the path still had elements, we would get child category and return that
+                            None => return Some(&cats[cat_index]), // if the path was empty, we will return the current cat
+                        }
+                    })
+                    .flatten()
+            })
+            .flatten()
+    }
+    fn get_category_mut<'a>(cats: &'a mut [Category], path: &Utf8Path) -> Option<&'a mut Category> {
+        let mut children = cats;
+        if let Some(parent) = path.parent() {
+            for path_node in parent.components() {
+                children = match children.iter().position(|c| c.name == path_node.as_str()) {
+                    Some(index) => &mut children[index].children,
+                    None => break,
+                }
+            }
+        }
+        path.file_name()
+            .map(|name| children.into_iter().find(|c| c.name == name))
+            .flatten()
+    }
+    pub fn set_name(&mut self, path: &Utf8Path, name: &str) {
+        Self::get_category_mut(&mut self.cats, path).map(|cat| cat.name = name.to_lowercase());
+    }
+    pub fn set_display_name(&mut self, path: &Utf8Path, display_name: String) {
+        Self::get_category_mut(&mut self.cats, path)
+            .map(|cat| cat.display_name = display_name.to_string());
+    }
+    pub fn set_default_toggle(&mut self, path: &Utf8Path, toggle: bool) {
+        Self::get_category_mut(&mut self.cats, path).map(|cat| cat.default_toggle = toggle);
+    }
+    pub fn set_is_separator(&mut self, path: &Utf8Path, is_separator: bool) {
+        Self::get_category_mut(&mut self.cats, path).map(|cat| cat.is_separator = is_separator);
+    }
+    pub fn get_name(&self, path: &Utf8Path) -> Option<&str> {
+        Some(&Self::get_category(&self.cats, path)?.name)
     }
 }
 
 #[cfg(test)]
 mod test {
 
+    use camino::Utf8Path;
     use rstest::*;
     use similar_asserts::assert_eq;
 
     use super::{Category, CategoryMenu};
-
+    /// use as the default category argument for tests
     #[fixture]
     fn category_menu() -> CategoryMenu {
         CategoryMenu {
-            cats: vec![Category {
-                id: 3,
-                display_name: "Third".to_string(),
-                is_separator: false,
-                default_toggle: true,
-                children: vec![Category {
-                    id: 4,
-                    display_name: "Fourth".to_string(),
-                    is_separator: false,
-                    default_toggle: true,
-                    children: vec![],
-                }],
-            }],
-        }
-    }
-    #[fixture]
-    fn full_category_menu() -> CategoryMenu {
-        CategoryMenu {
-            cats: (0..=u16::MAX)
-                .map(|new_id| Category {
-                    id: new_id,
-                    display_name: "".to_string(),
+            cats: vec![
+                Category {
+                    name: "first".to_string(),
+                    display_name: "Second".to_string(),
                     is_separator: false,
                     default_toggle: false,
-                    children: vec![],
-                })
-                .collect(),
+                    children: Vec::new(),
+                },
+                Category {
+                    name: "third".to_string(),
+                    display_name: "Third".to_string(),
+                    is_separator: false,
+                    default_toggle: true,
+                    children: vec![Category {
+                        name: "fourth".to_string(),
+                        display_name: "Fourth".to_string(),
+                        is_separator: false,
+                        default_toggle: true,
+                        children: vec![],
+                    }],
+                },
+            ],
         }
     }
+
     #[rstest]
     fn simple_equality_test(category_menu: CategoryMenu) {
         assert_eq!(category_menu, category_menu);
     }
-
-    /// This function primarily inserts a bunch of categories and checks that the first unused id
-    /// is the lowest unused u16 in the Category menu
     #[rstest]
-    #[case(0, 0)]
-    #[case(1, 1)]
-    #[case(2, 2)]
-    #[case(3, 5)]
-    fn check_unused_id(
-        mut category_menu: CategoryMenu,
-        #[case] number_of_new_categories_to_insert: u16,
-        #[case] first_unused_id: u16,
-    ) {
-        for _ in 0..number_of_new_categories_to_insert {
-            category_menu.create_child_category(None);
-        }
-        assert_eq!(first_unused_id, category_menu.get_unused_id());
+    fn create_category(mut category_menu: CategoryMenu) {
+        let second = Utf8Path::new("first/second");
+        category_menu.create_category(second);
+        assert!(category_menu.has_category(second));
     }
-
-    /// test that running out of new unused ids due to number of categories
-    /// exceeding u16::MAX panics
     #[rstest]
-    #[should_panic]
-    fn panic_if_max_number_of_categories_reached(full_category_menu: CategoryMenu) {
-        assert_eq!(full_category_menu.cats.len() + 1, u16::MAX as usize);
-        full_category_menu.get_unused_id();
+    fn delete_category(mut category_menu: CategoryMenu) {
+        let third_path = Utf8Path::new("third");
+        assert!(category_menu.has_category(third_path));
+        category_menu.delete_category(third_path);
+        assert!(!category_menu.has_category(third_path));
     }
 }

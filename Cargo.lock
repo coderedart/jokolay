@@ -926,6 +926,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
 
 [[package]]
+name = "camino"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "869119e97797867fd90f5e22af7d0bd274bd4635ebb9eb68c04f3f513ae6c412"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "cargo-manifest"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2361,10 +2370,11 @@ dependencies = [
 name = "jmf"
 version = "0.1.0"
 dependencies = [
- "bevy_app",
+ "bevy",
  "bevy_math",
  "bitflags",
  "bytemuck",
+ "camino",
  "color-eyre",
  "cxx",
  "cxx-build",
@@ -2372,6 +2382,7 @@ dependencies = [
  "fs-err",
  "hex",
  "image 0.24.2",
+ "prae",
  "rstest",
  "semver",
  "serde",
@@ -2381,6 +2392,7 @@ dependencies = [
  "shadow-rs",
  "similar-asserts",
  "test-log",
+ "thiserror",
  "tracing",
  "tracing-subscriber",
  "url",
@@ -3305,6 +3317,12 @@ name = "ppv-lite86"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
+
+[[package]]
+name = "prae"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7607ff6209813b9ab50388773a4c6586556d0edc186990a8705d014dd73ff47"
 
 [[package]]
 name = "precomputed-hash"
