@@ -2429,16 +2429,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "joko_desktop"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_egui",
- "bevy_glfw",
- "jokolink",
-]
-
-[[package]]
 name = "joko_plugins"
 version = "0.1.0"
 dependencies = [
@@ -2469,7 +2459,17 @@ dependencies = [
  "bevy",
  "bevy_egui",
  "embed-resource",
- "joko_desktop",
+ "jokolay_desktop",
+]
+
+[[package]]
+name = "jokolay_desktop"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_egui",
+ "bevy_glfw",
+ "jokolink",
 ]
 
 [[package]]

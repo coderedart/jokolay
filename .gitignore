@@ -6,4 +6,4 @@
 # assets like marker packs we use temporarily and other stuff we store at runtime
 /assets
 # the wasm build of crate
-/dist
+**/dist

@@ -1,10 +1,3 @@
-[package]
-name = "jokolay"                                  # ToDo
-version = "0.2.0"
-publish = false
-authors = ["Red Artist <redartofcode@gmail.com>"]
-edition = "2021"
-license = "MIT OR Apache-2.0"
 
 [profile.dev.package."*"]
 opt-level = 3
@@ -24,24 +17,6 @@ members = [
     "crates/jokoapi",
     "crates/joko_plugins",
     "crates/bevy_glfw",
-    "crates/joko_desktop",
+    "crates/jokolay_desktop",
+    "crates/jokolay_web",
 ]
-
-
-[features]
-
-
-[dependencies]
-
-# fork because https://github.com/bevyengine/bevy/issues/4649
-bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git" }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-joko_desktop = { version = "*", path = "crates/joko_desktop" }
-bevy = { version = "0.7", default-features = false }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = { version = "0.7", default-features = false, features = ["bevy_winit"] }
-
-[build-dependencies]
-embed-resource = "1.4"
