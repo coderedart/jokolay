@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 use url::Url;
 pub mod pack;
 
-
 /*
 Activation data:
 per account
@@ -13,7 +12,6 @@ per character
 per character per map instance
 
 */
-
 
 /// The primary struct which manages Marker Packs.
 /// in case of a Marker pack available in more than one repository, the first one would be selected

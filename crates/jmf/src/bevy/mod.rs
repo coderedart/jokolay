@@ -1,8 +1,6 @@
 use bevy::prelude::Plugin;
 
-
 pub struct MarkerPlugin;
-
 
 impl Plugin for MarkerPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
@@ -10,12 +8,8 @@ impl Plugin for MarkerPlugin {
     }
 }
 
-
 pub struct MarkerId;
 pub struct PackId;
 pub struct CatId;
 
 pub struct MapId;
-
-
-

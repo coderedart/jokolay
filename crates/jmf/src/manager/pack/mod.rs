@@ -8,16 +8,13 @@ use crate::{
     is_default,
     manager::pack::{category::CategoryMenu, marker::Marker, trail::Trail},
 };
+use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_with::*;
-use std::{collections::BTreeMap};
-use camino::{Utf8Path, Utf8PathBuf};
+use std::collections::BTreeMap;
 
 pub const MARKER_PNG: &[u8] = include_bytes!("../../../assets/marker.png");
 pub const TRAIL_PNG: &[u8] = include_bytes!("../../../assets/trail.png");
-
-
-
 
 #[derive(Default, Debug)]
 pub struct Pack {
@@ -31,7 +28,7 @@ pub struct Pack {
 pub struct Trl {
     map_id: u16,
     version: u32,
-    nodes: Vec<[f32; 3]>
+    nodes: Vec<[f32; 3]>,
 }
 impl Trl {
     pub fn new(map_id: u16, version: u32, nodes: Vec<[f32; 3]>) -> Self {
@@ -56,9 +53,7 @@ impl Pack {
     pub fn insert_trl(&mut self, name: String, data: Trl) {
         self.trls.insert(name, data);
     }
-    pub fn new_category(&mut self, path: &Utf8Path) {
-        
-    }
+    pub fn new_category(&mut self, path: &Utf8Path) {}
     pub fn remove_texture(&mut self, name: &str) {
         self.textures.remove(name);
     }

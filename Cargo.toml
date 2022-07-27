@@ -20,3 +20,4 @@ members = [
     "crates/jokolay_desktop",
     "crates/jokolay_web",
 ]
+default-members = ["crates/jokolay_desktop"]

@@ -17,16 +17,13 @@ jobs:
           override: true
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
+      - name: Switch to jokolay_web directory
+        run: cd crates/jokolay_web
       - name: Downlaod and Install Trunk binary
         run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Build # build
         run: ./trunk build --release --public-url jokolay
-      # the following only applies if we don't use the public-url option in the above command. but the public-url needs to be different for different website urls
-      # - name: Make paths relative # replace "/index" with "./index", and "jokolay" with "./jokolay" to use relative paths. otherwise, it won't work https://github.com/thedodd/trunk/issues/395
-      #   run: |
-      #     sed -i 's/\/index/.\/index/g' dist/index.html
-      #     sed -i 's/\/jokolay/.\/jokolay/g' dist/index.html
-      - name: Deploy 
+      - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
