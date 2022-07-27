@@ -17,15 +17,13 @@ jobs:
           override: true
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
-      - name: Switch to jokolay_web directory
-        run: cd crates/jokolay_web
       - name: Downlaod and Install Trunk binary
         run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
-      - name: List Files
-        run: ls -alh
+        working-directory: ./crates/jokolay_web
       - name: Build # build
         run: ./trunk build --release --public-url jokolay ./index.html
+        working-directory: ./crates/jokolay_web
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: dist
+          folder: ./crates/jokolay_web/dist
