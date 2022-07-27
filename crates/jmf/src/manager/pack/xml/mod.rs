@@ -47,22 +47,22 @@ mod template;
 
 use super::trail::Trail;
 use super::Pack;
-use crate::manager::pack::category::CategoryMenu;
+
 use crate::manager::pack::marker::Marker;
 use crate::manager::pack::xml::template::MarkerTemplate;
 use crate::manager::pack::Trl;
 use crate::rapid_filter_rust;
-use bevy_math::Vec3;
+
 use camino::{Utf8Path, Utf8PathBuf};
 use color_eyre::eyre::{eyre, Context, ContextCompat};
 use color_eyre::Result;
 use elementtree::{Children, Element};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use std::io::Read;
-use std::path::{Path, PathBuf};
+
 use std::sync::Arc;
-use tracing::{error, warn};
+use tracing::error;
 
 /// The function takes a zipfile, and tries to parse a Marker Pack out of it.
 /// Arguments:
@@ -93,34 +93,56 @@ pub struct Failures {
 #[derive(Debug, thiserror::Error)]
 pub enum FailureError {
     #[error("Duplicate File: {0}\n")]
-    DuplicateFile(Utf8PathBuf),
+    DuplicateFile(Arc<Utf8Path>),
     #[error("texture File Error:\nfile: {0}\nerror: {1}")]
-    ImgError(Utf8PathBuf, image::ImageError),
+    ImgError(Arc<Utf8Path>, image::ImageError),
     #[error("No Name for file: {0}\n")]
-    NoNameFile(Utf8PathBuf),
+    NoNameFile(Arc<Utf8Path>),
     #[error("new name limit reached Error: {0}")]
-    NewNameLimitReached(Utf8PathBuf),
+    NewNameLimitReached(Arc<Utf8Path>),
     #[error("xml file doesn't contain OverlayData tag: {0}")]
-    NoOverlayData(Utf8PathBuf),
+    NoOverlayData(Arc<Utf8Path>),
     #[error("Trl File Error:\nfile: {0}\nerror: {1}")]
-    TrlError(Utf8PathBuf, TrlError),
+    TrlError(Arc<Utf8Path>, TrlError),
     #[error("utf-8 error:\n file: {0}\n error: {1}")]
-    Utf8Error(Utf8PathBuf, std::string::FromUtf8Error),
+    Utf8Error(Arc<Utf8Path>, std::string::FromUtf8Error),
     #[error("invalid xml:\n file: {0}\n error: {1}")]
-    XmlParseError(Utf8PathBuf, elementtree::Error),
+    XmlParseError(Arc<Utf8Path>, elementtree::Error),
 }
 #[derive(Debug, thiserror::Error)]
 pub enum FailureWarning {
     #[error("category doesn't have a name: {0}")]
-    CategoryNameMissing(Utf8PathBuf, String),
+    CategoryNameMissing(Arc<Utf8Path>, String),
     #[error("file doesn't have an extension: {0}")]
-    ExtensionLessFile(Utf8PathBuf),
+    ExtensionLessFile(Arc<Utf8Path>),
     #[error("file extension must be xml / png / trl : {0}")]
-    InvalidExtensionFile(Utf8PathBuf),
+    InvalidExtensionFile(Arc<Utf8Path>),
     #[error("category number {2} with parent '{1}' in file {0}. warning: {3}")]
     CategoryWarnings(Arc<Utf8Path>, Arc<str>, usize, CategoryWarning),
-}
+    #[error("category number {2} with parent '{1}' in file {0}. warning: {3}")]
+    POITrailWarnings(Arc<Utf8Path>, String, usize, POITrailWarning),
 
+    #[error("category number {2} with parent '{1}' in file {0}. warning: {3}")]
+    MarkerWarnings(Arc<Utf8Path>, String, usize, MarkerWarning),
+
+    #[error("category number {2} with parent '{1}' in file {0}. warning: {3}")]
+    TrailWarnings(Arc<Utf8Path>, String, usize, TrailWarning),
+}
+#[derive(Debug, thiserror::Error)]
+pub enum MarkerWarning {
+    #[error("missing map_Id for Marker")]
+    MissingMapID,
+}
+#[derive(Debug, thiserror::Error)]
+pub enum TrailWarning {
+    #[error("missing map_Id for Trail")]
+    MissingMapID,
+}
+#[derive(Debug, thiserror::Error)]
+pub enum POITrailWarning {
+    #[error("missing category for POI/Trail")]
+    MissingCategory,
+}
 #[derive(Debug, thiserror::Error)]
 pub enum CategoryWarning {
     #[error("missing_name_attr")]
@@ -135,7 +157,7 @@ pub enum TrlError {
 }
 /// parses the given `Vec<u8>` as a zipfile and reads all the files into Vec<u8>.
 /// returns a map with file paths as keys and contents as values.
-fn read_files_from_zip(taco: &Vec<u8>) -> Result<HashMap<Utf8PathBuf, Vec<u8>>> {
+fn read_files_from_zip(taco: &Vec<u8>) -> Result<HashMap<Arc<Utf8Path>, Vec<u8>>> {
     // get zip file
     let mut zip_file =
         zip::ZipArchive::new(std::io::Cursor::new(taco)).wrap_err("invalid zip file")?;
@@ -156,8 +178,9 @@ fn read_files_from_zip(taco: &Vec<u8>) -> Result<HashMap<Utf8PathBuf, Vec<u8>>> 
             .wrap_err("taco has a file without enclosed name")?
             .to_path_buf();
         let file_path = Utf8PathBuf::from_path_buf(file_path).map_err(|e| {
-            eyre!("failed to create Utf8PathBuf from PathBuf. non-utf8 path encountered: {e:?}")
+            eyre!("failed to create Arc<Utf8Path> from PathBuf. non-utf8 path encountered: {e:?}")
         })?;
+        let file_path = Arc::from(file_path);
         let mut file_content = vec![];
         // read the contents. return with error
         file.read_to_end(&mut file_content)
@@ -174,9 +197,9 @@ fn read_files_from_zip(taco: &Vec<u8>) -> Result<HashMap<Utf8PathBuf, Vec<u8>>> 
 struct ParsedEntries {
     texture_entries: HashMap<String, String>,
     trl_entries: HashMap<String, (u16, String)>,
-    elements: HashMap<Utf8PathBuf, Element>,
+    elements: HashMap<Arc<Utf8Path>, Element>,
 }
-fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
+fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
     let mut parsed_entries: ParsedEntries = Default::default();
     let mut pack = Pack::default();
     let mut failures = Failures::default();
@@ -230,13 +253,13 @@ fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
 
                 let mut version_bytes = [0_u8; 4];
                 version_bytes.copy_from_slice(&entry_contents[4..8]);
-                let version = u32::from_ne_bytes(version_bytes);
+                let _version = u32::from_ne_bytes(version_bytes);
                 let mut map_id_bytes = [0_u8; 4];
                 map_id_bytes.copy_from_slice(&entry_contents[4..8]);
                 let map_id = u32::from_ne_bytes(map_id_bytes);
                 let map_id = match map_id.try_into() {
                     Ok(map_id) => map_id,
-                    Err(e) => {
+                    Err(_e) => {
                         failures.errors.push(FailureError::TrlError(
                             entry_path,
                             TrlError::InvalidMapID(map_id),
@@ -284,7 +307,7 @@ fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
                     }
                 };
 
-                let name = if !pack.trls.contains_key(&name) {
+                let name = if pack.trls.contains_key(&name) {
                     let mut new_name = name.clone();
                     let mut count = 0;
                     for number in 0..=u16::MAX {
@@ -338,7 +361,7 @@ fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
                         continue;
                     }
                 }
-                let name = if !pack.textures.contains_key(&name) {
+                let name = if pack.textures.contains_key(&name) {
                     let mut new_name = name.clone();
                     let mut count = 0;
                     for number in 0..=u16::MAX {
@@ -381,9 +404,7 @@ fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
         }
     }
     let mut templates: HashMap<String, MarkerTemplate> = HashMap::new();
-    let parent = "";
     for (path, ele) in parsed_entries.elements.iter() {
-        let path: Arc<Utf8Path> = Arc::from(path.as_path());
         if "OverlayData" == ele.tag().name() {
             struct State<'a> {
                 children: Children<'a>,
@@ -419,10 +440,10 @@ fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
                                 ));
                                 continue;
                             }
-                            let full_name = if parent.is_empty() {
+                            let full_name = if top_state.parent_name.is_empty() {
                                 name.to_string()
                             } else {
-                                format!("{}.{}", parent, name)
+                                format!("{}.{}", top_state.parent_name, name)
                             };
                             let full_name = full_name.to_lowercase();
 
@@ -449,10 +470,11 @@ fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
                                 .set_default_toggle(&cat_path, default_toggle);
                             pack.category_menu
                                 .set_display_name(&cat_path, display_name.to_string());
+                            let parent_name = Arc::from(full_name.as_str());
                             children_to_push = Some(State {
                                 children: category_element.children(),
-                                parent_name: Arc::from(full_name.as_str()),
                                 template: Arc::new(template.clone()),
+                                parent_name,
                                 index: 0,
                             });
                             top_state.index += 1;
@@ -467,183 +489,158 @@ fn parse_entries(entries: HashMap<Utf8PathBuf, Vec<u8>>) -> (Pack, Failures) {
         } else {
             failures
                 .errors
-                .push(FailureError::NoOverlayData((*path).to_path_buf()));
+                .push(FailureError::NoOverlayData(path.clone()));
         }
     }
 
-    // for (path, ele) in parsed_entries.elements.iter() {
-    //     if "OverlayData" == ele.tag().name() {
-    //         let pois = ele.children().find(|e| e.tag().name() == "POIs");
-    //         if let Some(pois) = pois {
-    //             if pois.child_count() > 0 {
-    //                 update_poi_trail_from_xml(
-    //                     &mut pack,
-    //                     pois.children(),
-    //                     &templates,
-    //                     &parsed_entries,
-    //                 )
-    //             } else {
-    //                 warn!(
-    //                     "xml file {} is has zero children for POIs tag",
-    //                     path.display()
-    //                 );
-    //             }
-    //         } else {
-    //             warn!("xml file {} is missing POIs tag", path.display());
-    //         }
-    //     }
-    // }
+    for (path, ele) in parsed_entries.elements.iter() {
+        if "OverlayData" == ele.tag().name() {
+            if let Some(pois) = ele.children().find(|e| e.tag().name() == "POIs") {
+                for (poi_index, child) in pois.children().enumerate() {
+                    // if type attribute exists, get the category id and the template. otherwise, skip this element.
+                    let (cat_path, mut template) = if let Some(x) =
+                        child.get_attr("type").and_then(|category_name| {
+                            templates
+                                .get(&category_name.to_lowercase())
+                                .map(|template| {
+                                    (
+                                        Utf8PathBuf::from_iter(
+                                            category_name.to_lowercase().split("."),
+                                        ),
+                                        template.clone(),
+                                    )
+                                })
+                        }) {
+                        x
+                    } else {
+                        failures.warnings.push(FailureWarning::POITrailWarnings(
+                            path.clone(),
+                            child.to_string().unwrap_or_default(),
+                            poi_index,
+                            POITrailWarning::MissingCategory,
+                        ));
+                        continue;
+                    };
+
+                    match child.tag().name() {
+                        "POI" => {
+                            if let Some(map_id) = child
+                                .get_attr("mapID")
+                                .and_then(|map_id| map_id.parse::<u16>().ok())
+                            {
+                                let xpos = child
+                                    .get_attr("xpos")
+                                    .unwrap_or_default()
+                                    .parse()
+                                    .unwrap_or_default();
+                                let ypos = child
+                                    .get_attr("ypos")
+                                    .unwrap_or_default()
+                                    .parse()
+                                    .unwrap_or_default();
+                                let zpos = child
+                                    .get_attr("zpos")
+                                    .unwrap_or_default()
+                                    .parse()
+                                    .unwrap_or_default();
+                                template.update_from_element(child);
+
+                                let mut marker = Marker {
+                                    cat: cat_path,
+                                    position: [xpos, ypos, zpos],
+                                    ..Default::default()
+                                };
+                                marker.color = template.color;
+                                if let Some(alpha) = template.alpha {
+                                    marker.alpha = Some((alpha * 255.0) as u8);
+                                }
+                                marker.rotation = template.rotate;
+                                if let Some(rotate_x) = template.rotate_x {
+                                    let rotation = marker.rotation.get_or_insert([0.0f32; 3]);
+                                    rotation[0] = rotate_x;
+                                }
+                                if let Some(rotate_y) = template.rotate_y {
+                                    let rotation = marker.rotation.get_or_insert([0.0f32; 3]);
+                                    rotation[1] = rotate_y;
+                                }
+                                if let Some(rotate_z) = template.rotate_z {
+                                    let rotation = marker.rotation.get_or_insert([0.0f32; 3]);
+                                    rotation[2] = rotate_z;
+                                }
+
+                                marker.scale = template.icon_size.map(|scale| [scale; 3]);
+
+                                if let Some(texture) = template
+                                    .icon_file
+                                    .as_ref()
+                                    .and_then(|texture| parsed_entries.texture_entries.get(texture))
+                                {
+                                    marker.texture = texture.clone();
+                                }
+
+                                marker.alpha = template.alpha.map(|a| (255.0 * a) as u8);
+                                marker.position[1] += template.height_offset.unwrap_or_default();
+                                pack.maps.entry(map_id).or_default().markers.push(marker);
+                            } else {
+                                failures.warnings.push(FailureWarning::MarkerWarnings(
+                                    path.clone(),
+                                    child.to_string().unwrap_or_default(),
+                                    poi_index,
+                                    MarkerWarning::MissingMapID,
+                                ));
+                            }
+                        }
+                        "Trail" => {
+                            if let Some((map_id, trl_name)) = child
+                                .get_attr("trailData")
+                                .and_then(|trail_data| {
+                                    parsed_entries.trl_entries.get(&trail_data.to_lowercase())
+                                })
+                                .cloned()
+                            {
+                                let mut trail = Trail {
+                                    cat: cat_path,
+                                    trl: trl_name,
+                                    ..Default::default()
+                                };
+                                template.update_from_element(child);
+                                trail.color = template.color;
+                                if let Some(alpha) = template.alpha {
+                                    trail.alpha = Some((alpha * 255.0) as u8);
+                                }
+
+                                if let Some(texture) = template
+                                    .texture
+                                    .as_ref()
+                                    .and_then(|texture| parsed_entries.texture_entries.get(texture))
+                                {
+                                    trail.texture = texture.clone();
+                                }
+                                pack.maps.entry(map_id).or_default().trails.push(trail);
+                            } else {
+                                failures.warnings.push(FailureWarning::TrailWarnings(
+                                    path.clone(),
+                                    child.to_string().unwrap_or_default(),
+                                    poi_index,
+                                    TrailWarning::MissingMapID,
+                                ));
+                            }
+                        }
+                        _rest => {
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
     (pack, failures)
-}
-
-/// This takes `ParsedEntries` and deserializes the xml Elements into a Json Pack
-fn deserialize_xml(mut pack: Pack, parsed_entries: ParsedEntries) -> Pack {
-    pack
-}
-fn update_marker_from_template(
-    marker: &mut Marker,
-    template: &MarkerTemplate,
-    parsed_entries: &ParsedEntries,
-) {
-    marker.color = template.color;
-    if let Some(alpha) = template.alpha {
-        marker.alpha = Some((alpha * 255.0) as u8);
-    }
-    assert!(marker.color.is_none());
-    marker.rotation = template.rotate;
-    if let Some(rotate_x) = template.rotate_x {
-        let rotation = marker.rotation.get_or_insert([0.0f32; 3]);
-        rotation[0] = rotate_x;
-    }
-    if let Some(rotate_y) = template.rotate_y {
-        let rotation = marker.rotation.get_or_insert([0.0f32; 3]);
-        rotation[1] = rotate_y;
-    }
-    if let Some(rotate_z) = template.rotate_z {
-        let rotation = marker.rotation.get_or_insert([0.0f32; 3]);
-        rotation[2] = rotate_z;
-    }
-
-    marker.scale = template.icon_size.map(|scale| [scale; 3]);
-
-    if let Some(texture) = template
-        .icon_file
-        .as_ref()
-        .and_then(|texture| parsed_entries.texture_entries.get(texture))
-    {
-        marker.texture = texture.clone();
-    }
-    marker.position[1] += template.height_offset.unwrap_or_default();
-}
-
-fn update_trail_from_template(
-    trail: &mut Trail,
-    template: &MarkerTemplate,
-    parsed_entries: &ParsedEntries,
-) {
-    trail.color = template.color;
-    if let Some(alpha) = template.alpha {
-        trail.alpha = Some((alpha * 255.0) as u8);
-    }
-
-    if let Some(texture) = template
-        .texture
-        .as_ref()
-        .and_then(|texture| parsed_entries.texture_entries.get(texture))
-    {
-        trail.texture = texture.clone();
-    }
-}
-fn update_poi_trail_from_xml(
-    pack: &mut Pack,
-    children: Children,
-    templates: &HashMap<String, MarkerTemplate>,
-    parsed_entries: &ParsedEntries,
-) {
-    for child in children {
-        // if type attribute exists, get the category id and the template. otherwise, skip this element.
-        let (cat_path, mut template) = if let Some(x) =
-            child.get_attr("type").and_then(|category_name| {
-                templates
-                    .get(&category_name.to_lowercase())
-                    .map(|template| {
-                        (
-                            Utf8PathBuf::from_iter(category_name.to_lowercase().split(".")),
-                            template.clone(),
-                        )
-                    })
-            }) {
-            x
-        } else {
-            warn!("failed to get category for {:#?}", child);
-            continue;
-        };
-
-        match child.tag().name() {
-            "POI" => {
-                if let Some(map_id) = child
-                    .get_attr("mapID")
-                    .and_then(|map_id| map_id.parse::<u16>().ok())
-                {
-                    let xpos = child
-                        .get_attr("xpos")
-                        .unwrap_or_default()
-                        .parse()
-                        .unwrap_or_default();
-                    let ypos = child
-                        .get_attr("ypos")
-                        .unwrap_or_default()
-                        .parse()
-                        .unwrap_or_default();
-                    let zpos = child
-                        .get_attr("zpos")
-                        .unwrap_or_default()
-                        .parse()
-                        .unwrap_or_default();
-                    template.update_from_element(child);
-
-                    let mut marker = Marker {
-                        cat: cat_path,
-                        position: [xpos, ypos, zpos],
-                        ..Default::default()
-                    };
-                    update_marker_from_template(&mut marker, &template, parsed_entries);
-                    pack.maps.entry(map_id).or_default().markers.push(marker);
-                } else {
-                    warn!("cannot find mapID attribute for {:#?}", child);
-                }
-            }
-            "Trail" => {
-                if let Some((map_id, trl_name)) = child
-                    .get_attr("trailData")
-                    .and_then(|trail_data| {
-                        parsed_entries.trl_entries.get(&trail_data.to_lowercase())
-                    })
-                    .cloned()
-                {
-                    let mut trail = Trail {
-                        cat: cat_path,
-                        trl: trl_name,
-                        ..Default::default()
-                    };
-                    template.update_from_element(child);
-                    update_trail_from_template(&mut trail, &template, parsed_entries);
-                    pack.maps.entry(map_id).or_default().trails.push(trail);
-                } else {
-                    warn!("cannot find mapID attribute for {:#?}", child);
-                }
-            }
-            _rest => {
-                warn!("invalid tag name in POIs");
-                continue;
-            }
-        }
-    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::manager::pack::category::CategoryMenu;
     use crate::manager::pack::{MARKER_PNG, TRAIL_PNG};
     use camino::Utf8Path;
     use test_log::test;
@@ -652,7 +649,7 @@ mod test {
 
     use similar_asserts::{assert_eq, assert_str_eq};
     use std::io::Write;
-    use std::path::Path;
+
     use zip::write::FileOptions;
     use zip::ZipWriter;
 
@@ -724,7 +721,7 @@ mod test {
     fn test_parse_entries(make_taco: &Vec<u8>) {
         let entries =
             read_files_from_zip(make_taco).expect("failed to read entries from make_taco");
-        let (pack, failures) = parse_entries(entries);
+        let (pack, _failures) = parse_entries(entries);
         // assert_eq!(parsed_entries.elements.len(), 1);
         // assert_eq!(parsed_entries.trl_entries.len(), 1);
         assert_eq!(pack.textures.len(), 2);
@@ -750,53 +747,31 @@ mod test {
         // assert_eq!(map_id, 15);
         // assert_eq!(first, [0.0f32; 3]);
     }
-    // #[rstest]
-    // fn check_create_unique_id() {
-    //     let mut names: BTreeMap<String, ()> = BTreeMap::new();
-    //     let cases = vec![
-    //         ("marker.png", "marker"),
-    //         ("Data/trail.png", "trail"),
-    //         ("Data/../ThInG.trl", "thing"),
-    //         ("textures/Existing_Name", "existing_name"),
-    //         ("textures/Existing_Name.png", "existing_name0"),
-    //         ("textures/Existing_Name.trl", "existing_name1"),
-    //     ];
-    //     for (cpath, cname) in cases {
-    //         let new_id =
-    //             create_unique_id(Path::new(cpath), &names).expect("failed to create new id");
-    //         assert_str_eq!(new_id, cname);
-    //         names.insert(new_id, ());
-    //     }
-    // }
-    // #[rstest]
-    // fn test_category_element(make_taco: &Vec<u8>) {
-    //     let entries = read_files_from_zip(make_taco).expect("failed to get file entries from taco");
-    //     let (_pack, parsed_entries) = parse_entries(entries);
 
-    //     let mut category_menu = CategoryMenu::default();
-    //     let mut category_templates = HashMap::new();
-    //     for (_, ele) in parsed_entries.elements {
-    //         update_category_from_xml(
-    //             &mut category_templates,
-    //             &mut category_menu,
-    //             "",
-    //             ele.children(),
-    //             &MarkerTemplate::default(),
-    //         );
-    //     }
-    //     let mut test_category_menu = CategoryMenu::default();
-    //     let parent_path = Utf8Path::new("parent");
-    //     let child1_path = Utf8Path::new("parent/child1");
-    //     test_category_menu.create_category(child1_path);
-    //     test_category_menu.set_display_name(parent_path, "Parent".to_string());
-    //     test_category_menu.set_display_name(child1_path, "Child 1".to_string());
+    #[rstest]
+    fn test_category_element(make_taco: &Vec<u8>) {
+        let entries = read_files_from_zip(make_taco).expect("failed to get file entries from taco");
+        let (pack, failures) = parse_entries(entries);
+        assert!(failures.errors.is_empty());
+        assert!(failures.warnings.is_empty());
+        let mut test_category_menu = CategoryMenu::default();
+        let parent_path = Utf8Path::new("parent");
+        let child1_path = Utf8Path::new("parent/child1");
+        let subchild_path = Utf8Path::new("parent/child1/subchild");
+        let child2_path = Utf8Path::new("parent/child2");
+        test_category_menu.create_category(subchild_path);
+        test_category_menu.create_category(child2_path);
+        test_category_menu.set_display_name(parent_path, "Parent".to_string());
+        test_category_menu.set_display_name(child1_path, "Child 1".to_string());
+        test_category_menu.set_display_name(subchild_path, "Sub Child".to_string());
+        test_category_menu.set_display_name(child2_path, "Child 2".to_string());
 
-    //     assert_eq!(test_category_menu, category_menu)
-    // }
+        assert_eq!(test_category_menu, pack.category_menu)
+    }
     #[rstest]
     fn test_deserialize_xml(make_taco: &Vec<u8>) {
         let entries = read_files_from_zip(make_taco).expect("failed to get entries from taco");
-        let (pack, failures) = parse_entries(entries);
+        let (pack, _failures) = parse_entries(entries);
         // let pack = deserialize_xml(pack, parsed_entries);
         // assert_str_eq!(
         //     pack.category_menu
@@ -816,20 +791,33 @@ mod test {
     }
     #[rstest]
     fn test_get_pack_from_taco(make_taco: &Vec<u8>) {
-        let (pack, failures) = get_pack_from_taco(make_taco).expect("failed to get pack from taco");
-
+        let (pack, _failures) =
+            get_pack_from_taco(make_taco).expect("failed to get pack from taco");
         let qd = pack
             .maps
             .get(&15)
             .expect("failed to get queensdale mapdata");
-        // assert_eq!(
-        //     qd.markers[0],
-        //     Marker {
-        //         cat: 0,
-        //         texture: "marker".to_string(),
-        //         position: [1.0f32; 3],
-        //         ..Default::default()
-        //     }
-        // );
+        assert_eq!(
+            qd.markers[0],
+            Marker {
+                cat: Utf8PathBuf::from("parent"),
+                texture: "marker".to_string(),
+                position: [1.0f32; 3],
+                alpha: Some(127),
+                ..Default::default()
+            }
+        );
+    }
+    #[rstest]
+    fn check_alpha(make_taco: &Vec<u8>) {
+        let (pack, _failures) =
+            get_pack_from_taco(make_taco).expect("failed to get pack from taco");
+        let qd = pack
+            .maps
+            .get(&15)
+            .expect("failed to get queensdale mapdata");
+        for marker in &qd.markers {
+            assert_eq!(marker.alpha, Some(127));
+        }
     }
 }

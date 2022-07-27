@@ -3,7 +3,7 @@ use bevy::prelude::Plugin;
 pub struct MarkerPlugin;
 
 impl Plugin for MarkerPlugin {
-    fn build(&self, app: &mut bevy::prelude::App) {
+    fn build(&self, _app: &mut bevy::prelude::App) {
         todo!()
     }
 }

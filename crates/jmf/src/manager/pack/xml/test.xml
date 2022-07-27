@@ -1,7 +1,9 @@
 <OverlayData xmlns="$LOCAL_SCHEMA$" xmlns="">
-    <MarkerCategory name="parent" displayName="Parent" >
+    <MarkerCategory name="parent" displayName="Parent" alpha="0.5" >
         <MarkerCategory name="child1" displayName="Child 1">
+        <MarkerCategory name="subchild" displayName="Sub Child" />
         </MarkerCategory>
+        <MarkerCategory name="child2" displayName="Child 2" />
     </MarkerCategory>
     <POIs>
         <POI type="parent" mapID="15" xpos="1.0" ypos="1.0" zpos="1.0" iconFile="marker.png"></POI>

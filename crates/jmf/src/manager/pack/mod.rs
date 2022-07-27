@@ -8,7 +8,7 @@ use crate::{
     is_default,
     manager::pack::{category::CategoryMenu, marker::Marker, trail::Trail},
 };
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
 use serde_with::*;
 use std::collections::BTreeMap;
@@ -53,7 +53,7 @@ impl Pack {
     pub fn insert_trl(&mut self, name: String, data: Trl) {
         self.trls.insert(name, data);
     }
-    pub fn new_category(&mut self, path: &Utf8Path) {}
+    pub fn new_category(&mut self, _path: &Utf8Path) {}
     pub fn remove_texture(&mut self, name: &str) {
         self.textures.remove(name);
     }
