@@ -1,4 +1,4 @@
-use bevy_input::{keyboard::KeyCode, mouse::MouseButton, ElementState};
+use bevy_input::{keyboard::KeyCode, mouse::MouseButton, ButtonState};
 use bevy_utils::tracing::error;
 
 use bevy_window::CursorIcon;
@@ -12,11 +12,11 @@ use glfw::{Action, Key};
 //     }
 // }
 
-pub fn convert_element_state(element_state: Action) -> ElementState {
+pub fn convert_element_state(element_state: Action) -> ButtonState {
     match element_state {
-        Action::Press => ElementState::Pressed,
-        Action::Release => ElementState::Released,
-        Action::Repeat => ElementState::Pressed,
+        Action::Press => ButtonState::Pressed,
+        Action::Release => ButtonState::Released,
+        Action::Repeat => ButtonState::Pressed,
     }
 }
 

@@ -7,3 +7,4 @@
 /assets
 # the wasm build of crate
 **/dist
+*.log

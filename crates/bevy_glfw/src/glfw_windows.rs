@@ -144,8 +144,12 @@ impl GlfwBackend {
         // }
 
         // we cannot decide window position with hints, so we set it now.
-        if let Some(position) = window_descriptor.position {
-            window.set_pos(position.x as i32, position.y as i32);
+        match window_descriptor.position {
+            bevy_window::WindowPosition::Automatic => {}
+            bevy_window::WindowPosition::Centered(_) => todo!(),
+            bevy_window::WindowPosition::At(position) => {
+                window.set_pos(position.x as i32, position.y as i32)
+            }
         }
         // lets collect the needed things for bevy.
         let position = window.get_pos();
@@ -287,11 +291,13 @@ fn create_window(
                     glfw::WindowMode::Windowed,
                 )
                 .map(|(mut window, events)| {
-                    if let Some(position) = position {
-                        window.set_pos(
+                    match position {
+                        bevy_window::WindowPosition::Automatic => {}
+                        bevy_window::WindowPosition::Centered(_) => todo!(),
+                        bevy_window::WindowPosition::At(position) => window.set_pos(
                             position[0] as i32 * scale_factor_override.unwrap_or(1.0) as i32,
                             position[1] as i32 * scale_factor_override.unwrap_or(1.0) as i32,
-                        );
+                        ),
                     }
                     (window, events)
                 })

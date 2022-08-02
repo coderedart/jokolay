@@ -35,14 +35,14 @@ tracing-appender = { version = "0" }
 tracing-subscriber = { version = "0" }
 tracing = "0"
 git-version = "0"
-sysinfo = "0.24.6"
+sysinfo = "0.25.1"
 indexmap = "1.9.1"
-bevy = { version = "0.7", default-features = false, optional = true, features = [
+bevy = { version = "0.8.0", default-features = false, optional = true, features = [
     "trace",
 ] }
 bevy_glfw = { path = "../bevy_glfw", optional = true }
 bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git", optional = true }
-iyes_loopless = "0.6.1"
+iyes_loopless = "0.7.0"
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.10.1", features = ["all-extensions"] }
 

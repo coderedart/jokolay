@@ -1,47 +1,70 @@
+//! When converting from XML packs, there's two kinds of failures:
+//!     1. Errors: when we get an error, we just skip the whole "entity" that we are dealing with
+//!         1. if png/xml/trl file has invalid contents. or if files / xml tags are not recognized etc..
+//!         2. also, this might affect the deserialization of other elements. a missing trl (due to it being an invalid trl) can make lots of Trail tags be skipped that refer to this
+//!     2. Warnings: when we can just ignore them, but are still not a good thing.
+//!         1. it is still going to cause some data loss, but limited in scope.
+//!         2. if markers / trails don't have a type attr, we don't know which category to place the markers into, so we skip
+//!         3. Trail not referring to a valid trl (and thus no mapID) or markers not having a valid mapID
+//!         4. we are skipping these, but only *that* particular marker / trail tags and thus, the data loss is minimal.
+//!
 //! conversion from XML to JSON pack:
-//! 1. filesyste&m
+//! 1. filesystem
 //!     1. open the zip file and iterate through all entries. if filesystem, use walkdir
 //!     2. collect all the files entries into a hashmap with `PathBuf` relative to pack root folder
 //!         as keys and file contents `Vec<u8>` as values  
 //!     3. we log / deal with any kind of filesystem errors before this step. we will probably return if we get any errors
-//! 2. Parsing
+//! 2. separation
 //!     1. get the extension of the file entry. skip the entries without xml, png or trl extensions.
-//!     2. convert paths to unique names. we store relative Paths of textures/trls and their new names
-//!         in a `HashMap<String, String>`. key is lowercase relative path, and value is the new name
-//!         in json pack img/trl entries.
-//!         1. extract the file_stem (file name without extension) portion from `Path`
-//!             skip if file_stem doesn't exist.
-//!         2. convert String lossy (utf-8) and lowercase it.
-//!         3. if name already taken, add a number. repeat until we get a new name. insert it into
-//!             the pack img/trl entries and names map.
-//!     2. if png extension, try to deserialize `Vec<u8>` using `texture` crate just to check that its valid texture.
-//!         if error skip the texture entry and log error.
-//!     3. if trl extension, keep a `HashMap<String, (u16, [f32;3], String)>`, along with new name,
-//!         insert mapid and the first node position. translate all nodes into model space and insert
-//!         into jsonpack. if error, skip the trl entry and log error.
-//!     4. if xml extension, filter with `rapid_filter`. then, parse into a elementtree Element.
-//!         if error skip the xml entry, and log error.
-//!     5. finally, you should have the following
-//!         1. `HashMap<String, String>` for texture relative paths to new names.
-//!         2. `HashMap<String, (u16, [f32; 3], String)>` for trl relative paths to (mapid, position, new name)
-//!         3. json pack's texture and trl entries.
-//!         4. Element doms of xml files.
-//! 3. Deserialization
-//!     1. iterate through all MarkerCategory Tags in all Elements. keep a
-//!         HashMap<String, (u16, MarkerTemplate)>. recurse (with MarkerCateogry tree and jsonpack cattree)
-//!         and build up the full name of the MC.
-//!         if path doesn't exist in template, create one.
-//!         extract `display_name`, `is_separator`, `default_toggle` and set them in `CategoryMenu`.
-//!         Deserialize the `MarkerTemplate`  and
-//!         recurse the children of `MarkerCategory` with the json category's children.
-//!     2. iterate through all POIs. if you find a Marker, extract the template, xyz pos, mapID, type.
-//!         use type to get cat id from previous Map in step 3.1. inherit all props. convert all attributes properly
-//!         and insert it into the json pack in the  appropriate mapid.json. use the Map from 2.2 to get
-//!         texture name to use in template.
-//!     3. repeat the same for Trail. but also use trail_file path to get MapID and trail position
-//!         from the trl file in step 2.3.
-//!     4. all xml related semantic errors like invalid values or such must be logged by this point
-//!     5. most of the errrors in this pack can be logged and safely ignored. best effort basis is enough.
+//! 3. prepare global state
+//!     1. an empty json pack. we will add the stuff as we parse into this.
+//!     2. an empty failures struct. it will keep track of all the errors / warnings so we can display / log them later.
+//!     3. texture entries (Parsed Entries). `HashMap<String, String>` with keys as lowercased relative path of a texture (Data/waypoint.png)
+//!         and values of new texture name (waypoint{#number}) stored in images folder of pack. used to convert markers / trails texture attr  to json markers texture attr.
+//!     4. trl entries (Parsed Entries). `HashMap<String, (u16, String)>`. same as above, but also the extracted "mapID" as Trail tags don't have mapID and only trl files do in xml packs.
+//!     5. elements (Parsed Entries). map of utf8path and the xml file deserialized into an `elementtree::Element`. we will iterate over this to get categories / markers / trails.
+//!     6. templates. map of xml lowercased category path (parent.child.subchild) and that category's inherited template.
+//!         when iterating categories, we will store the inherited templates here. and when iterating markers / trails, we will inherit attrs from here.
+//! 4. Images
+//!     1. iterate over the file entries with png extension
+//!     2. get image name *only*. lowercase it. // skip if error
+//!     3. load and verify that the image is valid png. otherwise skip.
+//!     4. get a new name for image based on whether another image already has such a name. if there's another name, keep adding a number at end in sequence until you find a unique name.
+//!     5. lowercase the relative path and insert the path : new name into the entries map.
+//!     6. put the texture into the pack with the new name.
+//! 5. Trls
+//!     1. make sure trl file is more than 8 bytes long (mapid and version bytes) and the rest is multiple of 12 bytes (vec3 position length) for it to be valid. otherwise skip.
+//!     2. extract mapID, version, nodes (positions). otherwise skip.
+//!     3. get a new name like the images steps.
+//!     4. insert into trl entries the newname AND mapID.
+//!     5. insert trl into pack with new name
+//! 6. Xmls:
+//!     1. just extract the utf-8 string out of file bytes.
+//!     2. filter the string with rapid_xml to remove some errors.
+//!     3. parse into elements and store in entries with the file path (Arc<Utf8Path>). skip if any errors.
+//! 7. Categories:
+//!     1. skip if root is not `OverlayData` tag.
+//!     2. create a "stack" with each element state composed of a parent_name string, template of parent, index of the category in the children and element children iterator of the parent.
+//!     3. push first state with default values of empty parent_anme, default template, 0 index and children of OverlayData root tag.
+//!     4. enter loop
+//!         1. get state on top of stack (last)
+//!         2. increment the index in top_state as we processed a category and we might skip if there's errors after this.
+//!         3. get the next element in child iterator. skip if not MarkerCategory tag.
+//!         4. get name attr and get the full name using parent's name from the stacks' top elment state.
+//!         5. get the category only elements like is_separator , default_toggle, display_name or use defaults.
+//!         6. insert this into pack's category menu using full_name as Utf8Path.
+//!         7. create a template and inherit from this element first by parsing (and recording any errors).
+//!         8. then inherit attrs from parent template if its own attrs are not explicitly set from element already. store template.
+//!         9. push a new state on top of stack with full_name as parent_name, index 0, children of this element,  its template as parent template.
+//!         10. if children_iterator of top_state is at the end, we push it off the stack, to return to the next child of the parent's children.
+//! 8. POI
+//!     1. skip if not POI tag. maintain a index when enumerating for easy errors.
+//!     2. get category from its type attr or skip. same for mapID.
+//!     3. get x/y/z pos or use defaults. same for
+//!     4. get other attrs and inherit from templates. for texture attr, get new name from entries.
+//! 9. Trail
+//!     1. just like POI, most of the steps are same.
+//!     2. just get mapID / new trl name from the entries. skip if they don't exist.
 
 mod template;
 
@@ -427,6 +450,7 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
                 match stack.last_mut() {
                     Some(top_state) => match top_state.children.next() {
                         Some(category_element) => {
+                            top_state.index += 1;
                             if category_element.tag().name() != "MarkerCategory" {
                                 continue;
                             }
@@ -435,7 +459,7 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
                                 failures.warnings.push(FailureWarning::CategoryWarnings(
                                     path.clone(),
                                     top_state.parent_name.clone(),
-                                    top_state.index,
+                                    top_state.index - 1,
                                     CategoryWarning::CategoryNameMissing,
                                 ));
                                 continue;
@@ -477,7 +501,6 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
                                 parent_name,
                                 index: 0,
                             });
-                            top_state.index += 1;
                         }
                         None => {
                             stack.pop();
@@ -525,7 +548,7 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
                     match child.tag().name() {
                         "POI" => {
                             if let Some(map_id) = child
-                                .get_attr("mapID")
+                                .get_attr("MapID")
                                 .and_then(|map_id| map_id.parse::<u16>().ok())
                             {
                                 let xpos = child
@@ -575,7 +598,7 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
                                     .as_ref()
                                     .and_then(|texture| parsed_entries.texture_entries.get(texture))
                                 {
-                                    marker.texture = texture.clone();
+                                    marker.texture = Some(texture.clone());
                                 }
 
                                 marker.alpha = template.alpha.map(|a| (255.0 * a) as u8);
@@ -614,7 +637,7 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
                                     .as_ref()
                                     .and_then(|texture| parsed_entries.texture_entries.get(texture))
                                 {
-                                    trail.texture = texture.clone();
+                                    trail.texture = Some(texture.clone());
                                 }
                                 pack.maps.entry(map_id).or_default().trails.push(trail);
                             } else {
@@ -769,24 +792,10 @@ mod test {
         assert_eq!(test_category_menu, pack.category_menu)
     }
     #[rstest]
-    fn test_deserialize_xml(make_taco: &Vec<u8>) {
+    fn test_pack_not_empty(make_taco: &Vec<u8>) {
         let entries = read_files_from_zip(make_taco).expect("failed to get entries from taco");
         let (pack, _failures) = parse_entries(entries);
-        // let pack = deserialize_xml(pack, parsed_entries);
-        // assert_str_eq!(
-        //     pack.category_menu
-        //         .get_category(0)
-        //         .expect("failed to get category")
-        //         .display_name,
-        //     "Parent"
-        // );
-        // assert_str_eq!(
-        //     pack.category_menu
-        //         .get_category(1)
-        //         .expect("failed to get category")
-        //         .display_name,
-        //     "Child 1"
-        // );
+
         assert!(!pack.maps.is_empty());
     }
     #[rstest]
@@ -801,7 +810,7 @@ mod test {
             qd.markers[0],
             Marker {
                 cat: Utf8PathBuf::from("parent"),
-                texture: "marker".to_string(),
+                texture: Some("marker".to_string()),
                 position: [1.0f32; 3],
                 alpha: Some(127),
                 ..Default::default()

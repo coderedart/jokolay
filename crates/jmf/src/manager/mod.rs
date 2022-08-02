@@ -1,9 +1,16 @@
-use crate::manager::pack::Pack;
+use bevy::utils::HashSet;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use url::Url;
 pub mod pack;
+
+/*
+marker pack repos: installation, updates, deletion.
+marker pack editing, saving, reloading.
+marker pack activation data and cleanup.
+marker pack rendering based on character + their logged in map + camera render target (window surface)
+*/
 
 /*
 Activation data:
@@ -13,13 +20,17 @@ per character per map instance
 
 */
 
-/// The primary struct which manages Marker Packs.
-/// in case of a Marker pack available in more than one repository, the first one would be selected
-///
-pub struct MarkerManager {
-    pub packs: BTreeMap<String, Pack>,
-    pub repos: Vec<Repository>,
-}
+// /// The primary struct which manages Marker Packs.
+// /// in case of a Marker pack available in more than one repository, the first one would be selected
+// ///
+// pub struct MarkerManager {
+//     /// packs that are live
+//     pub packs: BTreeMap<String, Pack>,
+//     /// repositories from where we can get marker pack lists
+//     pub repos: Vec<Repository>,
+//     /// marker pack installed version kept separate
+//     pub installed: BTreeMap<String, Version>
+// }
 
 /// it represents a list of marker packs.
 /// the mirrors are host URLs which point to a json file consisting of a PackList
@@ -62,4 +73,28 @@ pub struct PackEntry {
 pub enum DownloadInfo {
     RawUrlXML { url: Url },
     RawUrlJson { url: Url },
+}
+pub struct AccountActivation {
+    pub date: usize, // once day changes, empty the daily_reset set
+    pub daily_reset: HashSet<UniqueMarkerID>,
+    pub permanent: HashSet<UniqueMarkerID>,
+    pub timer: BTreeMap<UniqueMarkerID, usize>, // unix milliseconds timestamp when marker should be reactivated (removed from this map)
+    pub instance: BTreeMap<u32, HashSet<UniqueMarkerID>>, // key is instance ip. values are a set of markers that activated in that instance
+}
+
+pub struct CharacterActivation {
+    pub date: usize, // once day changes, empty the daily_reset set
+    pub daily_reset: HashSet<UniqueMarkerID>,
+}
+
+#[derive(Debug, Hash, PartialEq, PartialOrd)]
+pub struct UniqueMarkerID {
+    pub index: usize,
+    pub map: u16,
+}
+pub struct ActivationData {
+    /// key is Account name. Value is Activation data.
+    pub account_data: std::collections::BTreeMap<String, AccountActivation>,
+    /// Key is Character name. Value is activation data.
+    pub character_data: std::collections::BTreeMap<String, CharacterActivation>,
 }

@@ -4,7 +4,7 @@ mod converters;
 mod events;
 mod glfw_windows;
 
-use bevy_log::info;
+use bevy_log::{info, warn};
 pub use glfw_windows::*;
 
 use bevy_app::{App, AppExit, CoreStage, Plugin};
@@ -14,7 +14,7 @@ use bevy_ecs::{
     world::World,
 };
 use bevy_utils::tracing::trace;
-use bevy_window::{CreateWindow, WindowCreated, WindowScaleFactorChanged, Windows};
+use bevy_window::{CreateWindow, WindowClosed, WindowCreated, WindowScaleFactorChanged, Windows};
 
 use crate::converters::{
     convert_cursor_icon, convert_element_state, convert_mouse_button, convert_virtual_key_code,
@@ -44,9 +44,9 @@ impl Plugin for GlfwPlugin {
 /// will be run during the PostUpdate stage.
 fn change_window(world: &mut World) {
     let world = world.cell();
-    let mut glfw_windows = world.get_non_send_mut::<GlfwBackend>().unwrap();
+    let mut glfw_windows = world.non_send_resource_mut::<GlfwBackend>();
     let mut windows = world.get_resource_mut::<Windows>().unwrap();
-
+    let mut close_windows = vec![];
     for bevy_window in windows.iter_mut() {
         let id = bevy_window.id();
         let window: &mut Window = match glfw_windows.windows.get_mut(&id) {
@@ -58,10 +58,7 @@ fn change_window(world: &mut World) {
         };
         for command in bevy_window.drain_commands() {
             match command {
-                bevy_window::WindowCommand::SetWindowMode {
-                    mode: _,
-                    resolution: (_width, _height),
-                } => {
+                bevy_window::WindowCommand::SetWindowMode { .. } => {
                     unimplemented!();
                 }
                 bevy_window::WindowCommand::SetTitle { title } => {
@@ -74,10 +71,10 @@ fn change_window(world: &mut World) {
                     window_dpi_changed_events.send(WindowScaleFactorChanged { id, scale_factor });
                 }
                 bevy_window::WindowCommand::SetResolution {
-                    logical_resolution: (width, height),
+                    logical_resolution,
                     scale_factor: _,
                 } => {
-                    window.set_size(width as i32, height as i32);
+                    window.set_size(logical_resolution.x as i32, logical_resolution.y as i32);
                 }
                 bevy_window::WindowCommand::SetPresentMode { .. } => (),
                 bevy_window::WindowCommand::SetResizable { resizable } => {
@@ -120,7 +117,22 @@ fn change_window(world: &mut World) {
                 } => {
                     unimplemented!()
                 }
+                bevy_window::WindowCommand::Center(_) => todo!(),
+                bevy_window::WindowCommand::Close => {
+                    warn!("closing window: {id}");
+                    close_windows.push(id);
+                }
             }
+        }
+    }
+    for id in close_windows {
+        if let Some(_) = windows.remove(id) {
+            glfw_windows.windows.remove(&id).map(|window_state| {
+                window_state.window.close();
+            });
+            world
+                .resource_mut::<Events<WindowClosed>>()
+                .send(WindowClosed { id });
         }
     }
 }
@@ -149,9 +161,7 @@ pub fn glfw_runner_with(mut app: App) {
 
         {
             let world = app.world.cell();
-            let mut glfw_backend = world
-                .get_non_send_mut::<GlfwBackend>()
-                .expect("failed to get glfw windows in event loop");
+            let mut glfw_backend = world.non_send_resource_mut::<GlfwBackend>();
             for (window_id, window_state) in glfw_backend.windows.iter_mut() {
                 let mut bevy_window_list = world.get_resource_mut::<Windows>().unwrap();
                 // bevy window
@@ -186,8 +196,7 @@ fn handle_create_window_events(world: &mut World) {
         let mut windows = world.get_resource_mut::<Windows>().unwrap();
         let mut window_created_events = world.get_resource_mut::<Events<WindowCreated>>().unwrap();
         let window = world
-            .get_non_send_mut::<GlfwBackend>()
-            .expect("failed to get glfw context from world")
+            .non_send_resource_mut::<GlfwBackend>()
             .create_window(create_window_event.id, &create_window_event.descriptor);
         windows.add(window);
         info!(

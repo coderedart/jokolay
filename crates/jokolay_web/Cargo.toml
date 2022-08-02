@@ -13,7 +13,7 @@ license = "MIT OR Apache-2.0"
 
 # fork because https://github.com/bevyengine/bevy/issues/4649
 bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git" }
-bevy = { version = "0.7", default-features = false, features = ["bevy_winit"] }
+bevy = { version = "0.8.0", default-features = false, features = ["bevy_winit"] }
 
 [build-dependencies]
 embed-resource = "1.4"

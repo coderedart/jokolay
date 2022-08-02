@@ -19,7 +19,7 @@ pub struct Trail {
     ///     contents of the string.
     /// if empty (default), use the default trail texture.
     #[serde(skip_serializing_if = "is_default")]
-    pub texture: String,
+    pub texture: Option<String>,
     /// refers to the name of tbin to be used as the mesh
     /// Validation: should exist in tbins/ directory as `name.tbin` file where `name` is the contents of the string.
     /// must not be empty

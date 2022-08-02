@@ -12,12 +12,12 @@ desktop = ["bevy"]
 # serde and derive are obvious,
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-serde_with = { version = "1", features = ["json", "macros"] }
+serde_with = { version = "2.0.0", features = ["json", "macros"] }
 elementtree = { version = "*" }
 # Category paths
 camino = { version = "*", features = ["serde1"] }
 # to validate stuff with types
-prae ={ version = "*", features = [] }
+prae = { version = "*", features = [] }
 # better fs errors
 fs-err = "2.7.0"
 # for marker / trail attributes
@@ -28,14 +28,15 @@ hex = "0.4.3"
 # for downloading packs?
 url = { version = "2", features = ["serde"] }
 # for easier extraction to folers and compression of folders into zip files (.taco format alias)
-zip = "0.6.2"
+zip = "0"
 # walkdir = {version = "2"}# for tbin meshes
 # for dealing with png files in marker packs. oxipng for compressing png to optimal (smaller) sizes
 image = { version = "0", default-features = false, features = ["png"] }
 # logging
-# tracing-appender = { version = "0" }
+tracing-appender = { version = "0" }
 tracing = "0"
-# tracing-error = "0" # for ErrorLayer
+tracing-error = "0"
+tracing-subscriber = "*"             # for ErrorLayer
 # error handling
 color-eyre = "0.6"
 thiserror = "1.0.31"
@@ -45,13 +46,14 @@ cxx = "1.0"
 # for marker pack versions
 semver = { version = "1.0.9", features = ["serde"] }
 # to embed PKG version to compare with repository's format version
-shadow-rs = "0.13.0"
+shadow-rs = "0.16.1"
 
-bevy_math = "0.7.0"
+bevy_math = "0.8.0"
 
-bevy = { version = "0.7", default-features = false, optional = true, features = [
-
+bevy = { version = "0.8.0", default-features = false, optional = true, features = [
+    "bevy_asset"
 ] }
+walkdir = "2.3.2"
 
 [dev-dependencies]
 serde_test = { version = "1" }
@@ -69,4 +71,4 @@ tracing-subscriber = { version = "0", features = [
 
 [build-dependencies]
 cxx-build = "1.0"
-shadow-rs = "0.13.0"
+shadow-rs = "0.16.1"

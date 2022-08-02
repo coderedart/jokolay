@@ -5,10 +5,10 @@ fn main() {
         .extra_warnings(false)
         .compile("rapid"); // name of library = librapid.a
 
-    println!("cargo:rerun-if-changed=src/lib.rs");
-    println!("cargo:rerun-if-changed=vendor/rapid/rapid.cpp");
-    println!("cargo:rerun-if-changed=vendor/rapid/rapid.hpp");
-    println!("cargo:rerun-if-changed=vendor/rapid/rapidxml.hpp");
-    println!("cargo:rerun-if-changed=vendor/rapid/rapidxml_print.hpp");
+    // println!("cargo:rerun-if-changed=src/lib.rs");
+    // println!("cargo:rerun-if-changed=vendor/rapid/rapid.cpp");
+    // println!("cargo:rerun-if-changed=vendor/rapid/rapid.hpp");
+    // println!("cargo:rerun-if-changed=vendor/rapid/rapidxml.hpp");
+    // println!("cargo:rerun-if-changed=vendor/rapid/rapidxml_print.hpp");
     shadow_rs::new().expect("failed to run shadow");
 }

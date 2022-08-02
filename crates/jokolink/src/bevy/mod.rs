@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use bevy::{
-    core::{FixedTimestep, Time},
     prelude::{
         info, App, CoreStage, EventReader, EventWriter, ParallelSystemDescriptorCoercion, Plugin,
         Res, ResMut,
     },
+    time::{FixedTimestep, Time},
     window::{CreateWindow, WindowDescriptor, WindowId, Windows},
 };
 use bevy_egui::EguiContext;

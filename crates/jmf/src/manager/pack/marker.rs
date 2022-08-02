@@ -30,13 +30,13 @@ pub(crate) struct Marker {
     /// Validation: should exist in the images/ directory as `name.png` file where `name` is the
     ///     contents of the string.
     /// if empty (default), use the default marker texture.
-    #[serde(skip_serializing_if = "is_default")]
-    pub texture: String,
+    pub texture: Option<String>,
     /// position of the marker.
     /// we will translate the default billboard at origin by the value of position
     /// units are inches.
     /// must exist or will default to [0.0, 0.0, 0.0]
     #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub position: [f32; 3],
 }
 impl PartialOrd for Marker {
