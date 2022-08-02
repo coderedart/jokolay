@@ -593,10 +593,10 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
 
                                 marker.scale = template.icon_size.map(|scale| [scale; 3]);
 
-                                if let Some(texture) = template
-                                    .icon_file
-                                    .as_ref()
-                                    .and_then(|texture| parsed_entries.texture_entries.get(texture))
+                                if let Some(texture) =
+                                    template.icon_file.as_ref().and_then(|texture| {
+                                        parsed_entries.texture_entries.get(&texture.to_lowercase())
+                                    })
                                 {
                                     marker.texture = Some(texture.clone());
                                 }
@@ -664,7 +664,7 @@ fn parse_entries(entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> (Pack, Failures) {
 mod test {
     use super::*;
     use crate::manager::pack::category::CategoryMenu;
-    use crate::manager::pack::{MARKER_PNG, TRAIL_PNG};
+    use crate::manager::pack::MARKER_PNG;
     use camino::Utf8Path;
     use test_log::test;
 
@@ -680,26 +680,23 @@ mod test {
 
     #[fixture]
     #[once]
-    fn make_taco() -> Vec<u8> {
+    fn test_zip() -> Vec<u8> {
         let mut writer = ZipWriter::new(std::io::Cursor::new(vec![]));
+        // category.xml
         writer
             .start_file("category.xml", FileOptions::default())
             .expect("failed to create category.xml");
         writer
             .write_all(TEST_XML.as_bytes())
             .expect("failed to write category.xml");
+        // marker.png
         writer
             .start_file("marker.png", FileOptions::default())
             .expect("failed to create marker.png");
         writer
             .write_all(MARKER_PNG)
             .expect("failed to write marker.png");
-        writer
-            .start_file("trail.png", FileOptions::default())
-            .expect("failed to create trail.png");
-        writer
-            .write_all(TRAIL_PNG)
-            .expect("failed to write trail.png");
+        // basic.trl
         writer
             .start_file("basic.trl", FileOptions::default())
             .expect("failed to create basic trail");
@@ -712,16 +709,17 @@ mod test {
         writer
             .write_all(bytemuck::cast_slice(&[0f32; 3]))
             .expect("failed to write first node");
+        // done
         writer
             .finish()
             .expect("failed to finalize zip")
             .into_inner()
     }
 
-    #[rstest]
-    fn test_read_entries_from_zip(make_taco: &Vec<u8>) {
-        let file_entries = read_files_from_zip(make_taco).expect("failed to deserialize");
-        assert_eq!(file_entries.len(), 4);
+    #[fixture]
+    fn test_file_entries(test_zip: &Vec<u8>) -> HashMap<Arc<Utf8Path>, Vec<u8>> {
+        let file_entries = read_files_from_zip(test_zip).expect("failed to deserialize");
+        assert_eq!(file_entries.len(), 3);
         let test_xml = std::str::from_utf8(
             file_entries
                 .get(Utf8Path::new("category.xml"))
@@ -733,50 +731,33 @@ mod test {
             .get(Utf8Path::new("marker.png"))
             .expect("failed to get marker.png");
         assert_eq!(test_marker_png, MARKER_PNG);
-
-        let test_trail_png = file_entries
-            .get(Utf8Path::new("trail.png"))
-            .expect("failed to get trail.png");
-        assert_eq!(test_trail_png, TRAIL_PNG);
+        file_entries
     }
-
-    #[rstest]
-    fn test_parse_entries(make_taco: &Vec<u8>) {
-        let entries =
-            read_files_from_zip(make_taco).expect("failed to read entries from make_taco");
-        let (pack, _failures) = parse_entries(entries);
-        // assert_eq!(parsed_entries.elements.len(), 1);
-        // assert_eq!(parsed_entries.trl_entries.len(), 1);
-        assert_eq!(pack.textures.len(), 2);
-        // assert_eq!(parsed_entries.texture_entries.len(), pack.textures.len());
-
+    #[fixture]
+    #[once]
+    fn test_pack(test_file_entries: HashMap<Arc<Utf8Path>, Vec<u8>>) -> Pack {
+        let (pack, _failures) = parse_entries(test_file_entries);
+        assert_eq!(pack.trls.len(), 1);
+        assert_eq!(pack.textures.len(), 1);
         assert_eq!(
             pack.textures
                 .get("marker")
                 .expect("failed to get marker.png from textures"),
             MARKER_PNG
         );
-        assert_eq!(
-            pack.textures
-                .get("trail")
-                .expect("failed to get trail.png from textures"),
-            TRAIL_PNG
-        );
-        // let (map_id, first, _name) = parsed_entries
-        //     .trl_entries
-        //     .get("basic.trl")
-        //     .expect("failed to get basic trail")
-        //     .clone();
-        // assert_eq!(map_id, 15);
-        // assert_eq!(first, [0.0f32; 3]);
+
+        let trl = pack
+            .trls
+            .get("basic")
+            .expect("failed to get basic trail")
+            .clone();
+        assert_eq!(trl.map_id, 15);
+        assert_eq!(trl.nodes[0], [0.0f32; 3]);
+        pack
     }
 
     #[rstest]
-    fn test_category_element(make_taco: &Vec<u8>) {
-        let entries = read_files_from_zip(make_taco).expect("failed to get file entries from taco");
-        let (pack, failures) = parse_entries(entries);
-        assert!(failures.errors.is_empty());
-        assert!(failures.warnings.is_empty());
+    fn test_category_element(test_pack: &Pack) {
         let mut test_category_menu = CategoryMenu::default();
         let parent_path = Utf8Path::new("parent");
         let child1_path = Utf8Path::new("parent/child1");
@@ -789,23 +770,17 @@ mod test {
         test_category_menu.set_display_name(subchild_path, "Sub Child".to_string());
         test_category_menu.set_display_name(child2_path, "Child 2".to_string());
 
-        assert_eq!(test_category_menu, pack.category_menu)
+        assert_eq!(test_category_menu, test_pack.category_menu)
     }
-    #[rstest]
-    fn test_pack_not_empty(make_taco: &Vec<u8>) {
-        let entries = read_files_from_zip(make_taco).expect("failed to get entries from taco");
-        let (pack, _failures) = parse_entries(entries);
 
-        assert!(!pack.maps.is_empty());
-    }
     #[rstest]
-    fn test_get_pack_from_taco(make_taco: &Vec<u8>) {
-        let (pack, _failures) =
-            get_pack_from_taco(make_taco).expect("failed to get pack from taco");
+    fn test_markers(test_pack: &Pack) {
+        let pack = test_pack;
         let qd = pack
             .maps
             .get(&15)
             .expect("failed to get queensdale mapdata");
+
         assert_eq!(
             qd.markers[0],
             Marker {
@@ -818,9 +793,27 @@ mod test {
         );
     }
     #[rstest]
-    fn check_alpha(make_taco: &Vec<u8>) {
-        let (pack, _failures) =
-            get_pack_from_taco(make_taco).expect("failed to get pack from taco");
+    fn test_trails(test_pack: &Pack) {
+        let pack = test_pack;
+        let qd = pack
+            .maps
+            .get(&15)
+            .expect("failed to get queensdale mapdata");
+
+        assert_eq!(
+            qd.trails[0],
+            Trail {
+                cat: Utf8PathBuf::from("parent/child1"),
+                texture: Some("marker".to_string()),
+                alpha: Some(127),
+                trl: "basic".to_string(),
+                ..Default::default()
+            }
+        );
+    }
+    #[rstest]
+    fn check_alpha(test_pack: &Pack) {
+        let pack = test_pack;
         let qd = pack
             .maps
             .get(&15)
