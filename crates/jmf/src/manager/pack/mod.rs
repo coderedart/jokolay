@@ -1,3 +1,28 @@
+//! Json Packs
+//!
+//! the structure of a valid Json Pack
+//!
+//! ## Files
+//! `pack_root` is the folder in which marker pack will be placed
+//! 1. pack_root/cats.json - This file will contain the `CategoryMenu`
+//! 2. pack_root/textures/{texture_name}.png - directory called `textures` containing zero or more `png` images. `texture_name` is the name of the texture used by markers / trails
+//! 3. pack_root/trls/{trl_name}.trl - directory called `trls` containing zero or more `trl` binary meshes. `trl_name` is the name of the trl binary mesh used by trails
+//! 4. pack_root/maps/{map_id}.json - directory called `maps` containing zero or more `json` files containing Map Data. `map_id` is the id of the map according to gw2 api / wiki / mumblelink.
+//!
+//! ## Validation
+//! * json syntax errors of the map files or schema errors
+//! * textures not being valid png
+//! * trls not being valid trl binary mesh data
+//! * cats.json syntax errors or schema errors
+//! * attributes of markers / trails referring to nonexistent category or texture or trl
+//! * invalid attribute value (like alpha having "hello" instead of a number)
+//! * markers / trails not sorted by their category attribute
+//! * identifiers like category names + texture names + trl names must be lower case and valid utf-8.
+//!
+//! # Schema
+//! TODO: make a json schema to validate json files before parsing
+//!
+
 mod archive;
 pub mod category;
 pub mod marker;

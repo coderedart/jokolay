@@ -7,9 +7,10 @@ use std::io::{Read, Seek, SeekFrom};
 use std::sync::Arc;
 use sysinfo::{Pid, ProcessRefreshKind, System, SystemExt};
 use x11rb::protocol::xproto::{change_property, get_property, intern_atom, AtomEnum, PropMode};
-use x11rb::rust_connection::RustConnection;
 
 use super::{MumbleFile, MumbleFileTrait, UpdatedMumbleData};
+
+pub use x11rb::rust_connection::RustConnection;
 
 pub type MumbleBackend = std::fs::File;
 const LINK_BUFFER_SIZE: usize = USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<u32>();
@@ -76,6 +77,15 @@ pub struct GW2InstanceData {
     pid: i32,
 }
 impl GW2InstanceData {
+    pub fn get_xid(&self) -> u32 {
+        self.xid
+    }
+    pub fn get_pid(&self) -> i32 {
+        self.pid
+    }
+    pub fn get_unique_id(&self) -> u32 {
+        self.xid
+    }
     /// try to open the Mumble Link file created by jokolink under /dev/shm . creates empty file if it doesn't exist
     pub fn new(unique_id: usize, xc: &RustConnection) -> Result<Self> {
         let xid = unique_id.try_into().expect("cannot fit window id into u32");

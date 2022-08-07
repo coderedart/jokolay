@@ -9,7 +9,7 @@ edition = "2021"
 
 [features]
 default = ["bevy_plugin"]
-bevy_plugin = ["bevy", "bevy_glfw", "bevy_egui"]
+bevy_plugin = ["bevy", "bevy_glfw", "bevy_egui", "bevy-inspector-egui"]
 
 [dependencies]
 thiserror = "1"
@@ -41,7 +41,8 @@ bevy = { version = "0.8.0", default-features = false, optional = true, features 
     "trace",
 ] }
 bevy_glfw = { path = "../bevy_glfw", optional = true }
-bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git", optional = true }
+bevy_egui = { version = "*", optional = true }
+bevy-inspector-egui = { version = "*", optional = true }
 iyes_loopless = "0.7.0"
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.10.1", features = ["all-extensions"] }

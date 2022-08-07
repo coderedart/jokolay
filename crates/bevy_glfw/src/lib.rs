@@ -34,11 +34,15 @@ impl Plugin for GlfwPlugin {
     fn build(&self, app: &mut App) {
         let glfw_backend = GlfwBackend::new();
         app.insert_non_send_resource(glfw_backend);
+        app.insert_resource(GlfwTime(0.0));
         app.set_runner(glfw_runner_with)
             .add_system_to_stage(CoreStage::PostUpdate, change_window.exclusive_system());
         handle_create_window_events(&mut app.world);
     }
 }
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct GlfwTime(pub f64);
 
 /// This system will run the windowing related commands such as resizing or decorations etc..
 /// will be run during the PostUpdate stage.
@@ -145,6 +149,14 @@ pub fn glfw_runner_with(mut app: App) {
     trace!("Entering glfw event loop");
 
     loop {
+        {
+            let t = app
+                .world
+                .non_send_resource::<GlfwBackend>()
+                .glfw_context
+                .get_time();
+            *app.world.resource_mut() = GlfwTime(t);
+        }
         handle_create_window_events(&mut app.world);
         {
             // check if there's any new events

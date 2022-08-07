@@ -10,8 +10,6 @@
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "bevy")]
-pub mod bevy;
 pub mod mlink;
 pub mod mumble_file;
 use crate::mlink::MumbleLink;
@@ -19,14 +17,14 @@ use crate::mlink::MumbleLink;
 /// The default mumble link name. can only be changed by passing the `-mumble` options to gw2 for multiboxing
 pub const DEFAULT_MUMBLELINK_NAME: &str = "MumbleLink";
 
-pub struct Gw2Data {
-    pub window_handle: u32,
-    pub pid: u32,
-    pub dim: WindowDimensions,
-    pub monitor: u32,
-    pub workspace: u32,
-    pub link: MumbleLink,
-}
+// pub struct Gw2Data {
+//     pub window_handle: u32,
+//     pub pid: u32,
+//     pub dim: WindowDimensions,
+//     pub monitor: u32,
+//     pub workspace: u32,
+//     pub link: MumbleLink,
+// }
 
 /// The Window dimensions struct used to represent the window position/sizes.
 /// has lots of derives, so we don't have to update this again when requiring something like Hash

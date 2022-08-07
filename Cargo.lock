@@ -258,6 +258,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy-inspector-egui"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0c53ed1cad011e33ea145d2c1f649a966e7457453f3768ddff39bc5064bd525"
+dependencies = [
+ "bevy",
+ "bevy-inspector-egui-derive",
+ "bevy_egui 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image 0.23.14",
+ "pretty-type-name",
+]
+
+[[package]]
+name = "bevy-inspector-egui-derive"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48ef6260a46924d40781bcb9da157c110d5166bbd573795e4a16f2505913d0d0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "bevy_app"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -385,6 +409,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "bevy_egui"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ab46f07c3f360507fae9bc3b9c000c583e0d67661f0dd6dd5a24a709775b1e"
+dependencies = [
+ "arboard",
+ "bevy",
+ "egui",
+ "thread_local",
+ "webbrowser",
 ]
 
 [[package]]
@@ -2619,7 +2656,8 @@ name = "jokolay_desktop"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "bevy_egui",
+ "bevy-inspector-egui",
+ "bevy_egui 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bevy_glfw",
  "jmf",
  "jokolink",
@@ -2630,7 +2668,7 @@ name = "jokolay_web"
 version = "0.2.0"
 dependencies = [
  "bevy",
- "bevy_egui",
+ "bevy_egui 0.15.0 (git+https://github.com/coderedart/bevy_egui.git)",
  "embed-resource",
 ]
 
@@ -2639,7 +2677,8 @@ name = "jokolink"
 version = "0.4.0"
 dependencies = [
  "bevy",
- "bevy_egui",
+ "bevy-inspector-egui",
+ "bevy_egui 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bevy_glfw",
  "bitflags",
  "bytemuck",
@@ -3485,6 +3524,12 @@ name = "precomputed-hash"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
+
+[[package]]
+name = "pretty-type-name"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8815d101cfb4cb491154896bdab292a395a7ac9ab185a9941a2f5be0135900d"
 
 [[package]]
 name = "proc-macro-crate"

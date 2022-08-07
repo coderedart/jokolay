@@ -10,8 +10,12 @@ edition = "2021"
 bevy = { version = "0.8.0", default-features = false, features = [
     "bevy_core_pipeline",
 ] }
-bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git" }
+bevy_egui = { version = "*" }
 jokolink = { path = "../jokolink" }
 jmf = { path = "../jmf" }
+bevy-inspector-egui = "*"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy_glfw = { version = "*", path = "../bevy_glfw" }
+
+[patch.crates-io]
+bevy_egui = { git = "https://github.com/coderedart/bevy_egui.git" }

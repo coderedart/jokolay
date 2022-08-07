@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_egui::EguiContext;
 
+
+pub mod mumble;
 #[cfg(target_family = "wasm")]
 compile_error!("joko_desktop crate is not allowed to compile on wasm platforms");
 
@@ -13,13 +15,18 @@ pub fn add_desktop_addons(app: &mut App) {
     app.add_startup_system(insert_camera);
     app.add_plugins(bevy::DefaultPlugins);
     app.add_plugin(bevy_glfw::GlfwPlugin);
+
+    app.add_plugin(bevy_egui::EguiPlugin);
+
+    // app.add_plugin(bevy_inspector_egui::WorldInspectorPlugin::new());
     app.add_system_to_stage(CoreStage::Last, egui_glfw_passthrough);
-    app.add_plugin(jokolink::bevy::MumblePlugin);
+    app.add_plugin(mumble::MumblePlugin);
     app.add_plugin(jmf::bevy::MarkerPlugin);
 }
 fn insert_camera(mut commands: Commands) {
     commands.spawn_bundle(Camera3dBundle::default());
 }
+fn spawn_some_objects(_commands: Commands) {}
 fn egui_glfw_passthrough(
     mut ectx: ResMut<EguiContext>,
     mut glfw_backend: NonSendMut<bevy_glfw::GlfwBackend>,
