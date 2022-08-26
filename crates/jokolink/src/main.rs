@@ -1,7 +1,6 @@
 #[cfg(windows)]
 mod win_main {
 
-    use clap::Parser;
     use color_eyre::eyre::bail;
     use color_eyre::eyre::WrapErr;
     use std::path::{Path, PathBuf};
@@ -14,14 +13,8 @@ mod win_main {
     use windows::Win32::System::Memory::UnmapViewOfFile;
     // use std::io::BufWriter;
     use jokolink::mlink::{CMumbleLink, USEFUL_C_MUMBLE_LINK_SIZE};
-    use jokolink::win::{create_link_shared_mem, get_xid};
+    use jokolink::mumble_file::win::{create_link_shared_mem, get_xid};
     use std::io::{Seek, SeekFrom};
-    #[derive(Parser, Debug)]
-    #[clap(author, version, about, long_about = None)]
-    pub struct JokolinkCli {
-        #[clap(short, long)]
-        pub config: PathBuf,
-    }
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     #[serde(default)]
@@ -51,9 +44,12 @@ mod win_main {
         }));
         // get all the cmd line args and initialize logs.
 
-        let app = JokolinkCli::parse();
-        if !app.config.exists() {
-            std::fs::File::create(&app.config)
+        let config = std::env::args()
+            .nth(1)
+            .expect("failed to get second argument. \nUsage: jokolink path/to/config.json");
+        let config = std::path::PathBuf::from(config);
+        if !config.exists() {
+            std::fs::File::create(&config)
                 .wrap_err("failed to create config file")
                 .unwrap()
                 .write_all(
@@ -64,7 +60,7 @@ mod win_main {
                 .expect("failed to write default config file");
         }
         let config: JokolinkConfig = serde_json::from_reader(std::io::BufReader::new(
-            std::fs::File::open(&app.config).expect("failed to open config file"),
+            std::fs::File::open(&config).expect("failed to open config file"),
         ))
         .expect("failed to deserialize config file");
 
@@ -111,7 +107,7 @@ mod win_main {
         );
         info!("Application License: {}", env!("CARGO_PKG_LICENSE"));
 
-        info!("git version details: {}", git_version::git_version!());
+        // info!("git version details: {}", git_version::git_version!());
 
         info!(
             "the file log lvl: {:?}, the logfile directory: {:?}",

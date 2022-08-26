@@ -1,7 +1,6 @@
-use bevy::utils::HashSet;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use url::Url;
 pub mod pack;
 

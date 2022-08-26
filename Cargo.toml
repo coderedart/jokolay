@@ -1,3 +1,16 @@
+[package]
+name = "jokolay"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# mumblelink
+jokolink = { path = "crates/jokolink" }
+jokoapi = { path = "crates/jokoapi" }
+jmf = { path = "crates/jmf" }
+egui_overlay = { version = "0.2" }
 
 [profile.dev.package."*"]
 opt-level = 3
@@ -11,13 +24,4 @@ opt-level = 1
 
 [workspace]
 resolver = "2"
-members = [
-    "crates/jokolink",
-    "crates/jmf",
-    "crates/jokoapi",
-    "crates/joko_plugins",
-    "crates/bevy_glfw",
-    "crates/jokolay_desktop",
-    "crates/jokolay_web",
-]
-default-members = ["crates/jokolay_desktop"]
+members = ["crates/jokolink", "crates/jmf", "crates/jokoapi"]

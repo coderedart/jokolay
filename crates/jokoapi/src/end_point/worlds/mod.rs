@@ -26,23 +26,3 @@ impl EndPointIds for Worlds {
         E_P_URL
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use reqwest::Client;
-
-    use crate::end_point::{EndPoint, EndPointIds};
-
-    use super::Worlds;
-
-    #[tokio::test]
-    #[ignore]
-    async fn check_world() {
-        let client = Client::new();
-        let result = Worlds::get(client.clone()).await.unwrap();
-        assert_eq!(
-            result[0],
-            Worlds::get_with_id(client, &[result[0]]).await.unwrap()[0].id
-        )
-    }
-}

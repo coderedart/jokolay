@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 
 pub mod mlink;
 pub mod mumble_file;
-use crate::mlink::MumbleLink;
 
 /// The default mumble link name. can only be changed by passing the `-mumble` options to gw2 for multiboxing
 pub const DEFAULT_MUMBLELINK_NAME: &str = "MumbleLink";
@@ -30,19 +29,7 @@ pub const DEFAULT_MUMBLELINK_NAME: &str = "MumbleLink";
 /// has lots of derives, so we don't have to update this again when requiring something like Hash
 #[repr(C)]
 #[derive(
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    Clone,
-    Copy,
-    bytemuck::Zeroable,
-    bytemuck::Pod,
+    Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone, Copy,
 )]
 pub struct WindowDimensions {
     pub x: i32,

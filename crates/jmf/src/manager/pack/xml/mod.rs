@@ -666,11 +666,10 @@ mod test {
     use crate::manager::pack::category::CategoryMenu;
     use crate::manager::pack::MARKER_PNG;
     use camino::Utf8Path;
-    use test_log::test;
 
     use rstest::*;
 
-    use similar_asserts::{assert_eq, assert_str_eq};
+    use similar_asserts::assert_eq;
     use std::io::Write;
 
     use zip::write::FileOptions;
@@ -726,7 +725,7 @@ mod test {
                 .expect("failed to get category.xml"),
         )
         .expect("failed to get str from category.xml contents");
-        assert_str_eq!(test_xml, TEST_XML);
+        assert_eq!(test_xml, TEST_XML);
         let test_marker_png = file_entries
             .get(Utf8Path::new("marker.png"))
             .expect("failed to get marker.png");

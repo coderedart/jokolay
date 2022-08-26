@@ -48,23 +48,3 @@ impl EndPointIds for Items {
         E_P_URL
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use reqwest::Client;
-
-    use crate::end_point::{EndPoint, EndPointIds};
-
-    use super::Items;
-
-    #[tokio::test]
-    #[ignore]
-    async fn check_item() {
-        let client = Client::new();
-        let result = Items::get(client.clone()).await.unwrap();
-        assert_eq!(
-            result[0],
-            Items::get_with_id(client, &[result[0]]).await.unwrap()[0].id
-        );
-    }
-}

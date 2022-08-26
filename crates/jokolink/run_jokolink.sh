@@ -18,4 +18,4 @@ export config_path=./jokolink_config.json
 # if jokolink crashes before initailizing logging, we have no way of getting errors, so 
 # we output the crash stderr to this file, for easier debugging. 
 # this command will use $WINE from lutris and use the above options to run jokolink in bg
-$WINE './jokolink.exe' --config $config_path &>  jokolink_cmd_output.txt
+$WINE './jokolink.exe' $config_path &>  jokolink_cmd_output.txt

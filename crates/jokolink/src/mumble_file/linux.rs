@@ -222,12 +222,16 @@ pub fn get_frame_extents(xc: &RustConnection, xid: u32) -> Result<(u32, u32, u32
     if frame_prop.value.len() != 16 {
         bail!("frame_prop.value.len() is {}", frame_prop.value.len());
     }
-    let mut buffer = [0u32; 4];
-    buffer.copy_from_slice(bytemuck::cast_slice(&frame_prop.value));
-    let left_border = buffer[0];
-    let right_border = buffer[1];
-    let top_border = buffer[2];
-    let bottom_border = buffer[3];
+    // avoid bytemuck dependency and just do this raw.
+    let mut arr = [0u8; 4];
+    arr.copy_from_slice(&frame_prop.value[0..4]);
+    let left_border = u32::from_ne_bytes(arr);
+    arr.copy_from_slice(&frame_prop.value[4..8]);
+    let right_border = u32::from_ne_bytes(arr);
+    arr.copy_from_slice(&frame_prop.value[8..12]);
+    let top_border = u32::from_ne_bytes(arr);
+    arr.copy_from_slice(&frame_prop.value[12..16]);
+    let bottom_border = u32::from_ne_bytes(arr);
     Ok((left_border, right_border, top_border, bottom_border))
 }
 pub fn get_pid_from_xid(xc: &RustConnection, xid: u32) -> Result<u32> {

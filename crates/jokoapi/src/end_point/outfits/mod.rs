@@ -27,24 +27,3 @@ impl EndPointIds for Outfits {
         E_P_URL
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use reqwest::Client;
-
-    use crate::end_point::{EndPoint, EndPointIds};
-
-    use super::Outfits;
-
-    #[tokio::test]
-    #[ignore]
-    async fn check_outfit() -> color_eyre::Result<()> {
-        let client = Client::new();
-        let result = Outfits::get(client.clone()).await?;
-        assert_eq!(
-            result[0],
-            Outfits::get_with_id(client, &[result[0]]).await?[0].id
-        );
-        Ok(())
-    }
-}

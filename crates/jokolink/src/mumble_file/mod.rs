@@ -42,10 +42,11 @@ impl MumbleFile {
 }
 
 pub trait MumbleFileTrait {
-    fn new(link_name: &str, latest_time: f64) -> Result<MumbleFile>;
     fn get_link(&mut self, latest_time: f64) -> Result<Option<UpdatedMumbleData>>;
+    fn new(link_name: &str, latest_time: f64) -> Result<MumbleFile>;
 }
 
+#[derive(Debug, Clone)]
 pub struct UpdatedMumbleData {
     /// on linux, x11 window id is the unique id per gw2 instance
     /// on winows, gw2 process id is the unique id per gw2 instance

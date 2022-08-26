@@ -41,24 +41,3 @@ impl EndPointIds for Colors {
         E_P_URL
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use reqwest::Client;
-
-    use crate::end_point::{EndPoint, EndPointIds};
-
-    use super::Colors;
-
-    #[tokio::test]
-    #[ignore]
-    async fn check_color() -> color_eyre::Result<()> {
-        let client = Client::new();
-        let result = Colors::get(client.clone()).await?;
-        assert_eq!(
-            result[0],
-            Colors::get_with_id(client, &[result[0]]).await?[0].id
-        );
-        Ok(())
-    }
-}
