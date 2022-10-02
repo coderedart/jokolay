@@ -10,12 +10,13 @@ fn main() {
 
     std::panic::set_hook(Box::new(move |panic_info| {
         let panic_report = panic_hook.panic_report(panic_info);
-        rfd::MessageDialog::new()
-            .set_title("App Crash")
-            .set_description(&format!("{}", &panic_report))
-            .set_level(rfd::MessageLevel::Error)
-            .set_buttons(rfd::MessageButtons::Ok)
-            .show();
+        tracing::error!("crashing: {}", &panic_report);
+        // rfd::MessageDialog::new()
+        //     .set_title("App Crash")
+        //     .set_description(&format!("{}", &panic_report))
+        //     .set_level(rfd::MessageLevel::Error)
+        //     .set_buttons(rfd::MessageButtons::Ok)
+        //     .show();
     }));
     jokolay::start_jokolay();
 }

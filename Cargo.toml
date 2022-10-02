@@ -72,7 +72,7 @@ ureq = { version = "*", features = ["json"] }
 # for gui
 egui = { version = "0.19" }
 # tbin and some markers use types like Vec3. easier to just deserialize directly into this type
-glam = { version = "0", features = ["rkyv", "fast-math", "bytecheck"] }
+glam = { version = "0", features = ["rkyv", "fast-math", "bytecheck", "bytemuck"] }
 
 # for downloading packs?
 url = { version = "2", default-features = false, features = ["serde"] }
@@ -127,5 +127,7 @@ opt-level = 3
 opt-level = 1
 
 [profile.release]
-# lto = true
-# codegen-units = 1
+lto = true
+codegen-units = 1
+
+panic = "abort"

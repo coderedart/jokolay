@@ -37,7 +37,6 @@ impl MumbleWinImpl {
         let (handle, link_ptr) =
             create_link_shared_mem(key).expect("failed to create mumblelink shm ");
 
-
         Ok(Self {
             link_ptr,
             mumble_handle: handle,

@@ -4,19 +4,22 @@ use std::net::Ipv4Addr;
 
 use bitflags::bitflags;
 use color_eyre::eyre::bail;
+use glam::Vec3;
 use num_derive::FromPrimitive;
 use num_derive::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use tracing::*;
 
+use crate::jmf::INCHES_PER_METER;
+
 /// As the CMumbleLink has all the fields multiple
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default)]
 pub struct MumbleLink {
     pub ui_tick: u32,
-    pub f_avatar_position: [f32; 3],
-    pub f_avatar_front: [f32; 3],
-    pub f_camera_position: [f32; 3],
-    pub f_camera_front: [f32; 3],
+    pub f_avatar_position: Vec3,
+    pub f_avatar_front: Vec3,
+    pub f_camera_position: Vec3,
+    pub f_camera_front: Vec3,
     pub identity: CIdentity,
     pub context: CMumbleContext,
 }
@@ -33,14 +36,16 @@ impl MumbleLink {
         if self.ui_tick != cmlink.ui_tick {
             self.ui_tick = cmlink.ui_tick;
 
-            self.f_avatar_position = cmlink.f_avatar_position;
-
-            self.f_avatar_front = cmlink.f_avatar_front;
-
-            self.f_camera_position = cmlink.f_camera_position;
-
-            self.f_camera_front = cmlink.f_camera_front;
+            self.f_avatar_position = cmlink.f_avatar_position.into();
+            self.f_avatar_position *= INCHES_PER_METER;
+            self.f_avatar_front = cmlink.f_avatar_front.into();
+            self.f_avatar_front *= INCHES_PER_METER;
+            self.f_camera_position = cmlink.f_camera_position.into();
+            self.f_camera_position *= INCHES_PER_METER;
+            self.f_camera_front = cmlink.f_camera_front.into();
+            self.f_camera_front *= INCHES_PER_METER;
             self.identity.update(link_ptr)?;
+
             self.context.update(link_ptr);
         }
 
@@ -77,7 +82,7 @@ pub struct CMumbleContext {
     /// The ID of the process that last updated the MumbleLink data. If working with multiple instances, this could be used to serve the correct MumbleLink data.
     /// but jokolink doesn't care, it just updates from whatever data. so, it is upto the user to deal with the change of pid
     /// on windows, we use this to get window handle which can give us a window size.
-    /// on linux, this value is not actually the process id, but the x11 window id of gw2. we use this to get window size of gw2. 
+    /// on linux, this value is not actually the process id, but the x11 window id of gw2. we use this to get window size of gw2.
     pub process_id: u32,
     /// Identifies whether the character is currently mounted, if so, identifies the specific mount. does not match api
     pub mount_index: u8,

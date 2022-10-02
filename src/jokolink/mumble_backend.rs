@@ -13,8 +13,6 @@ pub use win::MumbleWinError as MumbleBackendError;
 #[cfg(target_os = "windows")]
 use win::MumbleWinImpl as MumblePlatformImpl;
 
-
-
 /// This is an abstraction over MumbleLink implementations for windows and linux.
 /// Purpose:
 /// 1. create Mumble Backend

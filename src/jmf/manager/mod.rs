@@ -5,17 +5,20 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::jmf::pack::ZPack;
+use crate::{
+    jmf::pack::ZPack,
+    joko_render::{JokoRenderer, MarkerQuad},
+};
 use bitvec::vec::BitVec;
 use color_eyre::{eyre::ContextCompat, Result};
-use egui::Window;
+use egui::{DragValue, Window};
 use indextree::{Arena, NodeId};
 use mmarinus::{perms::Read, Private};
 
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use super::pack::{ArchivedZPack, xml::get_zpack_from_taco};
+use super::pack::{xml::get_zpack_from_taco, ArchivedZPack};
 
 pub const PACK_LIST_URL: &str = "https://packlist.jokolay.com/packlist.json";
 pub struct MarkerManager {
@@ -25,6 +28,7 @@ pub struct MarkerManager {
     pub packs: BTreeMap<String, LivePack>,
     pub packs_being_downloaded: BTreeMap<String, Arc<Mutex<PackDownloadStatus>>>,
     pub ui_data: MarkerManagerUIData,
+    pub number_of_markers_to_draw: usize,
 }
 pub enum PackDownloadStatus {
     Downloading,
@@ -146,13 +150,44 @@ impl MarkerManager {
             ui_data: Default::default(),
             packs_being_downloaded: BTreeMap::new(),
             markers_path: markers_path.to_owned(),
+            number_of_markers_to_draw: 100,
         })
     }
 
     pub fn load() {}
-
+    pub fn render(&self, map_id: u16, renderer: &mut JokoRenderer) {
+        for pack in self.packs.values() {
+            if let Some(map_markers) = pack.pack.maps.get(&map_id) {
+                for marker in map_markers
+                    .markers
+                    .iter()
+                    .take(self.number_of_markers_to_draw)
+                {
+                    if renderer.textures.contains_key(marker.texture as u64) {
+                        renderer.draw_marker(MarkerQuad {
+                            position: marker.position,
+                            texture: marker.texture.into(),
+                            width: pack.pack.textures[marker.texture as usize].width,
+                            height: pack.pack.textures[marker.texture as usize].height,
+                        });
+                    } else {
+                        let png = pack.pack.textures.get(marker.texture as usize).unwrap();
+                        let img = image::load_from_memory(&png.bytes).unwrap();
+                        let pixels = img.into_rgba8().into_vec();
+                        renderer.upload_texture(
+                            marker.texture as u32,
+                            png.width as u32,
+                            png.height as u32,
+                            pixels,
+                        )
+                    }
+                }
+            }
+        }
+    }
     pub fn tick(&mut self, etx: &egui::Context, timestamp: f64) {
         Window::new("Marker Manager").show(etx, |ui| {
+            ui.add(DragValue::new(&mut self.number_of_markers_to_draw));
             egui::CollapsingHeader::new("Pack List ")
                 .default_open(false)
                 .show(ui, |ui| {
@@ -229,7 +264,6 @@ impl MarkerManager {
                                                         PackDownloadStatus::Failed(
                                                             e.to_string(),
                                                         );
-                                                        
                                                     },
                                                 }
                                             });
@@ -297,6 +331,10 @@ impl MarkerManager {
                                                     }
                                                 }
                                                 if map == self.ui_data.selected_map {
+                                                    c2.horizontal(|ui| {
+                                                        ui.label("total markers: ");
+                                                        ui.label(&format!("{}", mapdata.markers.len()));
+                                                    });
                                                     let height = c2.text_style_height(&egui::TextStyle::Body);
                                                     egui::ScrollArea::new([false, true])
                                                     .id_source("map scroll area")

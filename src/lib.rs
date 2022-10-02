@@ -1,12 +1,13 @@
-pub mod joko_render;
-pub mod jokolink;
 pub mod jmf;
+pub mod joko_render;
 pub mod jokoapi;
+pub mod jokolink;
 use egui_overlay::{
     egui::{self, Grid, Ui},
     egui_backend::{raw_window_handle::HasRawWindowHandle, GfxBackend, UserApp, WindowBackend},
     egui_window_glfw_passthrough::GlfwWindow,
 };
+use glam::{vec3, Mat4};
 use jmf::manager::MarkerManager;
 use joko_render::JokoRenderer;
 use jokolink::MumbleManager;
@@ -23,9 +24,7 @@ impl Jokolay {
             egui_overlay::egui_backend::raw_window_handle::RawWindowHandle::Xlib(id) => {
                 id.window.try_into().unwrap()
             }
-            egui_overlay::egui_backend::raw_window_handle::RawWindowHandle::Xcb(id) => {
-                id.window
-            }
+            egui_overlay::egui_backend::raw_window_handle::RawWindowHandle::Xcb(id) => id.window,
             _ => 0,
         };
         let mut mumble =
@@ -54,7 +53,7 @@ impl UserApp<GlfwWindow, JokoRenderer> for Jokolay {
         &mut self,
         egui_context: &egui::Context,
         window_backend: &mut GlfwWindow,
-        _gfx_backend: &mut JokoRenderer,
+        renderer: &mut JokoRenderer,
     ) {
         let latest_time = window_backend.glfw.get_time();
         let _ = self.mumble.tick();
@@ -67,6 +66,16 @@ impl UserApp<GlfwWindow, JokoRenderer> for Jokolay {
                 }
             });
         self.marker_manager.tick(egui_context, latest_time);
+        if let Some(link) = self.mumble.get_mumble_link() {
+            self.marker_manager
+                .render(link.context.map_id as u16, renderer);
+            let ratio = window_backend.size_physical_pixels[0] as f32
+                / window_backend.size_physical_pixels[1] as f32;
+            let center = link.f_camera_position + link.f_camera_front;
+            let v = Mat4::look_at_lh(link.f_camera_position, center, vec3(0.0, 1.0, 0.0));
+            let p = Mat4::perspective_lh(link.identity.fov, ratio, 1.0, 10000.0);
+            renderer.set_mvp(p * v);
+        }
         // if it doesn't require either keyboard or pointer, set passthrough to true
         window_backend.window.set_mouse_passthrough(
             !(egui_context.wants_keyboard_input() || egui_context.wants_pointer_input()),

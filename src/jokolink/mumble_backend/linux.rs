@@ -34,7 +34,6 @@ impl MumbleLinuxImpl {
         let mut link_buffer = LinkBuffer::new([0u8; LINK_BUFFER_SIZE]);
         get_link_buffer(&mut mfile, link_buffer.as_mut())?;
 
-
         let xc = X11Connection::new(jokolay_window_id)?;
         Ok(MumbleLinuxImpl {
             mfile,

@@ -97,6 +97,8 @@ use std::io::Read;
 use std::sync::Arc;
 // use tracing::error;
 
+use crate::jmf::INCHES_PER_METER;
+
 use self::template::MarkerTemplate;
 
 use super::{ZCat, ZMarker, ZPack, ZTex, ZTrail};
@@ -141,7 +143,7 @@ fn read_files_from_zip(
         // if it has invalid pathbuf, return
         let file_path = file
             .enclosed_name()
-            .ok_or_else(||ZipParseError::InvalidName(file.mangled_name()))?
+            .ok_or_else(|| ZipParseError::InvalidName(file.mangled_name()))?
             .to_path_buf();
         let file_path =
             Utf8PathBuf::from_path_buf(file_path).map_err(ZipParseError::NonUtf8Path)?;
@@ -287,7 +289,7 @@ fn zpack_from_xml_entries(
                                 float_bytes[11],
                             ]),
                         ];
-                        
+
                         Vec3::from_array(arr)
                     })
                     .collect();
@@ -511,18 +513,21 @@ fn zpack_from_xml_entries(
                                 let xpos = child
                                     .attribute("xpos")
                                     .unwrap_or_default()
-                                    .parse()
-                                    .unwrap_or_default();
+                                    .parse::<f32>()
+                                    .unwrap_or_default()
+                                    * INCHES_PER_METER;
                                 let ypos = child
                                     .attribute("ypos")
                                     .unwrap_or_default()
-                                    .parse()
-                                    .unwrap_or_default();
+                                    .parse::<f32>()
+                                    .unwrap_or_default()
+                                    * INCHES_PER_METER;
                                 let zpos = child
                                     .attribute("zpos")
                                     .unwrap_or_default()
-                                    .parse()
-                                    .unwrap_or_default();
+                                    .parse::<f32>()
+                                    .unwrap_or_default()
+                                    * INCHES_PER_METER;
                                 template.update_from_element(&child);
                                 let tex_index = match template.icon_file.as_ref() {
                                     Some(texture_path) => match texture_indices.get(texture_path) {
