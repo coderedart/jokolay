@@ -31,15 +31,19 @@ impl Jokolay {
             MumbleManager::new("MumbleLink", window_id).expect("failed to create mumble manager");
         let marker_manager = MarkerManager::new(std::path::Path::new("./assets/packs"))
             .expect("failed to create marker manager");
-        if let Ok(wd) = mumble.get_latest_window_dimensions() {
-            let (x, y) = window_backend.window.get_pos();
-            let (width, height) = window_backend.window.get_size();
-            if x != wd.x || y != wd.y || width as u32 != wd.width || height as u32 != wd.height {
-                window_backend.window.set_pos(wd.x, wd.y);
-                window_backend
-                    .window
-                    .set_size(wd.width as i32, wd.height as i32);
+        match mumble.get_latest_window_dimensions() {
+            Ok(wd) => {
+                let (x, y) = window_backend.window.get_pos();
+                let (width, height) = window_backend.window.get_size();
+                if x != wd.x || y != wd.y || width as u32 != wd.width || height as u32 != wd.height
+                {
+                    window_backend.window.set_pos(wd.x, wd.y);
+                    window_backend
+                        .window
+                        .set_size(wd.width as i32, wd.height as i32);
+                }
             }
+            Err(e) => tracing::error!("failed ot get window dimensions: {e}"),
         }
         Self {
             mumble,
@@ -75,6 +79,9 @@ impl UserApp<GlfwWindow, JokoRenderer> for Jokolay {
             let v = Mat4::look_at_lh(link.f_camera_position, center, vec3(0.0, 1.0, 0.0));
             let p = Mat4::perspective_lh(link.identity.fov, ratio, 1.0, 10000.0);
             renderer.set_mvp(p * v);
+            renderer.camera_position = link.f_camera_position;
+            renderer.mvp = p * v;
+            renderer.player_position = link.f_avatar_position;
         }
         // if it doesn't require either keyboard or pointer, set passthrough to true
         window_backend.window.set_mouse_passthrough(
@@ -115,9 +122,12 @@ fn mumble_ui(ui: &mut Ui, link: &jokolink::MumbleLink) {
         ui.label("character: ");
         ui.label(&link.identity.name);
         ui.end_row();
-        ui.label("ui state");
-        ui.label(format!("{:?}", unsafe {
-            jokolink::UIState::from_bits_unchecked(link.context.ui_state)
-        }));
+        ui.label("camera position");
+        ui.label(format!("{:?}", link.f_camera_position));
+        ui.end_row();
+
+        ui.label("camera front");
+        ui.label(format!("{:?}", link.f_camera_front));
+        ui.end_row();
     });
 }

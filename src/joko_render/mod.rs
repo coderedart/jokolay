@@ -1,20 +1,21 @@
 use bytemuck::cast_slice;
 use egui_backend::{GfxBackend, WindowBackend};
 
+use egui_render_wgpu::wgpu::util::{BufferInitDescriptor, DeviceExt};
 use egui_render_wgpu::wgpu::{
-    self, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    self, AddressMode, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent, BlendFactor,
     BlendOperation, BlendState, Buffer, BufferBindingType, BufferDescriptor, BufferUsages,
-    ColorTargetState, ColorWrites, CommandEncoderDescriptor, Extent3d, FragmentState,
+    ColorTargetState, ColorWrites, CommandEncoderDescriptor, Extent3d, FilterMode, FragmentState,
     FrontFace, ImageCopyTexture, ImageDataLayout, LoadOp, MultisampleState, Operations, Origin3d,
     PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
     RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
-    SamplerBindingType, ShaderStages, TextureAspect,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType, TextureUsages,
-    TextureViewDescriptor, TextureViewDimension, VertexBufferLayout, VertexState, VertexStepMode,
+    Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, TextureAspect, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
+    TextureViewDimension, VertexBufferLayout, VertexState, VertexStepMode,
 };
 use egui_render_wgpu::{wgpu::BindGroup, WgpuBackend, WgpuSettings};
-use glam::{vec2, vec4, Mat4, Vec2, Vec3, Vec4};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
 use intmap::IntMap;
 use std::num::{NonZeroU32, NonZeroU64};
 
@@ -23,11 +24,17 @@ pub struct JokoRenderer {
     pub textures: intmap::IntMap<BindGroup>,
     pub markers: Vec<MarkerQuad>,
     pub pipeline: RenderPipeline,
+    pub linear_sampler: Sampler,
     pub mvp_bg: BindGroup,
     pub mvp_ub: Buffer,
+    pub camera_position: Vec3,
+    pub player_position: Vec3,
+    pub mvp: Mat4,
     pub vb: Buffer,
     pub vb_len: u64,
     pub blit_pipeline: RenderPipeline,
+    pub player_visibility_pipeline: RenderPipeline,
+    pub viewport_buffer: Buffer,
 }
 
 impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
@@ -133,7 +140,66 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
+        let player_visibility_pipeline_layout =
+            device.create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some("player visibility layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+        let player_visibility_shader_module = wgpu::include_wgsl!("./player_visibility.wgsl");
+        match &player_visibility_shader_module.source {
+            wgpu::ShaderSource::Wgsl(src) => {
+                dbg!(src)
+            }
+            _ => todo!(),
+        };
+        let player_module = device.create_shader_module(player_visibility_shader_module);
 
+        let player_visibility_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: Some("player visibility pipeline"),
+            layout: Some(&player_visibility_pipeline_layout),
+            vertex: VertexState {
+                module: &player_module,
+                entry_point: "vs_main",
+                buffers: &[VertexBufferLayout {
+                    array_stride: 8,
+                    step_mode: VertexStepMode::Vertex,
+                    attributes: &[egui_render_wgpu::wgpu::VertexAttribute {
+                        format: wgpu::VertexFormat::Float32x2,
+                        offset: 0,
+                        shader_location: 0,
+                    }],
+                }],
+            },
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            fragment: Some(FragmentState {
+                module: &player_module,
+                entry_point: "fs_main",
+                targets: &[Some(ColorTargetState {
+                    format: wgpu_backend.surface_config.format,
+                    // blend: Some(PIPELINE_BLEND_STATE),
+                    blend: Some(BlendState {
+                        color: BlendComponent {
+                            src_factor: BlendFactor::Zero,
+                            dst_factor: BlendFactor::SrcAlpha,
+                            operation: BlendOperation::Add,
+                        },
+                        alpha: BlendComponent {
+                            src_factor: BlendFactor::One,
+                            dst_factor: BlendFactor::One,
+                            operation: BlendOperation::Min,
+                        },
+                    }),
+                    write_mask: ColorWrites::default(),
+                })],
+            }),
+            multiview: None,
+        });
         // queue.write_buffer(
         //     &vb,
         //     0,
@@ -155,6 +221,19 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
         //         },
         //     ]),
         // );
+        let linear_sampler = device.create_sampler(&LINEAR_SAMPLER_DESCRIPTOR);
+        let viewport_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("viewport quad buffer"),
+            contents: bytemuck::cast_slice(&[
+                vec2(-1.0, -1.0),
+                vec2(-1.0, 1.0),
+                vec2(1.0, 1.0),
+                vec2(1.0, 1.0),
+                vec2(1.0, -1.0),
+                vec2(-1.0, -1.0),
+            ]),
+            usage: BufferUsages::VERTEX,
+        });
         Self {
             wgpu_backend,
             textures: IntMap::new(),
@@ -165,6 +244,12 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
             mvp_bg,
             vb_len: 0,
             blit_pipeline,
+            camera_position: Vec3::default(),
+            linear_sampler,
+            player_visibility_pipeline,
+            player_position: Vec3::default(),
+            mvp: Mat4::default(),
+            viewport_buffer,
         }
     }
 
@@ -185,7 +270,11 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
         });
         let mut vb = vec![];
         vb.reserve(self.markers.len() * 6 * std::mem::size_of::<MarkerVertex>());
-        for verts in self.markers.iter().map(|mq| mq.get_vertices()) {
+        for verts in self
+            .markers
+            .iter()
+            .map(|mq| mq.get_vertices(self.camera_position))
+        {
             vb.extend_from_slice(&verts);
         }
         let required_size_in_bytes = (vb.len() * std::mem::size_of::<MarkerVertex>()) as u64;
@@ -226,6 +315,27 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
                     rpass.draw((index * 6)..((index + 1) * 6), 0..1);
                 }
             }
+
+            rpass.set_pipeline(&self.player_visibility_pipeline);
+            let point_on_screen = self.mvp.project_point3(self.player_position);
+            let width = self.wgpu_backend.surface_config.width as f32;
+            let height = self.wgpu_backend.surface_config.height as f32;
+            let x = point_on_screen.x * width / 2.0;
+            let y = point_on_screen.y * height / 2.0;
+            let x = width / 2.0 + x;
+            let y = height / 2.0 - y;
+
+            rpass.set_viewport(
+                f32::max(x - width * 0.1 / 2.0, 0.0),
+                f32::max(y - height * 0.2 / 2.0, 0.0),
+                width * 0.1,
+                height * 0.2,
+                0.0,
+                1.0,
+            );
+            // rpass.set_viewport(0.0, 0.0, 300.0, 300.0, 0.0, 1.0);
+            rpass.set_vertex_buffer(0, self.viewport_buffer.slice(..));
+            rpass.draw(0..6, 0..1);
         }
         self.wgpu_backend.command_encoders.push(command_encoder);
 
@@ -309,7 +419,7 @@ impl JokoRenderer {
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: BindingResource::Sampler(&self.wgpu_backend.painter.linear_sampler),
+                    resource: BindingResource::Sampler(&self.linear_sampler),
                 },
                 BindGroupEntry {
                     binding: 1,
@@ -392,35 +502,40 @@ pub struct MarkerQuad {
     pub height: u16,
 }
 impl MarkerQuad {
-    fn get_vertices(self) -> [MarkerVertex; 6] {
+    fn get_vertices(self, camera_position: Vec3) -> [MarkerVertex; 6] {
         let MarkerQuad {
             position,
             texture: _,
             width,
             height,
         } = self;
-        let x = width as f32 / 2.0;
-        let y = height as f32 / 2.0;
-        let _z = 0.0;
-        let w = 1.0;
+        let mut billboard_direction = position - camera_position;
+        billboard_direction.y = 0.0;
+        let rotation = Quat::from_rotation_arc(Vec3::Z, billboard_direction.normalize());
+        // let rotation = Quat::IDENTITY;
+        let model_matrix = Mat4::from_scale_rotation_translation(
+            vec3(width as f32 / 100.0, height as f32 / 100.0, 1.0),
+            rotation,
+            position,
+        );
         let bottom_left = MarkerVertex {
-            position: vec4(position.x - x, position.y - y, position.z, w),
+            position: model_matrix * DEFAULT_QUAD[0],
             texture_coordinates: vec2(0.0, 1.0),
             padding: Vec2::default(),
         };
 
         let top_left = MarkerVertex {
-            position: vec4(position.x - x, position.y + y, position.z, w),
+            position: model_matrix * DEFAULT_QUAD[1],
             texture_coordinates: vec2(0.0, 0.0),
             padding: Vec2::default(),
         };
         let top_right = MarkerVertex {
-            position: vec4(position.x + x, position.y + y, position.z, w),
+            position: model_matrix * DEFAULT_QUAD[2],
             texture_coordinates: vec2(1.0, 0.0),
             padding: Vec2::default(),
         };
         let bottom_right = MarkerVertex {
-            position: vec4(position.x + x, position.y - y, position.z, w),
+            position: model_matrix * DEFAULT_QUAD[3],
             texture_coordinates: vec2(1.0, 1.0),
             padding: Vec2::default(),
         };
@@ -441,6 +556,17 @@ pub struct MarkerVertex {
     pub texture_coordinates: Vec2,
     pub padding: Vec2,
 }
+
+pub const DEFAULT_QUAD: [Vec4; 4] = [
+    // bottom left
+    vec4(-50.0, -50.0, 0.0, 1.0),
+    // top left
+    vec4(-50.0, 50.0, 0.0, 1.0),
+    // top right
+    vec4(50.0, 50.0, 0.0, 1.0),
+    // bottom right
+    vec4(50.0, -50.0, 0.0, 1.0),
+];
 
 pub const TRANSFORM_MATRIX_UNIFORM_BINDGROUP_ENTRY: [BindGroupLayoutEntry; 1] =
     [BindGroupLayoutEntry {
@@ -493,4 +619,18 @@ pub const PIPELINE_PRIMITIVE_STATE: PrimitiveState = PrimitiveState {
     unclipped_depth: false,
     polygon_mode: PolygonMode::Fill,
     conservative: false,
+};
+pub const LINEAR_SAMPLER_DESCRIPTOR: SamplerDescriptor = SamplerDescriptor {
+    label: Some("linear sampler"),
+    mag_filter: FilterMode::Linear,
+    min_filter: FilterMode::Linear,
+    mipmap_filter: FilterMode::Linear,
+    address_mode_u: AddressMode::Repeat,
+    address_mode_v: AddressMode::Repeat,
+    address_mode_w: AddressMode::Repeat,
+    lod_min_clamp: 0.0,
+    lod_max_clamp: f32::MAX,
+    compare: None,
+    anisotropy_clamp: None,
+    border_color: None,
 };
