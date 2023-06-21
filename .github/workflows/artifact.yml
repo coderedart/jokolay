@@ -1,0 +1,33 @@
+on: push
+
+name: Linux Checkmate
+env:
+  CARGO_INCREMENTAL: 0
+jobs:
+  cargo-checkmate:
+    name: cargo-checkmate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Install dependencies # for bevy and mlua
+        run: sudo apt update && sudo apt install --no-install-recommends libglfw3-dev
+
+      - name: Build Release
+        run: cargo build --release
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: jokolay
+          path: "./target/release/jokolay"
