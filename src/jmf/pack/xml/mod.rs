@@ -382,7 +382,7 @@ fn zpack_from_xml_entries(
                     if name.is_empty() {
                         failures.warnings.push(FailureWarning::CategoryWarnings(
                             entry_path.clone(),
-                            doc.text_pos_at(tag.range().start),
+                            doc.text_pos_at(tag.position()),
                             tag_index,
                             CategoryWarning::CategoryNameMissing,
                         ));
@@ -391,7 +391,7 @@ fn zpack_from_xml_entries(
                     let full_name = if parent_name.is_empty() {
                         name.to_string()
                     } else {
-                        format!("{}.{}", parent_name, name)
+                        format!("{parent_name}.{name}")
                     };
                     let mut template = MarkerTemplate::default();
                     template.update_from_element(&tag);
@@ -487,7 +487,7 @@ fn zpack_from_xml_entries(
                                 None => {
                                     failures.warnings.push(FailureWarning::POITrailWarnings(
                                         entry_path.clone(),
-                                        doc.text_pos_at(child.range().start),
+                                        doc.text_pos_at(child.position()),
                                         poi_index,
                                         POITrailWarning::CategoryNotFound,
                                     ));
@@ -497,7 +497,7 @@ fn zpack_from_xml_entries(
                         } else {
                             failures.warnings.push(FailureWarning::POITrailWarnings(
                                 entry_path.clone(),
-                                doc.text_pos_at(child.range().start),
+                                doc.text_pos_at(child.position()),
                                 poi_index,
                                 POITrailWarning::MissingCategoryAttribute,
                             ));
@@ -536,7 +536,7 @@ fn zpack_from_xml_entries(
                                             failures.warnings.push(
                                                 FailureWarning::POITrailWarnings(
                                                     entry_path.clone(),
-                                                    doc.text_pos_at(child.range().start),
+                                                    doc.text_pos_at(child.position()),
                                                     poi_index,
                                                     POITrailWarning::TextureNotFound,
                                                 ),
@@ -547,7 +547,7 @@ fn zpack_from_xml_entries(
                                     None => {
                                         failures.warnings.push(FailureWarning::POITrailWarnings(
                                             entry_path.clone(),
-                                            doc.text_pos_at(child.range().start),
+                                            doc.text_pos_at(child.position()),
                                             poi_index,
                                             POITrailWarning::MissingTextureAttribute,
                                         ));
@@ -564,7 +564,7 @@ fn zpack_from_xml_entries(
                             } else {
                                 failures.warnings.push(FailureWarning::MarkerWarnings(
                                     entry_path.clone(),
-                                    doc.text_pos_at(child.range().start),
+                                    doc.text_pos_at(child.position()),
                                     poi_index,
                                     MarkerWarning::MissingMapID,
                                 ));
@@ -585,7 +585,7 @@ fn zpack_from_xml_entries(
                                             failures.warnings.push(
                                                 FailureWarning::POITrailWarnings(
                                                     entry_path.clone(),
-                                                    doc.text_pos_at(child.range().start),
+                                                    doc.text_pos_at(child.position()),
                                                     poi_index,
                                                     POITrailWarning::TextureNotFound,
                                                 ),
@@ -596,7 +596,7 @@ fn zpack_from_xml_entries(
                                     None => {
                                         failures.warnings.push(FailureWarning::POITrailWarnings(
                                             entry_path.clone(),
-                                            doc.text_pos_at(child.range().start),
+                                            doc.text_pos_at(child.position()),
                                             poi_index,
                                             POITrailWarning::MissingTextureAttribute,
                                         ));
@@ -613,7 +613,7 @@ fn zpack_from_xml_entries(
                             } else {
                                 failures.warnings.push(FailureWarning::TrailWarnings(
                                     entry_path.clone(),
-                                    doc.text_pos_at(child.range().start),
+                                    doc.text_pos_at(child.position()),
                                     poi_index,
                                     TrailWarning::MissingMapID,
                                 ));
@@ -645,7 +645,10 @@ mod test {
     use zip::write::FileOptions;
     use zip::ZipWriter;
 
-    use crate::jmf::pack::{xml::zpack_from_xml_entries, ZPack, MARKER_PNG};
+    use crate::jmf::{
+        pack::{xml::zpack_from_xml_entries, ZPack, MARKER_PNG},
+        INCHES_PER_METER,
+    };
 
     const TEST_XML: &str = include_str!("test.xml");
 
@@ -758,7 +761,7 @@ mod test {
             .expect("failed to get queensdale mapdata");
         let marker = &qd.markers[0];
         assert_eq!(marker.texture, 0);
-        assert_eq!(marker.position, [1.0f32; 3].into());
+        assert_eq!(marker.position, [INCHES_PER_METER; 3].into());
     }
     #[rstest]
     fn test_trails(test_pack: &ZPack) {

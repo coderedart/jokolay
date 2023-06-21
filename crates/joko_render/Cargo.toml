@@ -1,0 +1,18 @@
+[package]
+name = "joko_render"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+egui_backend = { version = "0.4" }
+egui_render_wgpu = { version = "0.4" }
+intmap = { version = "*" }
+bytemuck = { version = "1", default-features = false }
+glam = { version = "0", features = [
+    "rkyv",
+    "fast-math",
+    "bytecheck",
+    "bytemuck",
+] }

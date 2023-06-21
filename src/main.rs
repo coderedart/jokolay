@@ -28,7 +28,7 @@ fn install_tracing() {
 
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
+        .or_else(|_| EnvFilter::try_new("warn"))
         .unwrap();
 
     tracing_subscriber::registry()

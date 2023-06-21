@@ -1,8 +1,9 @@
 use crate::jokolink::mlink::{MumbleLink, MumbleUpdateError, USEFUL_C_MUMBLE_LINK_SIZE};
 use crate::jokolink::WindowDimensions;
 
+use egui_backend::raw_window_handle::RawWindowHandle;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek};
 use tracing::error;
 use x11rb::protocol::xproto::{change_property, intern_atom, AtomEnum, GetGeometryReply, PropMode};
 use x11rb::rust_connection::ConnectError;
@@ -20,8 +21,11 @@ const LINK_BUFFER_SIZE: usize = USEFUL_C_MUMBLE_LINK_SIZE + std::mem::size_of::<
 type LinkBuffer = Box<[u8; LINK_BUFFER_SIZE]>;
 
 impl MumbleLinuxImpl {
-    pub fn new(link_name: &str, jokolay_window_id: u32) -> Result<Self, MumbleLinuxError> {
-        let mumble_file_name = format!("/dev/shm/{}", link_name);
+    pub fn new(
+        link_name: &str,
+        jokolay_window_id: RawWindowHandle,
+    ) -> Result<Self, MumbleLinuxError> {
+        let mumble_file_name = format!("/dev/shm/{link_name}");
         let mut mfile = File::options()
             .read(true)
             .write(true)
@@ -33,7 +37,13 @@ impl MumbleLinuxImpl {
             })?;
         let mut link_buffer = LinkBuffer::new([0u8; LINK_BUFFER_SIZE]);
         get_link_buffer(&mut mfile, link_buffer.as_mut())?;
-
+        let jokolay_window_id: u32 = match jokolay_window_id {
+            egui_backend::raw_window_handle::RawWindowHandle::Xlib(id) => {
+                id.window.try_into().unwrap()
+            }
+            egui_backend::raw_window_handle::RawWindowHandle::Xcb(id) => id.window,
+            _ => 0,
+        };
         let xc = X11Connection::new(jokolay_window_id)?;
         Ok(MumbleLinuxImpl {
             mfile,
@@ -68,9 +78,7 @@ fn get_link_buffer(
     mfile: &mut File,
     buffer: &mut [u8; LINK_BUFFER_SIZE],
 ) -> Result<(), MumbleLinuxError> {
-    mfile
-        .seek(SeekFrom::Start(0))
-        .map_err(MumbleLinuxError::FileSeekError)?;
+    mfile.rewind().map_err(MumbleLinuxError::FileSeekError)?;
     mfile
         .read(buffer.as_mut())
         .map_err(MumbleLinuxError::FileReadError)?;
@@ -129,8 +137,16 @@ impl X11Connection {
         })
     }
     pub fn set_transient_for(&self, parent_window: u32) -> Result<(), X11Error> {
+        if let Ok(xst) = std::env::var("XDG_SESSION_TYPE") {
+            if xst == "wayland" {
+                tracing::warn!("skipping transient_for because we are on wayland");
+                return Ok(());
+            }
+            if xst != "x11" {
+                tracing::warn!("xdg session type is neither wayland not x11: {xst}");
+            }
+        }
         assert_ne!(parent_window, 0);
-
         change_property(
             &self.xc,
             PropMode::REPLACE,

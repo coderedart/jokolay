@@ -31,10 +31,10 @@ fn main() {
         get_zpack_from_taco(&tw_zip, Version::new(0, 0, 0)).expect("failed ot get pack from taco");
     assert_eq!(zpack.cats.len(), cats_toggle_status.len());
     for fw in failures.warnings {
-        println!("{}", fw);
+        println!("{fw}");
     }
     for fe in failures.errors {
-        println!("{}", fe);
+        println!("{fe}");
     }
     dbg!(timer.elapsed());
     let zkyv = rkyv::to_bytes::<_, 100000>(&zpack).expect("failed to serialize data");

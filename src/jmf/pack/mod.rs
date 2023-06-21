@@ -1,6 +1,7 @@
 mod types;
 pub mod xml;
 
+use intmap::IntMap;
 pub use types::*;
 pub const MARKER_PNG: &[u8] = include_bytes!("marker.png");
 pub const TRAIL_PNG: &[u8] = include_bytes!("trail.png");
@@ -56,4 +57,10 @@ pub struct ZPack {
     pub text: Vec<String>,
     pub cats: Vec<ZCat>,
     pub maps: BTreeMap<u16, ZMapData>,
+}
+
+pub struct ActivationData {
+    pub cats_status: bitvec::vec::BitVec,
+    /// the key is marker id. and the value is the reset timestamp i.e. marker is reactivated.
+    pub markers_status: IntMap<u32>,
 }

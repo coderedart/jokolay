@@ -5,33 +5,32 @@ edition = "2021"
 default-run = "jokolay"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [[bin]]
+name = "jokolink"
+path = "src/jokolink/main.rs"
+
+[[bin]]
 name = "jokolay"
 path = "src/main.rs"
 
-[[bin]]
-name = "jokolink"
-path = "src/jokolink/main.rs"
-[[bin]]
-name = "jmf"
-path = "src/jmf/main.rs"
+
 
 [dependencies]
-egui_overlay = { version = "0.2.3" }
 tracing-error = { version = "*" }
 rfd = { version = "*" }
 # jokoapi deps
-
 const_format = "0.2.14"
 # itertools = "0.10.0"
 # url = { version = "2.2.2", default-features = false, features = ["serde"] }
 # joko_render deps
-egui_backend = { version = "0.2.0" }
-egui_render_wgpu = { version = "0.3.0" }
+joko_render = { path = "crates/joko_render" }
+egui_backend = { version = "0.4" }
+egui_window_glfw_passthrough = { version = "0.4" }
+egui_render_wgpu = { version = "0.4" }
 intmap = { version = "*" }
 
 # jmf deps
 # for marker packs 
-roxmltree = { version = "0.15" }
+roxmltree = { version = "0.17.0" }
 # for representing the paths of files inside xml pack zip
 camino = { version = "1" }
 # zero copy readonly marker packs
@@ -43,13 +42,15 @@ indexmap = { version = "1" }
 # memory map the zpack buffer
 mmarinus = { version = "0.4" }
 # to represent the enabled status of all marker categories of a zpack
-bitvec = { version = "1" }
+bitvec = { version = "1", features = ["serde"] }
 # for marker / trail flags. wait for 2.0 stable release tho
 # bitflags = { git = "https://github.com/bitflags/bitflags.git", default-features = false }
 # for trl files
 bytemuck = { version = "1", default-features = false }
 # for building and traversing category trees
 indextree = { version = "4" }
+
+# time = { version = "*", features = ["serde"] }
 # for easier extraction to folers and compression of folders into zip files (.taco format alias)
 zip = { version = "0", default-features = false, features = ["deflate"] }
 # for dealing with png files in marker packs. 
@@ -66,13 +67,17 @@ serde_json = { version = "1" }
 # for pack list or marker trail flags etc..
 serde = { version = "1", features = ["derive"] }
 # for downloading packlist in the background
-poll-promise = { version = "0.1" }
+poll-promise = { version = "0.2.0" }
 # for downloading packlist
 ureq = { version = "*", features = ["json"] }
-# for gui
-egui = { version = "0.19" }
+
 # tbin and some markers use types like Vec3. easier to just deserialize directly into this type
-glam = { version = "0", features = ["rkyv", "fast-math", "bytecheck", "bytemuck"] }
+glam = { version = "0", features = [
+    "rkyv",
+    "fast-math",
+    "bytecheck",
+    "bytemuck",
+] }
 
 # for downloading packs?
 url = { version = "2", default-features = false, features = ["serde"] }
@@ -89,14 +94,14 @@ tracing-subscriber = { version = "0.3", features = [
 
 # jokolink deps
 widestring = { version = "1", default-features = false, features = ["std"] }
-bitflags = { version = "1", default-features = false }
+bitflags = { version = "2", default-features = false }
 num-derive = { version = "0", default-features = false }
 num-traits = { version = "0", default-features = false }
 tracing-appender = { version = "0" }
 color-eyre = { version = "*" }
 # sysinfo = { version = "0.25.1", default-features = false, features = [] }
 [target.'cfg(unix)'.dependencies]
-x11rb = { version = "0.10.1", default-features = false, features = [] }
+x11rb = { version = "0.12", default-features = false, features = [] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.38.0", features = [
@@ -106,10 +111,12 @@ windows = { version = "0.38.0", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
 ] }
+# [target.'cfg(not(target_arch = "wasm32"))'.dependencies ]
+# egui_render_wgpu = { path = "../etk/crates/egui_render_wgpu" }
 
 [dev-dependencies]
 # jmf deps
-rstest = { version = "0.15.0", default-features = false }
+rstest = { version = "0.17.0", default-features = false }
 # rstest_reuse = "0.3.0"
 similar-asserts = "1.2.0"
 
@@ -131,3 +138,6 @@ opt-level = 1
 # codegen-units = 1
 
 # panic = "abort"
+
+[workspace]
+members = ["crates/joko_render"]

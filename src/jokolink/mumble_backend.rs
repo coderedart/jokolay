@@ -4,6 +4,7 @@ pub mod linux;
 pub mod win;
 
 use crate::jokolink::{mlink::MumbleLink, WindowDimensions};
+use egui_backend::raw_window_handle::RawWindowHandle;
 #[cfg(target_os = "linux")]
 pub use linux::MumbleLinuxError as MumbleBackendError;
 #[cfg(target_os = "linux")]
@@ -21,7 +22,7 @@ use win::MumbleWinImpl as MumblePlatformImpl;
 pub struct MumbleBackend(MumblePlatformImpl);
 
 impl MumbleBackend {
-    pub fn new(name: &str, window_id: u32) -> Result<Self, MumbleBackendError> {
+    pub fn new(name: &str, window_id: RawWindowHandle) -> Result<Self, MumbleBackendError> {
         Ok(Self(MumblePlatformImpl::new(name, window_id)?))
     }
 

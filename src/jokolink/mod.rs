@@ -12,6 +12,7 @@
 //!         attribute of x11. when we set the attribute for our overlay with the value of the parent (gw2 window) id, the overlay can stay on top of fullscreen gw2.
 //!         
 
+use egui_backend::raw_window_handle::RawWindowHandle;
 use mumble_backend::MumbleBackend;
 
 mod mlink;
@@ -21,6 +22,7 @@ pub use mlink::*;
 pub use mumble_backend::win::{create_link_shared_mem, get_link_buffer, get_xid};
 
 pub use mumble_backend::MumbleBackendError as MumbleError;
+use tracing::warn;
 /// The default mumble link name. can only be changed by passing the `-mumble` options to gw2 for multiboxing
 pub const DEFAULT_MUMBLELINK_NAME: &str = "MumbleLink";
 
@@ -39,7 +41,7 @@ pub struct MumbleManager {
     link: MumbleLink,
 }
 impl MumbleManager {
-    pub fn new(name: &str, jokolay_window_id: u32) -> Result<Self, MumbleError> {
+    pub fn new(name: &str, jokolay_window_id: RawWindowHandle) -> Result<Self, MumbleError> {
         let backend = MumbleBackend::new(name, jokolay_window_id)?;
         Ok(Self {
             backend,
@@ -60,9 +62,15 @@ impl MumbleManager {
                 self.changes.toggle(MumbleChanges::MAP);
             }
             if self.link.context.process_id != link.context.process_id {
+                // warn!(
+                //     "mumble link process_id changed from {} to {}",
+                //     self.link.context.process_id, link.context.process_id
+                // );
                 self.changes.toggle(MumbleChanges::GAME);
                 #[cfg(target_os = "linux")]
-                let _ = self.backend.set_transient_for();
+                if link.context.process_id != 0 {
+                    let _ = self.backend.set_transient_for();
+                }
             }
             self.link = link;
         }

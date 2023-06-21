@@ -1,6 +1,6 @@
+use super::*;
 use bytemuck::cast_slice;
 use egui_backend::{GfxBackend, WindowBackend};
-
 use egui_render_wgpu::wgpu::util::{BufferInitDescriptor, DeviceExt};
 use egui_render_wgpu::wgpu::{
     self, AddressMode, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
@@ -14,10 +14,11 @@ use egui_render_wgpu::wgpu::{
     TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
     TextureViewDimension, VertexBufferLayout, VertexState, VertexStepMode,
 };
-use egui_render_wgpu::{wgpu::BindGroup, WgpuBackend, WgpuSettings};
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
+use egui_render_wgpu::WgpuConfig;
+use egui_render_wgpu::{wgpu::BindGroup, WgpuBackend};
+use glam::{vec2, Mat4, Vec3, Vec4};
 use intmap::IntMap;
-use std::num::{NonZeroU32, NonZeroU64};
+use std::num::NonZeroU64;
 
 pub struct JokoRenderer {
     pub wgpu_backend: egui_render_wgpu::WgpuBackend,
@@ -37,10 +38,10 @@ pub struct JokoRenderer {
     pub viewport_buffer: Buffer,
 }
 
-impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
-    type Configuration = WgpuSettings;
+impl GfxBackend for JokoRenderer {
+    type Configuration = WgpuConfig;
 
-    fn new(window_backend: &mut W, settings: Self::Configuration) -> Self {
+    fn new(window_backend: &mut impl WindowBackend, settings: Self::Configuration) -> Self {
         let wgpu_backend = WgpuBackend::new(window_backend, settings);
         let dev = wgpu_backend.device.clone();
         let queue = wgpu_backend.queue.clone();
@@ -79,7 +80,7 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
                 module: &shader_module,
                 entry_point: "fs_main",
                 targets: &[Some(egui_render_wgpu::wgpu::ColorTargetState {
-                    format: wgpu_backend.surface_config.format,
+                    format: wgpu_backend.surface_manager.surface_config.format,
                     blend: Some(PIPELINE_BLEND_STATE),
                     write_mask: ColorWrites::all(),
                 })],
@@ -147,12 +148,7 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
                 push_constant_ranges: &[],
             });
         let player_visibility_shader_module = wgpu::include_wgsl!("./player_visibility.wgsl");
-        match &player_visibility_shader_module.source {
-            wgpu::ShaderSource::Wgsl(src) => {
-                dbg!(src)
-            }
-            _ => todo!(),
-        };
+
         let player_module = device.create_shader_module(player_visibility_shader_module);
 
         let player_visibility_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -181,7 +177,7 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
                 module: &player_module,
                 entry_point: "fs_main",
                 targets: &[Some(ColorTargetState {
-                    format: wgpu_backend.surface_config.format,
+                    format: wgpu_backend.surface_manager.surface_config.format,
                     // blend: Some(PIPELINE_BLEND_STATE),
                     blend: Some(BlendState {
                         color: BlendComponent {
@@ -253,17 +249,20 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
         }
     }
 
-    fn prepare_frame(&mut self, framebuffer_needs_resize: bool, window_backend: &mut W) {
-        self.wgpu_backend
-            .prepare_frame(framebuffer_needs_resize, window_backend);
-        self.markers.clear();
+    fn present(&mut self, window_backend: &mut impl WindowBackend) {
+        self.wgpu_backend.present(window_backend);
     }
 
-    fn prepare_render(&mut self, egui_gfx_output: egui_backend::EguiGfxOutput) {
-        <WgpuBackend as GfxBackend<W>>::prepare_render(&mut self.wgpu_backend, egui_gfx_output);
+    fn prepare_frame(&mut self, window_backend: &mut impl WindowBackend) {
+        self.wgpu_backend.prepare_frame(window_backend);
     }
 
-    fn render(&mut self) {
+    fn render_egui(
+        &mut self,
+        meshes: Vec<egui_backend::egui::ClippedPrimitive>,
+        textures_delta: egui_backend::egui::TexturesDelta,
+        logical_screen_size: [f32; 2],
+    ) {
         let dev = self.wgpu_backend.device.clone();
         let mut command_encoder = dev.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("marker command encoder"),
@@ -285,8 +284,8 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
                 usage: BufferUsages::COPY_DST | BufferUsages::VERTEX,
                 mapped_at_creation: false,
             });
+
             self.vb_len = required_size_in_bytes;
-            tracing::info!("resizing buffer");
         }
         self.wgpu_backend
             .queue
@@ -295,7 +294,12 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
             let mut rpass = command_encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("marker render pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
-                    view: self.wgpu_backend.surface_view.as_ref().unwrap(),
+                    view: self
+                        .wgpu_backend
+                        .surface_manager
+                        .surface_view
+                        .as_ref()
+                        .unwrap(),
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Load,
@@ -318,8 +322,8 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
 
             rpass.set_pipeline(&self.player_visibility_pipeline);
             let point_on_screen = self.mvp.project_point3(self.player_position);
-            let width = self.wgpu_backend.surface_config.width as f32;
-            let height = self.wgpu_backend.surface_config.height as f32;
+            let width = self.wgpu_backend.surface_manager.surface_config.width as f32;
+            let height = self.wgpu_backend.surface_manager.surface_config.height as f32;
             let x = point_on_screen.x * width / 2.0;
             let y = point_on_screen.y * height / 2.0;
             let x = width / 2.0 + x;
@@ -339,11 +343,12 @@ impl<W: WindowBackend> GfxBackend<W> for JokoRenderer {
         }
         self.wgpu_backend.command_encoders.push(command_encoder);
 
-        <WgpuBackend as GfxBackend<W>>::render(&mut self.wgpu_backend);
+        self.wgpu_backend
+            .render_egui(meshes, textures_delta, logical_screen_size);
     }
 
-    fn present(&mut self, window_backend: &mut W) {
-        self.wgpu_backend.present(window_backend);
+    fn resize_framebuffer(&mut self, window_backend: &mut impl WindowBackend) {
+        self.wgpu_backend.resize_framebuffer(window_backend);
     }
 }
 /*
@@ -381,6 +386,7 @@ impl JokoRenderer {
             usage: TextureUsages::TEXTURE_BINDING
                 | TextureUsages::COPY_DST
                 | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[TextureFormat::Rgba8UnormSrgb],
         });
 
         queue.write_texture(
@@ -393,12 +399,8 @@ impl JokoRenderer {
             &pixels,
             ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(
-                    NonZeroU32::new(width * 4).expect("texture bytes per row is zero"),
-                ),
-                rows_per_image: Some(
-                    NonZeroU32::new(height as u32).expect("texture rows count is zero"),
-                ),
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height as u32),
             },
             size,
         );
@@ -437,7 +439,7 @@ impl JokoRenderer {
                     dimension: Some(TextureViewDimension::D2),
                     aspect: wgpu::TextureAspect::All,
                     base_mip_level: mip,
-                    mip_level_count: NonZeroU32::new(1),
+                    mip_level_count: Some(1),
                     base_array_layer: 0,
                     array_layer_count: None,
                 })
@@ -494,80 +496,6 @@ impl JokoRenderer {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct MarkerQuad {
-    pub position: Vec3,
-    pub texture: u32,
-    pub width: u16,
-    pub height: u16,
-}
-impl MarkerQuad {
-    fn get_vertices(self, camera_position: Vec3) -> [MarkerVertex; 6] {
-        let MarkerQuad {
-            position,
-            texture: _,
-            width,
-            height,
-        } = self;
-        let mut billboard_direction = position - camera_position;
-        billboard_direction.y = 0.0;
-        let rotation = Quat::from_rotation_arc(Vec3::Z, billboard_direction.normalize());
-        // let rotation = Quat::IDENTITY;
-        let model_matrix = Mat4::from_scale_rotation_translation(
-            vec3(width as f32 / 100.0, height as f32 / 100.0, 1.0),
-            rotation,
-            position,
-        );
-        let bottom_left = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[0],
-            texture_coordinates: vec2(0.0, 1.0),
-            padding: Vec2::default(),
-        };
-
-        let top_left = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[1],
-            texture_coordinates: vec2(0.0, 0.0),
-            padding: Vec2::default(),
-        };
-        let top_right = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[2],
-            texture_coordinates: vec2(1.0, 0.0),
-            padding: Vec2::default(),
-        };
-        let bottom_right = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[3],
-            texture_coordinates: vec2(1.0, 1.0),
-            padding: Vec2::default(),
-        };
-        [
-            top_left,
-            bottom_left,
-            bottom_right,
-            bottom_right,
-            top_right,
-            top_left,
-        ]
-    }
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct MarkerVertex {
-    pub position: Vec4,
-    pub texture_coordinates: Vec2,
-    pub padding: Vec2,
-}
-
-pub const DEFAULT_QUAD: [Vec4; 4] = [
-    // bottom left
-    vec4(-50.0, -50.0, 0.0, 1.0),
-    // top left
-    vec4(-50.0, 50.0, 0.0, 1.0),
-    // top right
-    vec4(50.0, 50.0, 0.0, 1.0),
-    // bottom right
-    vec4(50.0, -50.0, 0.0, 1.0),
-];
-
 pub const TRANSFORM_MATRIX_UNIFORM_BINDGROUP_ENTRY: [BindGroupLayoutEntry; 1] =
     [BindGroupLayoutEntry {
         binding: 0,
@@ -598,18 +526,7 @@ pub const TEXTURE_BINDGROUP_ENTRIES: [BindGroupLayoutEntry; 2] = [
         count: None,
     },
 ];
-pub const PIPELINE_BLEND_STATE: BlendState = BlendState {
-    color: BlendComponent {
-        src_factor: BlendFactor::One,
-        dst_factor: BlendFactor::OneMinusSrcAlpha,
-        operation: BlendOperation::Add,
-    },
-    alpha: BlendComponent {
-        src_factor: BlendFactor::OneMinusDstAlpha,
-        dst_factor: BlendFactor::One,
-        operation: BlendOperation::Add,
-    },
-};
+pub const PIPELINE_BLEND_STATE: BlendState = BlendState::ALPHA_BLENDING;
 
 pub const PIPELINE_PRIMITIVE_STATE: PrimitiveState = PrimitiveState {
     topology: PrimitiveTopology::TriangleList,
@@ -631,6 +548,6 @@ pub const LINEAR_SAMPLER_DESCRIPTOR: SamplerDescriptor = SamplerDescriptor {
     lod_min_clamp: 0.0,
     lod_max_clamp: f32::MAX,
     compare: None,
-    anisotropy_clamp: None,
+    anisotropy_clamp: 1,
     border_color: None,
 };

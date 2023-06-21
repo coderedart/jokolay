@@ -108,7 +108,6 @@ impl Default for Mount {
 
 bitflags! {
     /// The Uistate enum to represent what is happening in game
-    #[derive(Default, Serialize, Deserialize)]
     pub struct UIState: u32 {
         const IS_MAP_OPEN = 0b00000001;
         const IS_COMPASS_TOP_RIGHT = 0b00000010;
