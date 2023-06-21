@@ -1,6 +1,6 @@
 on: push
 
-name: Linux Checkmate
+name: Build Artifact
 env:
   CARGO_INCREMENTAL: 0
 jobs:
