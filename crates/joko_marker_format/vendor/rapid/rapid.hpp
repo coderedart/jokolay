@@ -1,5 +1,5 @@
 #pragma once
-#include "jokolay/src/jmf/mod.rs.h"
+#include "joko_marker_format/src/lib.rs.h"
 #include "rust/cxx.h"
 
 namespace rapid {

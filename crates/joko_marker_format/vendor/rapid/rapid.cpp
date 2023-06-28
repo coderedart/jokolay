@@ -1,7 +1,7 @@
-#include "jokolay/vendor/rapid/rapid.hpp"
-#include "jokolay/vendor/rapid/rapidxml.hpp"
-#include "jokolay/vendor/rapid/rapidxml_print.hpp"
-#include "jokolay/src/jmf/mod.rs.h"
+#include "joko_marker_format/vendor/rapid/rapid.hpp"
+#include "joko_marker_format/vendor/rapid/rapidxml.hpp"
+#include "joko_marker_format/vendor/rapid/rapidxml_print.hpp"
+#include "joko_marker_format/src/lib.rs.h"
 #include <string>
 #include <sstream>
 #include <string>

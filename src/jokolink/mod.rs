@@ -22,7 +22,7 @@ pub use mlink::*;
 pub use mumble_backend::win::{create_link_shared_mem, get_link_buffer, get_xid};
 
 pub use mumble_backend::MumbleBackendError as MumbleError;
-use tracing::warn;
+
 /// The default mumble link name. can only be changed by passing the `-mumble` options to gw2 for multiboxing
 pub const DEFAULT_MUMBLELINK_NAME: &str = "MumbleLink";
 

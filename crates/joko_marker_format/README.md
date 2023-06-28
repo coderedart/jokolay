@@ -17,8 +17,8 @@ Sources of rapidxml are in the vendor folder. it is a custom fork from https://g
 added some fixes / enhancements. its stil a mess with compiler warnings, but whatever.
 
 we use cxxbridge crate. 
-`rapid.hpp` is our header with declaration for `rapid_filter` inside `rapid` namespace. (includes `jmf/src/lib.rs.h`)
-`lib.rs` has extern declaration which has the same signature but in rust. (includes `jmf/vendor/rapid/rapid.hpp`)
+`rapid.hpp` is our header with declaration for `rapid_filter` inside `rapid` namespace. (includes `joko_marker_format/src/lib.rs.h`)
+`lib.rs` has extern declaration which has the same signature but in rust. (includes `joko_marker_format/vendor/rapid/rapid.hpp`)
 `build.rs` has the compilation instructions. it uses `lib.rs` extern declaration, `rapid.cpp` as compilation unit as it
     contains the definition of `rapid_filter` and finally outputs a `librapid.a` for linking.
 
@@ -89,14 +89,3 @@ imported format:
 2. database like sqlite or postgres. can store all data inside database. but databases need me to learn SQL. 
 
 
-### Rkyv Format
-1. textures
-   1. `Vec<(u16, u16, Vec<u8>)>` // width, height, image raw bytes. png format for now
-2. tbins
-   1. `Vec<Vec<[f32; 3]>>` // just raw position nodes
-3. text
-   1. `Vec<String>` // all the interned strings
-4. category tree
-   1. `Vec<(u16, u16, u16)>` // catid, display name string index, parent catid
-5. markers 
-   1. `Map<u16, (Vec<Marker>, Vec<Trail>)>` // mapid : Markers and Trails with their index being their unique id. markers will refer to their category (type), texture, tbin (trl) and any of the text props using an u16 as an index into their respective containers above. 

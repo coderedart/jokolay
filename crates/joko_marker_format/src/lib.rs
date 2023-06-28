@@ -4,16 +4,14 @@
 
 pub mod manager;
 pub mod pack;
-pub mod render;
 // for compile time build info like pkg version or build timestamp or git hash etc..
 // shadow_rs::shadow!(build);
 
 // to filter the xml with rapidxml first
 #[cxx::bridge(namespace = "rapid")]
 mod ffi {
-
     unsafe extern "C++" {
-        include!("jokolay/vendor/rapid/rapid.hpp");
+        include!("joko_marker_format/vendor/rapid/rapid.hpp");
         pub fn rapid_filter(src_xml: String) -> String;
 
     }

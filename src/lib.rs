@@ -1,4 +1,3 @@
-pub mod jmf;
 pub mod joko_script;
 pub mod jokoapi;
 pub mod jokolink;
@@ -133,8 +132,8 @@ impl UserApp for Jokolay {
         }
         if let Some(mumble) = mumble {
             if let Some(link) = mumble.get_mumble_link() {
-                if let Some(marker_manager) = marker_manager {
-                    marker_manager.render(link.context.map_id as u16, joko_renderer);
+                if let Some(_marker_manager) = marker_manager {
+                    // marker_manager.render(link.context.map_id as u16, joko_renderer);
                 }
                 let ratio = window_backend.framebuffer_size_physical[0] as f32
                     / window_backend.framebuffer_size_physical[1] as f32;
@@ -248,4 +247,8 @@ fn mumble_ui(ui: &mut Ui, link: &jokolink::MumbleLink) {
         // ));
         ui.end_row();
     });
+}
+
+fn setup_config() -> color_eyre::Result<()> {
+    Ok(())
 }

@@ -10,7 +10,7 @@ use num_derive::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use tracing::*;
 
-use crate::jmf::INCHES_PER_METER;
+// use jmf::INCHES_PER_METER;
 
 /// As the CMumbleLink has all the fields multiple
 #[derive(Clone, Debug, Default)]
@@ -37,13 +37,13 @@ impl MumbleLink {
             self.ui_tick = cmlink.ui_tick;
 
             self.f_avatar_position = cmlink.f_avatar_position.into();
-            self.f_avatar_position *= INCHES_PER_METER;
+            // self.f_avatar_position *= INCHES_PER_METER;
             self.f_avatar_front = cmlink.f_avatar_front.into();
-            self.f_avatar_front *= INCHES_PER_METER;
+            // self.f_avatar_front *= INCHES_PER_METER;
             self.f_camera_position = cmlink.f_camera_position.into();
-            self.f_camera_position *= INCHES_PER_METER;
+            // self.f_camera_position *= INCHES_PER_METER;
             self.f_camera_front = cmlink.f_camera_front.into();
-            self.f_camera_front *= INCHES_PER_METER;
+            // self.f_camera_front *= INCHES_PER_METER;
             self.identity.update(link_ptr)?;
 
             self.context.update(link_ptr);
