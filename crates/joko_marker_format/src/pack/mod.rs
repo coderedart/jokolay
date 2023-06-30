@@ -1,7 +1,7 @@
 pub mod xml;
 
-use color_eyre::Result;
 use indexmap::IndexMap;
+use miette::Result;
 
 pub const MARKER_PNG: &[u8] = include_bytes!("marker.png");
 pub const TRAIL_PNG: &[u8] = include_bytes!("trail.png");

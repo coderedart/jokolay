@@ -3,8 +3,8 @@
 use std::net::Ipv4Addr;
 
 use bitflags::bitflags;
-use color_eyre::eyre::bail;
 use glam::Vec3;
+use miette::bail;
 use num_derive::FromPrimitive;
 use num_derive::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -131,7 +131,7 @@ impl CMumbleContext {
     }
     /// first byte is `2` if ipv4. and `[4..7]` bytes contain the ipv4 octets.
     /// contains sockaddr_in or sockaddr_in6
-    pub fn get_map_ip(&self) -> color_eyre::Result<Ipv4Addr> {
+    pub fn get_map_ip(&self) -> miette::Result<Ipv4Addr> {
         if self.server_address[0] != 2 {
             bail!("ipaddr parsing failed for CMumble Context");
         }
@@ -287,7 +287,7 @@ impl CMumbleLink {
     }
     // /// creates the shared memory using win32 calls and returns the pointer
     // #[cfg(target_os = "windows")]
-    // pub fn new_ptr(key: &str) -> color_eyre::Result<(_, *const CMumbleLink)> {
+    // pub fn new_ptr(key: &str) -> miette::Result<(_, *const CMumbleLink)> {
     //     crate::win::create_link_shared_mem(key)
     // }
     /// we will copy the bytes of the struct memory into the slice. we check that we will only copy upto C_MUMBLE_LINK_SIZE or buffer.len() whichever is smaller to avoid buffer overflow reads

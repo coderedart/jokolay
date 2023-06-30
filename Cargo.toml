@@ -92,7 +92,7 @@ tracing-subscriber = { version = "0.3", features = [
     "env-filter",
 ] } # for ErrorLayer
 
-color-eyre = { version = "*" }
+miette = { version = "*" }
 time = { version = "0.3", features = ["serde-human-readable"] }
 base64 = "0.21.2"
 tokio = { version = "1", features = ["full"] }

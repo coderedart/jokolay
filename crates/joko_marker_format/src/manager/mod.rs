@@ -5,9 +5,8 @@ use std::{
 };
 
 use bitvec::vec::BitVec;
-use color_eyre::{eyre::ContextCompat, Result};
 use egui::{DragValue, Window};
-
+use miette::{Diagnostic, IntoDiagnostic, NamedSource, Result, SourceSpan};
 use serde::{Deserialize, Serialize};
 
 use tracing::warn;
@@ -46,7 +45,7 @@ pub struct LivePack {
 
 impl LivePack {
     pub fn new(pack_path: PathBuf, activation_data_path: PathBuf) -> Result<Self> {
-        let _src = std::io::BufReader::new(std::fs::File::open(pack_path)?);
+        // let _src = std::io::BufReader::new(std::fs::File::open(pack_path)?);
 
         let pack = Pack::default();
         // let mut cattree = Arena::new();
@@ -125,12 +124,12 @@ impl MarkerManager {
     /// 1.
     pub fn new(markers_path: &Path) -> Result<Self> {
         if !markers_path.is_dir() {
-            color_eyre::eyre::bail!("markers path is not a directory");
+            miette::bail!("markers path is not a directory");
         }
         let mut packs: BTreeMap<String, LivePack> = Default::default();
-        for pack in std::fs::read_dir(markers_path)? {
-            let pack = pack?;
-            if pack.file_type()?.is_file()
+        for pack in std::fs::read_dir(markers_path).into_diagnostic()? {
+            let pack = pack.into_diagnostic()?;
+            if pack.file_type().into_diagnostic()?.is_file()
                 && pack
                     .path()
                     .extension()
@@ -142,7 +141,7 @@ impl MarkerManager {
                 if let Some(name) = pack.path().file_stem() {
                     let name = name
                         .to_str()
-                        .wrap_err("pack name is not valid utf-8")?
+                        .ok_or(miette::miette!("pack name is not valid utf-8"))?
                         .to_owned();
 
                     let mut activation_data_path = pack.path();

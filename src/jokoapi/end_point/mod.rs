@@ -1,5 +1,5 @@
 // use async_trait::async_trait;
-// use color_eyre::eyre::WrapErr;
+// use miette::eyre::WrapErr;
 
 // use itertools::Itertools;
 use serde::de::DeserializeOwned;
@@ -24,7 +24,7 @@ pub trait EndPointAuthId {
     //     client: Client,
     //     api_key: &str,
     //     id: &Self::Id,
-    // ) -> color_eyre::Result<Self::RType>
+    // ) -> miette::Result<Self::RType>
     // where
     //     Self::RType: DeserializeOwned,
     //     Self::Id: Display + Send + Sync,
@@ -50,7 +50,7 @@ pub trait EndPointAuthIds {
     //     client: Client,
     //     api_key: &str,
     //     ids: &[Self::Id],
-    // ) -> color_eyre::Result<Self::RType>
+    // ) -> miette::Result<Self::RType>
     // where
     //     Self::RType: DeserializeOwned,
     //     Self::Id: Display + Send + Sync,
@@ -71,7 +71,7 @@ pub trait EndPointAuthIds {
 pub trait EndPointAuth {
     type RType: DeserializeOwned;
     fn get_url() -> &'static str;
-    // async fn get_auth(client: Client, api_key: &str) -> color_eyre::Result<Self::RType>
+    // async fn get_auth(client: Client, api_key: &str) -> miette::Result<Self::RType>
     // where
     //     Self::RType: DeserializeOwned,
     // {
@@ -91,7 +91,7 @@ pub trait EndPointIds {
     type Id: Display + Send + Sync;
     type RType: DeserializeOwned;
     fn get_url() -> &'static str;
-    // async fn get_with_id(client: Client, ids: &[Self::Id]) -> color_eyre::Result<Self::RType>
+    // async fn get_with_id(client: Client, ids: &[Self::Id]) -> miette::Result<Self::RType>
     // where
     //     Self::RType: DeserializeOwned,
     //     Self::Id: Display + Send + Sync,
@@ -111,7 +111,7 @@ pub trait EndPointIds {
 pub trait EndPoint {
     type RType: DeserializeOwned;
     fn get_url() -> &'static str;
-    // async fn get(client: &Client) -> color_eyre::Result<Self::RType>
+    // async fn get(client: &Client) -> miette::Result<Self::RType>
     // where
     //     Self::RType: DeserializeOwned,
     // {

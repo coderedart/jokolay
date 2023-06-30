@@ -298,7 +298,7 @@ impl X11Connection {
 //     Ok((left_border, right_border, top_border, bottom_border))
 // }
 
-// pub fn get_gw2_pid(&mut self) -> color_eyre::Result<u32> {
+// pub fn get_gw2_pid(&mut self) -> miette::Result<u32> {
 //     assert_ne!(self.gw2_window_handle, 0);
 //     let pid_atom = x11rb::protocol::xproto::intern_atom(&self.&self.xc, true, b"_NET_WM_PID")
 //         .expect("could not intern atom '_NET_WM_PID'")?

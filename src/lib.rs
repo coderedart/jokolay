@@ -2,6 +2,8 @@ pub mod joko_script;
 pub mod jokoapi;
 pub mod jokolink;
 
+use std::path::PathBuf;
+
 use egui_backend::{
     egui::{self, Grid, Ui},
     raw_window_handle::HasRawWindowHandle,
@@ -249,6 +251,18 @@ fn mumble_ui(ui: &mut Ui, link: &jokolink::MumbleLink) {
     });
 }
 
-fn setup_config() -> color_eyre::Result<()> {
+fn setup_config() -> miette::Result<()> {
     Ok(())
+}
+/// Configuration for Jokolay
+/// 
+pub struct JokoConfig {
+    /// Jokolay will store any config files in this directory
+    pub joko_config_dir: Option<PathBuf>,
+    /// stores local data like marker packs or downloaded addons or other data.
+    pub joko_data_dir: Option<PathBuf>,
+    /// stores cache like thumbnails or something which is fine to lose, but not important enough to store in the data dir.
+    pub joko_cache_dir: Option<PathBuf>,
+    /// directory where we store temporary things which are deleted regularly. eg: logs, texture atlases 
+    pub joko_tmp_dir: Option<PathBuf>,
 }

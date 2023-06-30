@@ -1,8 +1,8 @@
 #[cfg(windows)]
 mod win_main {
 
-    use color_eyre::eyre::bail;
-    use color_eyre::eyre::WrapErr;
+    use miette::eyre::bail;
+    use miette::eyre::WrapErr;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
     use std::time::Instant;
@@ -95,7 +95,7 @@ mod win_main {
             }
         }
     }
-    fn fake_main(config: JokolinkConfig) -> color_eyre::Result<()> {
+    fn fake_main(config: JokolinkConfig) -> miette::Result<()> {
         let refresh_inverval = Duration::from_millis(config.interval as u64);
 
         info!("Application Name: {}", env!("CARGO_PKG_NAME"));
@@ -252,7 +252,7 @@ mod win_main {
         file_filter: LevelFilter,
         log_directory: &Path,
         log_file_name: &Path,
-    ) -> color_eyre::Result<tracing_appender::non_blocking::WorkerGuard> {
+    ) -> miette::Result<tracing_appender::non_blocking::WorkerGuard> {
         // let file_appender = tracing_appender::rolling::never(log_directory, log_file_name);
         let file_path = log_directory.join(log_file_name);
         let writer =

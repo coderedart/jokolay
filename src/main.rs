@@ -1,30 +1,5 @@
 #[tokio::main]
 async fn main() {
-    install_tracing();
-    let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()
-        .theme(color_eyre::config::Theme::new())
-        .into_hooks();
-
-    eyre_hook
-        .install()
-        .expect("there won't be any conflicting eyre hooks previously installed");
-
-    std::panic::set_hook(Box::new(move |panic_info| {
-        let panic_report = panic_hook.panic_report(panic_info);
-        tracing::error!("crashing: {}", &panic_report);
-        tokio::task::spawn(
-            rfd::AsyncMessageDialog::new()
-                .set_title("App Crash")
-                .set_description(&format!("{}", &panic_report))
-                .set_level(rfd::MessageLevel::Error)
-                .set_buttons(rfd::MessageButtons::Ok)
-                .show(),
-        );
-    }));
-    jokolay::start_jokolay();
-}
-
-fn install_tracing() {
     use tracing_error::ErrorLayer;
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::{fmt, EnvFilter};
@@ -41,4 +16,23 @@ fn install_tracing() {
         .with(fmt_layer)
         .with(ErrorLayer::default())
         .init();
+    miette::set_hook(Box::new(|diagnostic| {
+        let handler = Box::new(miette::NarratableReportHandler::new());
+        let mut panic_report = String::new();
+        if let Err(e) = handler.render_report(&mut panic_report, diagnostic) {
+            tracing::error!("failed to render report: {e}");
+        }
+        tracing::error!("crashing: {}", &panic_report);
+        tokio::task::spawn(
+            rfd::AsyncMessageDialog::new()
+                .set_title("App Crash")
+                .set_description(&format!("{}", &panic_report))
+                .set_level(rfd::MessageLevel::Error)
+                .set_buttons(rfd::MessageButtons::Ok)
+                .show(),
+        );
+        handler
+    }))
+    .expect("failed to install miette hoook");
+    jokolay::start_jokolay();
 }

@@ -54,7 +54,7 @@ glam = { version = "0", features = ["serde", "fast-math", "bytemuck"] }
 url = { version = "2", default-features = false, features = ["serde"] }
 # for marker pack versions
 semver = { version = "1.0.9", default-features = false, features = ["serde"] }
-color-eyre = { version = "*" }
+miette = { version = "*" }
 time = { version = "0.3", features = ["serde-human-readable"] }
 base64 = "0.21.2"
 tokio = { version = "1", features = ["full"] }
