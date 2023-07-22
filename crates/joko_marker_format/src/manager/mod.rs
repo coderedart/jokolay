@@ -1,27 +1,52 @@
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
-use bitvec::vec::BitVec;
-use egui::{DragValue, Window};
-use miette::{Diagnostic, IntoDiagnostic, NamedSource, Result, SourceSpan};
+use cap_std::fs::Dir;
+use egui::{
+    epaint::ahash::{HashMap, HashSet},
+    DragValue, Window,
+};
+use indexmap::IndexMap;
+use miette::{Context, Diagnostic, IntoDiagnostic, Result};
+
 use serde::{Deserialize, Serialize};
 
+use time::OffsetDateTime;
+
 use tracing::warn;
+use uuid::Uuid;
+
+use crate::pack::PackInfo;
 
 use super::pack::Pack;
 
 pub const PACK_LIST_URL: &str = "https://packlist.jokolay.com/packlist.json";
+/// How should the pack be stored by jokolay?
+/// 1. Inside a directory called packs, we will have a separate directory for each pack.
+/// 2. the name of the directory will be a random UUID, which will serve as an ID for each pack locally.
+/// 3. Inside the directory, we will have
+///     1. categories.xml -> The xml file which contains the whole category tree
+///     2. $mapid.xml -> where the $mapid is the id (u16) of a map which contains markers/trails belonging to that particular map.
+///     3. **/{.png | .trl} -> Any number of png images or trl binaries, in any random directories within this pack directory.
+///     4. info.json -> pack info like name, version, the url from which it was downloaded by jokolay or if it was manually imported from zip file locally etc..
+///     5. activation.json -> list of categories which are enabled, list of markers which had their behavior triggered.
+/// 4. This will allow many packs with same name /version. This will allow people to duplicate a pack and edit it, while preserving the source/original pack as is.
 pub struct MarkerManager {
-    pub markers_path: PathBuf,
+    pub marker_manager_dir: Dir,
+    pub marker_packs_dir: Dir,
     pub last_update_attempt: f64,
-    pub packs: BTreeMap<String, LivePack>,
+    pub pack_list: Arc<Mutex<PackList>>,
+    pub packs: BTreeMap<Uuid, LivePack>,
     pub packs_being_downloaded: BTreeMap<String, Arc<Mutex<PackDownloadStatus>>>,
     // pub ui_data: MarkerManagerUIData,
     pub number_of_markers_to_draw: usize,
 }
+
+pub struct MarkerManagerConfig {}
+
 pub enum PackDownloadStatus {
     Downloading,
     Converting,
@@ -37,63 +62,40 @@ pub enum PackDownloadStatus {
 //     selected_marker: usize,
 //     _selected_trail: usize,
 // }
+
 pub struct LivePack {
+    /// This is the directory of this pack. Any texture or whatever will have to be relative to this path.
+    dir: Dir,
+    /// This is the marker pack data. we reuse the struct as xml, but one crucial difference is that, this is usually only loaded partially.
+    /// As images only need to be loaded as needed.
     pack: Pack,
-    pub activation_data: ActivationData,
-    pub activation_data_path: PathBuf,
+    /// Activation data stored inside the pack dir as well.
+    activation_data: ActivationData,
+    /// Info about the pack
+    info: PackInfo,
 }
 
 impl LivePack {
-    pub fn new(pack_path: PathBuf, activation_data_path: PathBuf) -> Result<Self> {
-        // let _src = std::io::BufReader::new(std::fs::File::open(pack_path)?);
+    pub fn new(dir: Dir) -> Result<Self> {
+        let pack = Pack::from_dir(&dir).wrap_err("failed to load marker pack from directory")?;
 
-        let pack = Pack::default();
-        // let mut cattree = Arena::new();
-        // let mut nodes = vec![];
-        // for (cat_index, cat) in pack.cats.iter().copied().enumerate() {
-        //     let n = cattree.new_node((
-        //         cat_index as u16,
-        //         pack.text[cat.display_name as usize].as_str(),
-        //         cat.is_separator,
-        //     ));
-        //     nodes.push(n);
-        //     if cat_index != 0 {
-        //         nodes[cat.parent_id as usize].append(n, &mut cattree);
-        //     }
-        // }
-        let mut trigger_data = ActivationData {
-            enabled_cats: BitVec::repeat(true, pack.categories.len()),
-            sleeping_markers: Default::default(),
-        };
-        if activation_data_path.exists() {
-            match std::fs::read_to_string(&activation_data_path) {
-                Ok(v) => match serde_json::from_str::<ActivationData>(&v) {
-                    Ok(ad) => {
-                        if ad.enabled_cats.len() != pack.categories.len() {
-                            warn!("activation data mismatch with pack categories. {activation_data_path:?}");
-                        } else {
-                            trigger_data = ad;
-                        }
-                    }
-                    Err(e) => {
-                        warn!("activation data at {activation_data_path:?} deserialize error: {e}");
-                    }
-                },
-                Err(e) => {
-                    warn!("failed to read data from {activation_data_path:?} due ot error {e}");
-                }
-            }
-        }
+        let activation_data = dir.read_to_string("activation.json").unwrap_or_default();
+        let activation_data = serde_json::from_str(&activation_data).unwrap_or_default();
+        let info = dir.read_to_string("info.json").unwrap_or_default();
+        let info = serde_json::from_str(&info).unwrap_or_default();
         Ok(Self {
             pack,
-            activation_data: trigger_data,
-            activation_data_path,
+            activation_data,
+            dir,
+            info,
         })
     }
     pub fn get_pack(&self) -> &Pack {
         &self.pack
     }
-
+    pub fn save_everything(&self) -> miette::Result<()> {
+        Ok(())
+    }
     pub fn save_trigger_data(&self) {}
 }
 #[derive(Debug, Default)]
@@ -101,10 +103,11 @@ pub struct LiveMarkers {}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ActivationData {
-    pub enabled_cats: BitVec<usize>,
-    /// keys are marker ids. values are the wakeup timestamp in seconds.
-    /// Just iterate over values to find the ones that need to be removed from the sleeping list
-    pub sleeping_markers: BTreeMap<u32, u32>,
+    /// If the category full name is in this set, then it is enabled.
+    pub enabled_cats: HashSet<String>,
+    /// u16 key is the map id.
+    /// The value is a map of all the marker ids which are "triggered" and will wake up at the timestamp value
+    pub sleeping_markers: HashMap<u16, IndexMap<Uuid, OffsetDateTime>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -120,47 +123,58 @@ pub struct PackEntry {
 }
 
 impl MarkerManager {
+    const MARKER_MANAGER_PATH: &str = "marker_manager";
+    const MARKER_PACKS_PATH: &str = "packs";
     /// MarkerManager needs the zip files to load as markers and data stored like activation data or enabled categories.
     /// 1.
-    pub fn new(markers_path: &Path) -> Result<Self> {
-        if !markers_path.is_dir() {
-            miette::bail!("markers path is not a directory");
-        }
-        let mut packs: BTreeMap<String, LivePack> = Default::default();
-        for pack in std::fs::read_dir(markers_path).into_diagnostic()? {
-            let pack = pack.into_diagnostic()?;
-            if pack.file_type().into_diagnostic()?.is_file()
-                && pack
-                    .path()
-                    .extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default()
-                    == "json"
-            {
-                if let Some(name) = pack.path().file_stem() {
-                    let name = name
-                        .to_str()
-                        .ok_or(miette::miette!("pack name is not valid utf-8"))?
-                        .to_owned();
+    pub fn new(jdir: &Dir) -> Result<Self> {
+        jdir.create_dir_all(Self::MARKER_MANAGER_PATH)
+            .into_diagnostic()
+            .wrap_err("failed to create marker manager directory")?;
+        let marker_manager_dir = jdir
+            .open_dir(Self::MARKER_MANAGER_PATH)
+            .into_diagnostic()
+            .wrap_err("failed to open marker manager directory")?;
+        marker_manager_dir
+            .create_dir_all(Self::MARKER_PACKS_PATH)
+            .into_diagnostic()
+            .wrap_err("failed to create marker packs directory")?;
+        let marker_packs_dir = marker_manager_dir
+            .open_dir(Self::MARKER_PACKS_PATH)
+            .into_diagnostic()
+            .wrap_err("failed ot open marker packs dir")?;
+        let packs: BTreeMap<Uuid, LivePack> = Default::default();
 
-                    let mut activation_data_path = pack.path();
-                    activation_data_path.set_file_name("name.adata");
-                    let live_pack = LivePack::new(pack.path(), activation_data_path)?;
-                    packs.insert(name, live_pack);
-                }
+        for entry in marker_packs_dir
+            .entries()
+            .into_diagnostic()
+            .wrap_err("failed to get entries of marker packs dir")?
+        {
+            let entry = entry.into_diagnostic()?;
+            if entry.metadata().into_diagnostic()?.is_file() {
+                continue;
+            }
+            if let Some(_name) = entry.file_name().to_str() {
+                // let name: Uuid = name
+                //     .parse()
+                //     .into_diagnostic()
+                //     .wrap_err("pack name is not valid utf-8")?;
+
+                // // entry.open_dir().into_diagnostic()?.open(path)
+                // activation_data_path.set_file_name("name.adata");
+                // let live_pack = LivePack::new(pack.path(), activation_data_path)?;
+                // packs.insert(name, live_pack);
             }
         }
-        // let pack_list = poll_promise::Promise::spawn_thread("packlist update thread", || {
-        //     Ok(PackList::default())
-        // });
+        let pack_list = Arc::new(Mutex::default());
 
         Ok(Self {
-            // pack_list,
+            pack_list,
             packs,
             last_update_attempt: 0.0,
             packs_being_downloaded: BTreeMap::new(),
-            markers_path: markers_path.to_owned(),
+            marker_packs_dir,
+            marker_manager_dir,
             number_of_markers_to_draw: 100,
         })
     }
@@ -204,8 +218,36 @@ impl MarkerManager {
     //     }
     // }
     pub fn tick(&mut self, etx: &egui::Context, timestamp: f64) {
-        Window::new("Marker Manager").show(etx, |ui| {
+        Window::new("Marker Manager").show(etx, |ui| -> miette::Result<()> {
             ui.add(DragValue::new(&mut self.number_of_markers_to_draw));
+            if ui.button("import pack").clicked() {
+                let name = Uuid::new_v4();
+                self.marker_packs_dir
+                    .create_dir(format!("{name}"))
+                    .into_diagnostic()?;
+
+                let dir = self
+                    .marker_packs_dir
+                    .open_dir(format!("{name}"))
+                    .into_diagnostic()?;
+                tokio::spawn(async move {
+                    if let Some(file) = rfd::AsyncFileDialog::new()
+                        .add_filter("taco", &["zip", "taco"])
+                        .pick_file()
+                        .await
+                    {
+                        let taco_zip = file.read().await;
+                        warn!("starting to get pack from taco");
+                        match Pack::get_pack_from_taco_zip(&taco_zip) {
+                            Ok(pack) => {
+                                pack.save_to_dir(&dir).unwrap();
+                                warn!("saved pack");
+                            }
+                            Err(_e) => {}
+                        }
+                    }
+                });
+            }
             egui::CollapsingHeader::new("Pack List ")
                 .default_open(false)
                 .show(ui, |ui| {
@@ -213,255 +255,92 @@ impl MarkerManager {
                         "last packlist update attempt: {} seconds ago",
                         (timestamp - self.last_update_attempt) as u64
                     ));
-                    // if ui.button("update list").clicked() {
-                    //     self.pack_list =
-                    //         poll_promise::Promise::spawn_thread("packlist update thread", || {
-                    //             let packlist: PackList =
-                    //                 ureq::get(PACK_LIST_URL).call()?.into_json()?;
-                    //             Ok(packlist)
-                    //         });
-                    //     self.last_update_attempt = timestamp;
-                    // }
+                    if ui.button("update list").clicked() {
+                        let pack_list = self.pack_list.clone();
+                        tokio::task::spawn(async move {
+                            let newlist: PackList = reqwest::get(PACK_LIST_URL)
+                                .await
+                                .into_diagnostic()
+                                .unwrap()
+                                .json()
+                                .await
+                                .into_diagnostic()
+                                .unwrap();
+                            *pack_list.lock().unwrap() = newlist;
+                        });
+                        self.last_update_attempt = timestamp;
+                    }
 
-                    //     match self.pack_list.ready() {
-                    //         Some(plist) => match plist {
-                    //             Ok(plist) => {
-                    //                 for (pack_name, pack_entry) in plist.packs.iter() {
-                    //                     ui.group(|ui| {
-                    //                         if self.packs.contains_key(pack_name) {
-                    //                             ui.label("status: Installed");
-                    //                         } else if ui.button("Install").clicked() {
-                    //                             let status = Arc::new(Mutex::new(
-                    //                                 PackDownloadStatus::Downloading,
-                    //                             ));
-                    //                             let url = pack_entry.url.clone();
-                    //                             let version = pack_entry.version.clone();
-                    //                             let name = pack_name.clone() + ".zst";
-                    //                             let markers_path = self.markers_path.clone();
-                    //                             let dst_path = markers_path.join(&name);
-                    //                             self.packs_being_downloaded
-                    //                                 .insert(pack_name.clone(), status.clone());
-                    //                             std::thread::spawn(move || {
-                    //                                 let xmlpack = match ureq::get(url.as_str()).call() {
-                    //                                     Ok(response) => {
-                    //                                         dbg!(&response);
-                    //                                         let mut v = vec![];
-                    //                                         match response
-                    //                                             .into_reader()
-                    //                                             .read_to_end(&mut v)
-                    //                                         {
-                    //                                             Ok(len) => {
-                    //                                                 dbg!(len);
-                    //                                                 v
-                    //                                             }
-                    //                                             Err(e) => {
-                    //                                                 *status.lock().unwrap() =
-                    //                                                     PackDownloadStatus::Failed(
-                    //                                                         e.to_string(),
-                    //                                                     );
-                    //                                                 return;
-                    //                                             }
-                    //                                         }
-                    //                                     }
-                    //                                     Err(e) => {
-                    //                                         *status.lock().unwrap() =
-                    //                                             PackDownloadStatus::Failed(
-                    //                                                 e.to_string(),
-                    //                                             );
-                    //                                         return;
-                    //                                     }
-                    //                                 };
-                    //                                 warn!("starting to get jsonpack from taco");
-                    //                                 match get_pack_from_taco_zip(&xmlpack, version) {
-                    //                                     Ok((mut pack, failures)) => {
-                    //                                         warn!("failures when converting pack ({name}) to json:\n{failures:#?}");
-                    //                                         let writer = std::io::BufWriter::new(std::fs::File::create(dst_path).unwrap());
-                    //                                         pack.to_zst_json(writer).unwrap();
-                    //                                         warn!("finished writing to {markers_path:?}");
+                    if let Some(plist) = self.pack_list.lock().ok() {
+                        for (pack_name, pack_entry) in plist.packs.iter() {
+                            ui.group(|ui| -> miette::Result<()> {
+                                if ui.button("Install").clicked() {
+                                    let status =
+                                        Arc::new(Mutex::new(PackDownloadStatus::Downloading));
+                                    let url = pack_entry.url.clone();
+                                    let _version = pack_entry.version.clone();
+                                    let name = Uuid::new_v4();
+                                    self.packs_being_downloaded
+                                        .insert(pack_name.clone(), status.clone());
+                                    self.marker_packs_dir
+                                        .create_dir(format!("{name}"))
+                                        .into_diagnostic()?;
+                                    let dir = self
+                                        .marker_packs_dir
+                                        .open_dir(format!("{name}"))
+                                        .into_diagnostic()?;
+                                    tokio::task::spawn(async move {
+                                        let xmlpack = match reqwest::get(url.as_str()).await {
+                                            Ok(response) => match response.bytes().await {
+                                                Ok(bytes) => bytes,
+                                                Err(e) => {
+                                                    *status.lock().unwrap() =
+                                                        PackDownloadStatus::Failed(e.to_string());
+                                                    return;
+                                                }
+                                            },
+                                            Err(e) => {
+                                                *status.lock().unwrap() =
+                                                    PackDownloadStatus::Failed(e.to_string());
+                                                return;
+                                            }
+                                        };
+                                        warn!("starting to get pack from taco");
+                                        match Pack::get_pack_from_taco_zip(&xmlpack) {
+                                            Ok(pack) => {
+                                                // warn!("failures when converting pack ({name}) to json:\n{failures:#?}");
+                                                pack.save_to_dir(&dir).unwrap();
+                                                *status.lock().unwrap() = PackDownloadStatus::Done;
+                                                warn!("saved pack");
+                                            }
+                                            Err(e) => {
+                                                *status.lock().unwrap() =
+                                                    PackDownloadStatus::Failed(e.to_string());
+                                            }
+                                        }
+                                    });
+                                }
+                                ui.horizontal(|ui| {
+                                    ui.label("id: ");
+                                    ui.label(pack_name.as_str());
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("description: ");
+                                    ui.label(pack_entry.description.as_str());
+                                });
 
-                    //                                     }
-                    //                                     Err(e) => {
-                    //                                         *status.lock().unwrap() =
-                    //                                             PackDownloadStatus::Failed(
-                    //                                                 e.to_string(),
-                    //                                             );
-                    //                                     }
-                    //                                 }
-                    //                             });
-                    //                         }
-                    //                         ui.horizontal(|ui| {
-                    //                             ui.label("id: ");
-                    //                             ui.label(pack_name.as_str());
-                    //                         });
-                    //                         ui.horizontal(|ui| {
-                    //                             ui.label("description: ");
-                    //                             ui.label(pack_entry.description.as_str());
-                    //                         });
+                                ui.label(format!("version: {}", pack_entry.version));
 
-                    //                         ui.label(format!("version: {}", pack_entry.version));
-
-                    //                         ui.horizontal(|ui| {
-                    //                             ui.label("url: ");
-                    //                             ui.label(pack_entry.url.as_str());
-                    //                         });
-                    //                     });
-                    //                 }
-                    //             }
-                    //             Err(e) => {
-                    //                 ui.label(format!("failed to get packlist. error: {e}"));
-                    //             }
-                    //         },
-                    //         None => {
-                    //             ui.label("pack list still pending");
-                    //         }
-                    //     }
+                                ui.horizontal(|ui| {
+                                    ui.label("url: ");
+                                    ui.label(pack_entry.url.as_str());
+                                });
+                                Ok(())
+                            });
+                        }
+                    }
                 });
-            // fn recursive_cat_menu(
-            //     ui: &mut Ui,
-            //     parent_node: NodeId,
-            //     arena: &Arena<(u16, &str, bool)>,
-            //     enabled_cats: &mut BitVec,
-            //     changed: &mut bool,
-            // ) {
-            //     for c in parent_node.children(arena) {
-            //         let cat = arena.get(c).unwrap().get();
-            //         let mut enabled = enabled_cats[cat.0 as usize];
-            //         if cat.2 {
-            //             // just a header
-            //             ui.heading(cat.1);
-            //         } else {
-            //             ui.horizontal(|ui| {
-            //                 if ui.checkbox(&mut enabled, "").changed() {
-            //                     enabled_cats.set(cat.0 as usize, enabled);
-            //                     *changed = true;
-            //                 }
-            //                 if c.children(arena).next().is_some() {
-            //                     ui.menu_button(cat.1, |ui| {
-            //                         recursive_cat_menu(ui, c, arena, enabled_cats, changed);
-            //                     });
-            //                 } else {
-            //                     ui.label(cat.1);
-            //                 }
-            //             });
-            //         }
-            //     }
-            // }
-            // ui.menu_button("packs menu", |ui| {
-            //     for pack in self.packs.iter_mut() {
-            //         let mut changed = false;
-            //         ui.menu_button(pack.0, |ui| {
-            //             recursive_cat_menu(
-            //                 ui,
-            //                 pack.1.root_category,
-            //                 &pack.1.cattree,
-            //                 &mut pack.1.activation_data.enabled_cats,
-            //                 &mut changed,
-            //             );
-            //         });
-            //         if changed {
-            //             match serde_json::to_string_pretty(&pack.1.activation_data) {
-            //                 Ok(s) => {
-            //                     if let Err(e) = std::fs::write(&pack.1.activation_data_path, &s) {
-            //                         warn!("failed to write activation_data due to error {e}");
-            //                     }
-            //                 },
-            //                 Err(_) => unimplemented!(),
-            //             }
-            //         }
-            //     }
-            // });
-            // egui::CollapsingHeader::new("Loaded Packs")
-            //     .default_open(false)
-            //     .show(ui, |ui| {
-            //         ui.columns(4, |columns| {
-            //             match columns {
-            //                 [c0, c1, c2, c3] => {
-            //                     for (pack_name, zpack) in self.packs.iter() {
-            //                         if c0
-            //                             .selectable_label(
-            //                                 self.ui_data.selected_pack.as_str() == pack_name,
-            //                                 pack_name,
-            //                             )
-            //                             .clicked()
-            //                         {
-            //                             if self.ui_data.selected_pack.as_str() == pack_name {
-            //                                 self.ui_data.selected_pack.clear();
-            //                             } else {
-            //                                 self.ui_data.selected_pack = pack_name.to_string();
-            //                             }
-            //                         }
-            //                         if &self.ui_data.selected_pack == pack_name {
-            //                             let height = c1.text_style_height(&egui::TextStyle::Body);
-            //                             egui::ScrollArea::new([false, true])
-            //                                 .id_source("pack scroll area")
-            //                                 .show_rows(
-            //                                 c1, height,
-            //                             zpack.pack.maps.len(), |ui, range| {
-            //                                 for (&map, mapdata) in zpack.pack.maps.iter().skip(range.start).take(range.end  - range.start) {
-            //                                     if ui.selectable_label(self.ui_data.selected_map == map, format!("{map}")).clicked() {
-            //                                         if self.ui_data.selected_map == map {
-            //                                             self.ui_data.selected_map = 0;
-            //                                         } else {
-            //                                             self.ui_data.selected_map = map;
-            //                                         }
-            //                                     }
-            //                                     if map == self.ui_data.selected_map {
-            //                                         c2.horizontal(|ui| {
-            //                                             ui.label("total markers: ");
-            //                                             ui.label(&format!("{}", mapdata.markers.len()));
-            //                                         });
-            //                                         let height = c2.text_style_height(&egui::TextStyle::Body);
-            //                                         egui::ScrollArea::new([false, true])
-            //                                         .id_source("map scroll area")
-            //                                         .show_rows(c2, height,
-            //                                         mapdata.markers.len(), |ui, range| {
-            //                                             for (index,  marker) in mapdata.markers[range.clone()].iter().enumerate() {
-            //                                                 let index = range.start + index;
-            //                                                 if ui.selectable_label(self.ui_data.selected_marker == index, format!("{index}")).clicked() {
-            //                                                     if self.ui_data.selected_marker == index {
-            //                                                         self.ui_data.selected_marker = 0;
-            //                                                     } else {
-            //                                                         self.ui_data.selected_marker = index;
-            //                                                     }
-            //                                                 }
-            //                                                 if self.ui_data.selected_marker == index {
-            //                                                     c3.label(format!("pos: x = {}; y = {}; z = {}", marker.position.x, marker.position.y, marker.position.z));
-            //                                                 }
-            //                                             }
-            //                                         });
-            //                                     }
-            //                                 }
-            //                             });
-            //                         }
-            //                     }
-            //                 }
-            //                 _ => panic!("whatever")
-            //             }
-            //         });
-            // });
+            Ok(())
         });
-    }
-}
-
-#[allow(unused)]
-mod temp {
-    use std::collections::BTreeMap;
-
-    struct MarkerPack {
-        name: String,
-        authors: Vec<Author>,
-        categories: BTreeMap<String, Category>,
-    }
-    struct Author {
-        name: String,
-        email: String,
-        in_game_name: String,
-    }
-    struct Category {
-        display_name: String,
-        maps: Vec<u16>,
-    }
-    struct BillBoard {
-        pos: glam::Vec3,
     }
 }

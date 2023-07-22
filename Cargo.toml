@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 tracing-error = { version = "*" }
 rfd = { version = "*" }
+notify-rust = { version = "*" }
 # jokoapi deps
 const_format = "0.2.14"
 # itertools = "0.10.0"
@@ -96,6 +97,11 @@ miette = { version = "*" }
 time = { version = "0.3", features = ["serde-human-readable"] }
 base64 = "0.21.2"
 tokio = { version = "1", features = ["full"] }
+backtrace-ext = { version = "*" }
+backtrace = { version = "*" }
+# cap-directories = { version = "*" }
+cap-std = { version = "*" }
+directories-next = { version = "*" }
 # jokolink deps
 widestring = { version = "1", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false }

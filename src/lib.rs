@@ -4,17 +4,19 @@ pub mod jokolink;
 
 use std::path::PathBuf;
 
+use cap_std::{ambient_authority, fs::Dir};
 use egui_backend::{
     egui::{self, Grid, Ui},
     raw_window_handle::HasRawWindowHandle,
     BackendConfig, GfxBackend, UserApp, WindowBackend,
 };
-
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
+use miette::{miette, Context, IntoDiagnostic, Result};
 
 use jmf::manager::MarkerManager;
 use joko_render::{JokoRenderer, MARKER_MAX_VISIBILITY_DISTANCE};
 use jokolink::{MumbleManager, WindowDimensions};
+
 use tracing::{info, warn};
 
 pub struct Jokolay {
@@ -22,6 +24,8 @@ pub struct Jokolay {
     pub fps: u32,
     pub frame_count: u64,
     pub frame_reset_seconds_timestamp: u64,
+    pub jdir: Dir,
+    pub jpath: PathBuf,
     pub mumble: Option<MumbleManager>,
     pub marker_manager: Option<MarkerManager>,
     pub window_dimensions: WindowDimensions,
@@ -31,7 +35,12 @@ pub struct Jokolay {
 }
 
 impl Jokolay {
-    fn new(mut window_backend: GlfwBackend, joko_renderer: JokoRenderer) -> Self {
+    fn new(
+        mut window_backend: GlfwBackend,
+        joko_renderer: JokoRenderer,
+        jpath: PathBuf,
+        jdir: Dir,
+    ) -> Self {
         let mumble = MumbleManager::new("MumbleLink", window_backend.window.raw_window_handle())
             .map_err(|e| {
                 warn!("error creating Mumble Manager: {}", e);
@@ -57,7 +66,7 @@ impl Jokolay {
                 mumble
             })
             .ok();
-        let marker_manager = MarkerManager::new(std::path::Path::new("./assets/packs"))
+        let marker_manager = MarkerManager::new(&jdir)
             .map_err(|e| {
                 warn!("error creating Marker Manager: {}", e);
             })
@@ -74,6 +83,8 @@ impl Jokolay {
             fps: 0,
             window_dimensions: WindowDimensions::default(),
             window_backend,
+            jdir,
+            jpath,
         }
     }
 }
@@ -90,6 +101,8 @@ impl UserApp for Jokolay {
             joko_renderer,
             egui_context,
             window_backend,
+            jdir: _,
+            jpath: _,
         } = self;
         // for ev in window_backend.frame_events.iter() {
         //     match ev {
@@ -203,7 +216,12 @@ impl UserApp for Jokolay {
     }
 }
 
-pub fn start_jokolay() {
+pub async fn start_jokolay() {
+    install_miette_panic_hooks().unwrap();
+    let (jokolay_dir_path, jdir) = get_jokolay_dir().unwrap();
+    let _log_file_flush_guard = install_tracing(&jdir).unwrap();
+    info!("using {jokolay_dir_path:?} as the jokolay data directory");
+
     let mut glfw_backend = GlfwBackend::new(
         GlfwConfig {
             glfw_callback: Box::new(|glfw_context| {
@@ -226,7 +244,7 @@ pub fn start_jokolay() {
     let joko_renderer = JokoRenderer::new(&mut glfw_backend, Default::default());
     // remove decorations
     glfw_backend.window.set_decorated(false);
-    let jokolay = Jokolay::new(glfw_backend, joko_renderer);
+    let jokolay = Jokolay::new(glfw_backend, joko_renderer, jokolay_dir_path, jdir);
     <Jokolay as UserApp>::UserWindowBackend::run_event_loop(jokolay);
 }
 
@@ -251,18 +269,176 @@ fn mumble_ui(ui: &mut Ui, link: &jokolink::MumbleLink) {
     });
 }
 
-fn setup_config() -> miette::Result<()> {
-    Ok(())
+/// Jokolay Configuration
+/// We will read a path from env `JOKOLAY_DATA_DIR` or create a folder at data_local_dir/jokolay, where data_local_dir is platform specific
+/// Inside this directory, we will store all of jokolay's data like configuration files, themes, logs etc..
+fn get_jokolay_dir() -> Result<(PathBuf, cap_std::fs::Dir)> {
+    let authoratah = ambient_authority();
+    let jokolay_data_local_dir_path = if let Some(env_dir) = std::env::var("JOKOLAY_DATA_DIR").ok()
+    {
+        match PathBuf::try_from(&env_dir) {
+            Ok(jokolay_dir) => jokolay_dir,
+            Err(e) => return Err(miette!("failed to parse JOKOLAY_DATA_DIR: {e}")),
+        }
+    } else {
+        match directories_next::ProjectDirs::from("com.jokolay", "", "jokolay") {
+            Some(pd) => pd.data_local_dir().to_path_buf(),
+            None => return Err(miette!("getting project dirs failed for some reason")),
+        }
+    };
+    if jokolay_data_local_dir_path.to_str().is_none() {
+        return Err(miette!(
+            "jokolay data dir is not utf-8: {jokolay_data_local_dir_path:?}"
+        ));
+    }
+    if let Err(e) =
+        cap_std::fs::Dir::create_ambient_dir_all(&jokolay_data_local_dir_path, authoratah)
+    {
+        return Err(miette!(
+            "failed to create jokolay directory at {jokolay_data_local_dir_path:?} due to error: {e}"
+        ));
+    }
+    let jdir = match Dir::open_ambient_dir(&jokolay_data_local_dir_path, authoratah) {
+        Ok(jdir) => jdir,
+        Err(e) => {
+            return Err(miette!(
+                "failed to open jokolay data dir at {jokolay_data_local_dir_path:?} due to {e}"
+            ))
+        }
+    };
+
+    Ok((jokolay_data_local_dir_path, jdir))
 }
-/// Configuration for Jokolay
-/// 
-pub struct JokoConfig {
-    /// Jokolay will store any config files in this directory
-    pub joko_config_dir: Option<PathBuf>,
-    /// stores local data like marker packs or downloaded addons or other data.
-    pub joko_data_dir: Option<PathBuf>,
-    /// stores cache like thumbnails or something which is fine to lose, but not important enough to store in the data dir.
-    pub joko_cache_dir: Option<PathBuf>,
-    /// directory where we store temporary things which are deleted regularly. eg: logs, texture atlases 
-    pub joko_tmp_dir: Option<PathBuf>,
+
+fn install_tracing(
+    jokolay_dir: &Dir,
+) -> miette::Result<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_error::ErrorLayer;
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::{fmt, EnvFilter};
+    // get the log level
+    let filter_layer = EnvFilter::try_from_env("JOKOLAY_LOG")
+        .or_else(|_| EnvFilter::try_new("info,wgpu=warn,naga=warn"))
+        .unwrap();
+    // create log file in the data dir. This will also serve as a check that the directory is "writeable" by us
+    let writer = std::io::BufWriter::new(
+        jokolay_dir
+            .create("jokolay.log")
+            .into_diagnostic()
+            .wrap_err("failed to create jokolay.log file")?,
+    );
+    let (nb, guard) = tracing_appender::non_blocking(writer);
+    let fmt_layer = fmt::layer().with_target(false).with_writer(nb);
+
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .with(ErrorLayer::default())
+        .init();
+    Ok(guard)
+}
+/// code stolen from miette::set_panic_hook
+fn install_miette_panic_hooks() -> Result<()> {
+    miette::set_hook(Box::new(|diagnostic| {
+        let handler = Box::new(miette::NarratableReportHandler::new());
+        let mut panic_report = String::new();
+        if let Err(e) = handler.render_report(&mut panic_report, diagnostic) {
+            tracing::error!("failed to render report: {e}");
+        }
+        tracing::error!("crashing: {:#?}", &panic_report);
+        handler
+    }))
+    .wrap_err("failed to install miette hook")?;
+
+    #[derive(Debug, thiserror::Error, miette::Diagnostic)]
+    #[error("{0}{}", Panic::backtrace())]
+    #[diagnostic(help("set the `RUST_BACKTRACE=1` environment variable to display a backtrace."))]
+    struct Panic(String);
+    impl Panic {
+        fn backtrace() -> String {
+            use std::fmt::Write;
+            if let Ok(var) = std::env::var("RUST_BACKTRACE") {
+                if !var.is_empty() && var != "0" {
+                    const HEX_WIDTH: usize = std::mem::size_of::<usize>() + 2;
+                    // Padding for next lines after frame's address
+                    const NEXT_SYMBOL_PADDING: usize = HEX_WIDTH + 6;
+                    let mut backtrace = String::new();
+                    let trace = backtrace::Backtrace::new();
+                    let frames = backtrace_ext::short_frames_strict(&trace).enumerate();
+                    for (idx, (frame, sub_frames)) in frames {
+                        let ip = frame.ip();
+                        let _ = write!(backtrace, "\n{:4}: {:2$?}", idx, ip, HEX_WIDTH);
+
+                        let symbols = frame.symbols();
+                        if symbols.is_empty() {
+                            let _ = write!(backtrace, " - <unresolved>");
+                            continue;
+                        }
+
+                        for (idx, symbol) in symbols[sub_frames].iter().enumerate() {
+                            // Print symbols from this address,
+                            // if there are several addresses
+                            // we need to put it on next line
+                            if idx != 0 {
+                                let _ = write!(backtrace, "\n{:1$}", "", NEXT_SYMBOL_PADDING);
+                            }
+
+                            if let Some(name) = symbol.name() {
+                                let _ = write!(backtrace, " - {}", name);
+                            } else {
+                                let _ = write!(backtrace, " - <unknown>");
+                            }
+
+                            // See if there is debug information with file name and line
+                            if let (Some(file), Some(line)) = (symbol.filename(), symbol.lineno()) {
+                                let _ = write!(
+                                    backtrace,
+                                    "\n{:3$}at {}:{}",
+                                    "",
+                                    file.display(),
+                                    line,
+                                    NEXT_SYMBOL_PADDING
+                                );
+                            }
+                        }
+                    }
+                    return backtrace;
+                }
+            }
+            "".into()
+        }
+    }
+
+    std::panic::set_hook(Box::new(|panic_info| {
+        // code stolen from miette::set_panic_hook
+        let mut message = "Something went wrong".to_string();
+        let payload = panic_info.payload();
+        if let Some(msg) = payload.downcast_ref::<&str>() {
+            message = msg.to_string();
+        }
+        if let Some(msg) = payload.downcast_ref::<String>() {
+            message = msg.clone();
+        }
+        let mut report: miette::Result<()> = Err(Panic(message).into());
+        if let Some(loc) = panic_info.location() {
+            report = report
+                .with_context(|| format!("at {}:{}:{}", loc.file(), loc.line(), loc.column()));
+        }
+        if let Err(err) = report.with_context(|| "Main thread panicked.".to_string()) {
+            eprintln!("Error: {:?}", err);
+            tracing::error!("crashing: {:?}", &err);
+            if let Err(e) = notify_rust::Notification::new()
+                .appname("Jokolay")
+                .body(&format!("{:?}", &err))
+                .summary("Jokolay crashed")
+                .timeout(0)
+                .finalize()
+                .show()
+            {
+                tracing::error!("failed to display notification");
+                eprintln!("failed to display notification, {e:?}");
+            }
+        }
+    }));
+    Ok(())
 }

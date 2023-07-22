@@ -3,22 +3,24 @@ An Overlay for Guild Wars 2 in Rust
 
 Well, technically, this contains a family of crates related to jokolay.
 
-1. Jokolink: This is what you will run from the wine prefix of gw2 . it reads the *official* [shared memory](https://wiki.guildwars2.com/wiki/API:MumbleLink) of gw2 to get live player data and copy into a shared memory file under /dev/shm for linux native apps (like Jokolay) to use.
-2. jokoapi: API bindings for gw2 api in rust. if anyone wants to contribute, this is the best place. its just copy pasting api endpoints and filling out all the required fields of structs, writing tests to verify.
-3. Jokolay: this is the actual overlay. I say Overlay, but it can also be used on web.    
-4. JMF: deals with a json based marker format. deals with merging / editing / importing / exporting / validating marker packs.
+1. `jokolink`: This is what you will run from the wine prefix of gw2 . it reads the *official* [shared memory](https://wiki.guildwars2.com/wiki/API:MumbleLink) of gw2 to get live player data and copy into a shared memory file under /dev/shm for linux native apps (like Jokolay) to use.
+2. `jokoapi`: API bindings for gw2 api in rust. if anyone wants to contribute, this is the best place. its just copy pasting api endpoints and filling out all the required fields of structs, writing tests to verify.
+3. `jokolay`: this is the actual overlay.    
+4. `joko_marker_format`: deals with marker packs.
       
 ## Minimum Requirements
 1. Requires Vulkan. most GPUs after gtx 750 should be okay.
 2. X11. Wayland is NOT supported. (does not apply to windows obviously).
 
 ### Compiling
-for now, just look at the github workflow file. 
-> Linux: you need xorg family packages and luajit to compile on desktop. 
+for now, just look at the github workflow file.
+- dependencies: `cmake`, 
+- linux deps: gtk, xorg, 
 
 ### Window Managers
-> compositing must be turned on or transparency won't work. you will just see a black window other wise. 
-> lutris can disable compositing when game launches, so turn that feature off in lutris game options. 
+- compositing must be turned on or transparency won't work. you will just see a black window other wise. 
+- lutris can disable compositing when game launches, so turn that feature off in lutris game options. 
+
 #### Officially supported
 1. KDE.
 

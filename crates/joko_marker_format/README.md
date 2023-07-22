@@ -84,8 +84,3 @@ Marker Pack
 2. more performance because 2d?
 
 
-imported format:
-1. binary zero copy deserialization format like rkyv for best performance.
-2. database like sqlite or postgres. can store all data inside database. but databases need me to learn SQL. 
-
-
