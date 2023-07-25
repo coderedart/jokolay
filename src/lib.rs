@@ -35,7 +35,7 @@ pub struct Jokolay {
 }
 
 impl Jokolay {
-    fn new(
+    async fn new(
         mut window_backend: GlfwBackend,
         joko_renderer: JokoRenderer,
         jpath: PathBuf,
@@ -67,6 +67,7 @@ impl Jokolay {
             })
             .ok();
         let marker_manager = MarkerManager::new(&jdir)
+            .await
             .map_err(|e| {
                 warn!("error creating Marker Manager: {}", e);
             })
@@ -244,7 +245,7 @@ pub async fn start_jokolay() {
     let joko_renderer = JokoRenderer::new(&mut glfw_backend, Default::default());
     // remove decorations
     glfw_backend.window.set_decorated(false);
-    let jokolay = Jokolay::new(glfw_backend, joko_renderer, jokolay_dir_path, jdir);
+    let jokolay = Jokolay::new(glfw_backend, joko_renderer, jokolay_dir_path, jdir).await;
     <Jokolay as UserApp>::UserWindowBackend::run_event_loop(jokolay);
 }
 

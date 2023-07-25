@@ -28,7 +28,7 @@ impl Marker {
         ele.set_attribute(names.xpos, format!("{}", self.position[0]));
         ele.set_attribute(names.ypos, format!("{}", self.position[1]));
         ele.set_attribute(names.zpos, format!("{}", self.position[2]));
-        ele.set_attribute(names.guid, super::Pack::BASE64_ENGINE.encode(self.guid));
+        ele.set_attribute(names.guid, super::PackCore::BASE64_ENGINE.encode(self.guid));
         ele.set_attribute(names.map_id, format!("{}", self.map_id));
         ele.set_attribute(names.category, &self.category);
         self.props.serialize_to_element(ele, names);

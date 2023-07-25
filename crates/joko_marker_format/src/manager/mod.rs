@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    path::PathBuf,
+    io::Write,
     sync::{Arc, Mutex},
 };
 
@@ -10,7 +10,7 @@ use egui::{
     DragValue, Window,
 };
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,9 +21,15 @@ use uuid::Uuid;
 
 use crate::pack::PackInfo;
 
-use super::pack::Pack;
+use super::pack::PackCore;
 
 pub const PACK_LIST_URL: &str = "https://packlist.jokolay.com/packlist.json";
+
+pub const MARKER_MANAGER_DIRECTORY_NAME: &str = "marker_manager";
+pub const MARKER_PACKS_DIRECTORY_NAME: &str = "packs";
+
+pub const ACTIVATION_DATA_FILE_NAME: &str = "activation_data.json";
+pub const PACK_INFO_FILE_NAME: &str = "info.json";
 /// How should the pack be stored by jokolay?
 /// 1. Inside a directory called packs, we will have a separate directory for each pack.
 /// 2. the name of the directory will be a random UUID, which will serve as an ID for each pack locally.
@@ -68,7 +74,7 @@ pub struct LivePack {
     dir: Dir,
     /// This is the marker pack data. we reuse the struct as xml, but one crucial difference is that, this is usually only loaded partially.
     /// As images only need to be loaded as needed.
-    pack: Pack,
+    pack: PackCore,
     /// Activation data stored inside the pack dir as well.
     activation_data: ActivationData,
     /// Info about the pack
@@ -76,13 +82,29 @@ pub struct LivePack {
 }
 
 impl LivePack {
-    pub fn new(dir: Dir) -> Result<Self> {
-        let pack = Pack::from_dir(&dir).wrap_err("failed to load marker pack from directory")?;
-
-        let activation_data = dir.read_to_string("activation.json").unwrap_or_default();
-        let activation_data = serde_json::from_str(&activation_data).unwrap_or_default();
-        let info = dir.read_to_string("info.json").unwrap_or_default();
-        let info = serde_json::from_str(&info).unwrap_or_default();
+    pub fn from_dir(dir: Dir) -> Result<Self> {
+        let pack =
+            PackCore::from_dir(&dir).wrap_err("failed to load marker pack from directory")?;
+        let activation_data = if dir.exists(ACTIVATION_DATA_FILE_NAME) {
+            let activation_data_str = dir
+                .read_to_string(ACTIVATION_DATA_FILE_NAME)
+                .into_diagnostic()
+                .wrap_err("failed to read activation_data.json")?;
+            serde_json::from_str(&activation_data_str).into_diagnostic()?
+        } else {
+            ActivationData::default()
+        };
+        let info = if dir.exists(PACK_INFO_FILE_NAME) {
+            let info = dir
+                .read_to_string(PACK_INFO_FILE_NAME)
+                .into_diagnostic()
+                .wrap_err("failed to read pack info file")?;
+            serde_json::from_str(&info)
+                .into_diagnostic()
+                .wrap_err("failed to deserialize pack info file")?
+        } else {
+            PackInfo::default()
+        };
         Ok(Self {
             pack,
             activation_data,
@@ -90,16 +112,44 @@ impl LivePack {
             info,
         })
     }
-    pub fn get_pack(&self) -> &Pack {
+    pub fn get_pack(&self) -> &PackCore {
         &self.pack
     }
     pub fn save_everything(&self) -> miette::Result<()> {
+        self.pack
+            .save_to_dir(&self.dir)
+            .wrap_err("failed to save pack to directory")?;
+        self.save_trigger_data()?;
+        self.dir
+            .create(PACK_INFO_FILE_NAME)
+            .into_diagnostic()
+            .wrap_err("failed to create pack info file")?
+            .write_all(
+                &serde_json::to_string_pretty(&self.info)
+                    .into_diagnostic()
+                    .wrap_err("failed to serialize pack info")?
+                    .as_bytes(),
+            )
+            .into_diagnostic()
+            .wrap_err("failed to write pack info")?;
         Ok(())
     }
-    pub fn save_trigger_data(&self) {}
+    pub fn save_trigger_data(&self) -> miette::Result<()> {
+        self.dir
+            .create(ACTIVATION_DATA_FILE_NAME)
+            .into_diagnostic()
+            .wrap_err("failed to create activation data file")?
+            .write_all(
+                &serde_json::to_string_pretty(&self.activation_data)
+                    .into_diagnostic()
+                    .wrap_err("failed to serialize activation data")?
+                    .as_bytes(),
+            )
+            .into_diagnostic()
+            .wrap_err("failed to write activation data")?;
+        Ok(())
+    }
 }
-#[derive(Debug, Default)]
-pub struct LiveMarkers {}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ActivationData {
@@ -123,27 +173,23 @@ pub struct PackEntry {
 }
 
 impl MarkerManager {
-    const MARKER_MANAGER_PATH: &str = "marker_manager";
-    const MARKER_PACKS_PATH: &str = "packs";
-    /// MarkerManager needs the zip files to load as markers and data stored like activation data or enabled categories.
-    /// 1.
-    pub fn new(jdir: &Dir) -> Result<Self> {
-        jdir.create_dir_all(Self::MARKER_MANAGER_PATH)
+    pub async fn new(jdir: &Dir) -> Result<Self> {
+        jdir.create_dir_all(MARKER_MANAGER_DIRECTORY_NAME)
             .into_diagnostic()
             .wrap_err("failed to create marker manager directory")?;
         let marker_manager_dir = jdir
-            .open_dir(Self::MARKER_MANAGER_PATH)
+            .open_dir(MARKER_MANAGER_DIRECTORY_NAME)
             .into_diagnostic()
             .wrap_err("failed to open marker manager directory")?;
         marker_manager_dir
-            .create_dir_all(Self::MARKER_PACKS_PATH)
+            .create_dir_all(MARKER_PACKS_DIRECTORY_NAME)
             .into_diagnostic()
             .wrap_err("failed to create marker packs directory")?;
         let marker_packs_dir = marker_manager_dir
-            .open_dir(Self::MARKER_PACKS_PATH)
+            .open_dir(MARKER_PACKS_DIRECTORY_NAME)
             .into_diagnostic()
-            .wrap_err("failed ot open marker packs dir")?;
-        let packs: BTreeMap<Uuid, LivePack> = Default::default();
+            .wrap_err("failed to open marker packs dir")?;
+        let mut packs: BTreeMap<Uuid, LivePack> = Default::default();
 
         for entry in marker_packs_dir
             .entries()
@@ -154,16 +200,17 @@ impl MarkerManager {
             if entry.metadata().into_diagnostic()?.is_file() {
                 continue;
             }
-            if let Some(_name) = entry.file_name().to_str() {
-                // let name: Uuid = name
-                //     .parse()
-                //     .into_diagnostic()
-                //     .wrap_err("pack name is not valid utf-8")?;
+            if let Some(name) = entry.file_name().to_str() {
+                let name: Uuid = name
+                    .parse()
+                    .into_diagnostic()
+                    .wrap_err("pack name is not valid utf-8")?;
+                let pack_dir = entry
+                    .open_dir()
+                    .into_diagnostic()
+                    .wrap_err("failed to open pack entry as directory")?;
 
-                // // entry.open_dir().into_diagnostic()?.open(path)
-                // activation_data_path.set_file_name("name.adata");
-                // let live_pack = LivePack::new(pack.path(), activation_data_path)?;
-                // packs.insert(name, live_pack);
+                packs.insert(name, LivePack::from_dir(pack_dir)?);
             }
         }
         let pack_list = Arc::new(Mutex::default());
@@ -238,7 +285,7 @@ impl MarkerManager {
                     {
                         let taco_zip = file.read().await;
                         warn!("starting to get pack from taco");
-                        match Pack::get_pack_from_taco_zip(&taco_zip) {
+                        match PackCore::get_pack_from_taco_zip(&taco_zip) {
                             Ok(pack) => {
                                 pack.save_to_dir(&dir).unwrap();
                                 warn!("saved pack");
@@ -306,7 +353,7 @@ impl MarkerManager {
                                             }
                                         };
                                         warn!("starting to get pack from taco");
-                                        match Pack::get_pack_from_taco_zip(&xmlpack) {
+                                        match PackCore::get_pack_from_taco_zip(&xmlpack) {
                                             Ok(pack) => {
                                                 // warn!("failures when converting pack ({name}) to json:\n{failures:#?}");
                                                 pack.save_to_dir(&dir).unwrap();

@@ -14,7 +14,7 @@ pub struct Trail {
 
 impl Trail {
     pub fn serialize_to_element(&self, ele: &mut Element, names: &XotAttributeNameIDs) {
-        ele.set_attribute(names.guid, super::Pack::BASE64_ENGINE.encode(self.guid));
+        ele.set_attribute(names.guid, super::PackCore::BASE64_ENGINE.encode(self.guid));
         ele.set_attribute(names.category, &self.category);
         self.props.serialize_to_element(ele, &names);
     }

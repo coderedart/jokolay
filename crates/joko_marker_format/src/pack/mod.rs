@@ -6,7 +6,7 @@ mod trail;
 use base64::Engine;
 use cap_std::fs::Dir;
 use indexmap::IndexMap;
-use miette::{bail, Context, IntoDiagnostic};
+use miette::{bail, miette, Context, IntoDiagnostic};
 
 pub const MARKER_PNG: &[u8] = include_bytes!("marker.png");
 pub const TRAIL_PNG: &[u8] = include_bytes!("trail.png");
@@ -17,7 +17,11 @@ use serde::{Deserialize, Serialize};
 
 use tracing::warn;
 
-use std::{collections::{BTreeMap, BTreeSet}, io::Write, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Write,
+    path::Path,
+};
 use time::OffsetDateTime;
 use url::Url;
 use uuid::Uuid;
@@ -37,7 +41,7 @@ use std::sync::Arc;
 pub use trail::*;
 
 #[derive(Default)]
-pub struct Pack {
+pub struct PackCore {
     pub textures: BTreeMap<RelativePathBuf, Vec<u8>>,
     pub tbins: BTreeMap<RelativePathBuf, TBin>,
     pub categories: IndexMap<String, Category>,
@@ -50,205 +54,114 @@ pub struct MapData {
     pub trails: Vec<Trail>,
 }
 
-impl Pack {
+impl PackCore {
+    // a temporary recursive function to parse the marker category tree.
+    fn recursive_marker_category_parser_categories_xml(
+        tree: &Xot,
+        tags: impl Iterator<Item = Node>,
+        cats: &mut IndexMap<String, Category>,
+        names: &XotAttributeNameIDs,
+    ) -> miette::Result<()> {
+        for tag in tags.filter(|node| tree.is_element(*node)) {
+            let ele = tree.element(tag).unwrap();
+            if ele.name() != names.marker_category {
+                continue;
+            }
+
+            let name = ele.get_attribute(names.name).unwrap_or_default();
+            if name.is_empty() {
+                warn!("category doesn't have a name attribute");
+                continue;
+            }
+            let mut common_attributes = CommonAttributes::default();
+            common_attributes.update_from_element(ele, names);
+
+            let display_name = ele.get_attribute(names.display_name).unwrap_or_default();
+
+            let separator = match ele.get_attribute(names.separator).unwrap_or("0") {
+                "0" => false,
+                "1" => true,
+                ors => {
+                    warn!("separator attribute has invalid value: {ors}");
+                    false
+                }
+            };
+
+            let default_enabled = match ele.get_attribute(names.default_enabled).unwrap_or("1") {
+                "0" => false,
+                "1" => true,
+                ors => {
+                    warn!("default_enabled attribute has invalid value: {ors}");
+                    true
+                }
+            };
+            Self::recursive_marker_category_parser_categories_xml(
+                tree,
+                tree.children(tag),
+                &mut cats
+                    .entry(name.to_string())
+                    .or_insert_with(|| Category {
+                        display_name: display_name.to_string(),
+                        separator,
+                        default_enabled,
+                        props: common_attributes,
+                        children: Default::default(),
+                    })
+                    .children,
+                names,
+            )?;
+        }
+        Ok(())
+    }
     pub fn from_dir(dir: &Dir) -> miette::Result<Self> {
         let mut files: HashMap<RelativePathBuf, Vec<u8>> = HashMap::new();
-        Self::recursive_walk_dir(dir, &mut files, RelativePath::new(""))
+
+        // walks the directory and loads all files into the hashmap
+        Self::recursive_walk_dir_and_read_files(dir, &mut files, RelativePath::new(""))
             .wrap_err("failed to walk dir when loading a markerpack")?;
-        let mut pack = Pack::default();
-        let cats_xml = files
-            .remove(RelativePath::new("categories.xml"))
-            .ok_or(miette::miette!("missing categories.xml"))?;
-        // a temporary recursive function to parse the marker category tree.
-        fn recursive_marker_category_parser_categories_xml(
-            tree: &Xot,
-            tags: impl Iterator<Item = Node>,
-            cats: &mut IndexMap<String, Category>,
-            names: &XotAttributeNameIDs,
-        ) -> miette::Result<()> {
-            for tag in tags.filter(|node| tree.is_element(*node)) {
-                let ele = tree.element(tag).unwrap();
-                if ele.name() != names.marker_category {
-                    continue;
-                }
-
-                let name = ele.get_attribute(names.name).unwrap_or_default();
-                if name.is_empty() {
-                    miette::bail!("category doesn't have a name attribute");
-                }
-                let mut common_attributes = CommonAttributes::default();
-                common_attributes.update_from_element(ele, names);
-
-                let display_name = ele.get_attribute(names.display_name).unwrap_or_default();
-
-                let separator = ele
-                    .get_attribute(names.separator)
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or_default();
-
-                let default_enabled = ele
-                    .get_attribute(names.default_enabled)
-                    .unwrap_or_default()
-                    .parse()
-                    .unwrap_or(true);
-                recursive_marker_category_parser_categories_xml(
-                    tree,
-                    tree.children(tag),
-                    &mut cats
-                        .entry(name.to_string())
-                        .or_insert_with(|| Category {
-                            display_name: display_name.to_string(),
-                            separator,
-                            default_enabled,
-                            props: common_attributes.into(),
-                            children: Default::default(),
-                        })
-                        .children,
-                    names,
-                )?;
-            }
-            Ok(())
+        let mut pack = PackCore::default();
+        // parse categories
+        {
+            let cats_xml = files
+                .remove(RelativePath::new("categories.xml"))
+                .ok_or_else(|| miette::miette!("missing categories.xml"))?;
+            Self::parse_categories_file(&cats_xml, &mut pack)
+                .wrap_err("failed to parse category file")?;
         }
-        let mut tree = xot::Xot::new();
-        let overlay_data = tree
-            .parse(
-                std::str::from_utf8(&cats_xml)
-                    .into_diagnostic()
-                    .wrap_err("failed to parse cats as xml text")?,
-            )
-            .into_diagnostic()?;
-        let xot_names = XotAttributeNameIDs::register_with_xot(&mut tree);
-        if let Some(od) = tree.element(overlay_data) {
-            if od.name() != xot_names.overlay_data {
-                bail!("root tag is not OverlayData")
-            }
-            recursive_marker_category_parser_categories_xml(
-                &tree,
-                tree.children(overlay_data),
-                &mut pack.categories,
-                &xot_names,
-            )?;
-        } else {
-            miette::bail!("failed to get overlay data tag of cats xml");
-        }
-
+        // parse rest of the pack
         for (path, contents) in files {
             let ext = path
                 .extension()
-                .ok_or(miette::miette!("no file extension"))?;
+                .ok_or_else(|| miette::miette!("no file extension"))?;
             match ext {
                 "xml" => {
                     let map_id: u32 = path
                         .file_stem()
-                        .ok_or(miette::miette!("missing file name"))?
+                        .ok_or_else(|| {
+                            miette::miette!(
+                                "missing file name {}",
+                                path.file_name().unwrap_or_default()
+                            )
+                        })?
                         .parse()
-                        .into_diagnostic()?;
-                    let mut tree = Xot::new();
-                    let overlay_data = tree
-                        .parse(std::str::from_utf8(&contents).into_diagnostic()?)
-                        .into_diagnostic()?;
-                    let names = XotAttributeNameIDs::register_with_xot(&mut tree);
-                    let od = tree
-                        .element(overlay_data)
-                        .ok_or(miette::miette!("failed to get overlay data tag"))?;
-                    if od.name() != names.overlay_data {
-                        bail!("missingoverlay data tag ");
-                    }
-                    let pois = tree
-                        .children(overlay_data)
-                        .find(|node| match tree.element(*node) {
-                            Some(ele) => ele.name() == names.pois,
-                            None => false,
-                        })
-                        .ok_or(miette::miette!("missing pois node"))?;
-                    for child in tree.children(pois) {
-                        if let Some(child) = tree.element(child) {
-                            let category = child
-                                .get_attribute(names.category)
-                                .unwrap_or_default()
-                                .to_lowercase();
-
-                            let guid = child
-                                .get_attribute(names.guid)
-                                .and_then(|guid| {
-                                    let mut buffer = [0u8; 20];
-                                    Self::BASE64_ENGINE
-                                        .decode_slice(guid, &mut buffer)
-                                        .ok()
-                                        .and_then(|_| Uuid::from_slice(&buffer[..16]).ok())
-                                })
-                                .ok_or(miette::miette!("invalid guid"))?;
-                            if child.name() == names.poi {
-                                if child
-                                    .get_attribute(names.map_id)
-                                    .and_then(|map_id| map_id.parse::<u32>().ok())
-                                    .ok_or(miette::miette!("invalid mapid"))?
-                                    != map_id
-                                {
-                                    bail!("mapid doesn't match the file name");
-                                }
-                                let xpos = child
-                                    .get_attribute(names.xpos)
-                                    .unwrap_or_default()
-                                    .parse::<f32>()
-                                    .into_diagnostic()?;
-                                let ypos = child
-                                    .get_attribute(names.ypos)
-                                    .unwrap_or_default()
-                                    .parse::<f32>()
-                                    .into_diagnostic()?;
-                                let zpos = child
-                                    .get_attribute(names.zpos)
-                                    .unwrap_or_default()
-                                    .parse::<f32>()
-                                    .into_diagnostic()?;
-                                let mut common_attributes = CommonAttributes::default();
-                                common_attributes.update_from_element(&child, &names);
-
-                                let marker = Marker {
-                                    position: [xpos, ypos, zpos].into(),
-                                    map_id,
-                                    category,
-                                    props: common_attributes.into(),
-                                    guid,
-                                };
-
-                                pack.maps.entry(map_id).or_default().markers.push(marker);
-                            } else if child.name() == names.trail {
-                                if child
-                                    .get_attribute(names.trail_data)
-                                    .and_then(|trail_data| {
-                                        RelativePathBuf::try_from(trail_data.to_lowercase())
-                                            .ok()
-                                            .map(|t| pack.tbins.get(&t).map(|tb| tb.map_id))
-                                            .flatten()
-                                    })
-                                    .ok_or(miette::miette!("missing mapid of trail"))?
-                                    != map_id
-                                {
-                                    bail!("mapid doesn't match the file name");
-                                }
-
-                                let mut common_attributes = CommonAttributes::default();
-                                common_attributes.update_from_element(&child, &names);
-
-                                let trail = Trail {
-                                    category,
-                                    props: common_attributes.into(),
-                                    guid,
-                                };
-                                pack.maps.entry(map_id).or_default().trails.push(trail);
-                            }
-                        }
-                    }
+                        .into_diagnostic()
+                        .wrap_err_with(|| {
+                            miette!(
+                                "file name is not valid u32: {}",
+                                path.file_name().unwrap_or_default()
+                            )
+                        })?;
+                    Self::parse_map_file(map_id, &contents, &mut pack)
+                        .wrap_err_with(|| miette!("error parsing map file: {map_id}"))?;
                 }
                 "png" => {
                     pack.textures.insert(path, contents);
                 }
                 "trl" => {
-                    pack.tbins
-                        .insert(path, TBin::parse_from_slice(&contents).into_diagnostic()?);
+                    let tbin = TBin::parse_from_slice(&contents)
+                        .into_diagnostic()
+                        .wrap_err_with(|| miette!("failed to parse tbin file: {path}"))?;
+                    pack.tbins.insert(path, tbin);
                 }
                 _ => {
                     bail!("unrecognized file extension: {path}")
@@ -257,35 +170,202 @@ impl Pack {
         }
         Ok(pack)
     }
-    fn recursive_walk_dir(
+    fn parse_categories_file(
+        cats_xml: &[u8],
+        pack: &mut PackCore,
+    ) -> Result<(), miette::ErrReport> {
+        let mut tree = xot::Xot::new();
+        let xot_names = XotAttributeNameIDs::register_with_xot(&mut tree);
+        let root_node = tree
+            .parse(
+                std::str::from_utf8(&cats_xml)
+                    .into_diagnostic()
+                    .wrap_err("invalid utf-8")?,
+            )
+            .into_diagnostic()
+            .wrap_err("invalid xml")?;
+
+        let overlay_data_node = tree
+            .document_element(root_node)
+            .into_diagnostic()
+            .wrap_err("no doc element")?;
+
+        if let Some(od) = tree.element(overlay_data_node) {
+            if od.name() == xot_names.overlay_data {
+                Self::recursive_marker_category_parser_categories_xml(
+                    &tree,
+                    tree.children(overlay_data_node),
+                    &mut pack.categories,
+                    &xot_names,
+                )
+                .wrap_err(miette::miette!("error in recursive category parser fn"))?;
+            } else {
+                bail!("root tag is not OverlayData")
+            }
+        } else {
+            bail!("doc element is not element???");
+        }
+        Ok(())
+    }
+    fn parse_map_file(
+        map_id: u32,
+        contents: &[u8],
+        pack: &mut PackCore,
+    ) -> Result<(), miette::ErrReport> {
+        let mut tree = Xot::new();
+        let root_node = tree
+            .parse(
+                std::str::from_utf8(&contents)
+                    .into_diagnostic()
+                    .wrap_err("invalid utf-8")?,
+            )
+            .into_diagnostic()
+            .wrap_err("invalid xml")?;
+        let names = XotAttributeNameIDs::register_with_xot(&mut tree);
+        let overlay_data_node = tree
+            .document_element(root_node)
+            .into_diagnostic()
+            .wrap_err("missing doc element")?;
+
+        let overlay_data_element = tree
+            .element(overlay_data_node)
+            .ok_or_else(|| miette::miette!("no doc ele"))?;
+
+        if overlay_data_element.name() != names.overlay_data {
+            bail!("root tag is not OverlayData");
+        }
+        let pois = tree
+            .children(overlay_data_node)
+            .find(|node| match tree.element(*node) {
+                Some(ele) => ele.name() == names.pois,
+                None => false,
+            })
+            .ok_or_else(|| miette::miette!("missing pois node"))?;
+        for child in tree.children(pois) {
+            if let Some(child) = tree.element(child) {
+                let category = child
+                    .get_attribute(names.category)
+                    .unwrap_or_default()
+                    .to_lowercase();
+
+                let guid = child
+                    .get_attribute(names.guid)
+                    .and_then(|guid| {
+                        let mut buffer = [0u8; 20];
+                        Self::BASE64_ENGINE
+                            .decode_slice(guid, &mut buffer)
+                            .ok()
+                            .and_then(|_| Uuid::from_slice(&buffer[..16]).ok())
+                    })
+                    .ok_or_else(|| miette::miette!("invalid guid"))?;
+                if child.name() == names.poi {
+                    if child
+                        .get_attribute(names.map_id)
+                        .and_then(|map_id| map_id.parse::<u32>().ok())
+                        .ok_or_else(|| miette::miette!("invalid mapid"))?
+                        != map_id
+                    {
+                        bail!("mapid doesn't match the file name");
+                    }
+                    let xpos = child
+                        .get_attribute(names.xpos)
+                        .unwrap_or_default()
+                        .parse::<f32>()
+                        .into_diagnostic()?;
+                    let ypos = child
+                        .get_attribute(names.ypos)
+                        .unwrap_or_default()
+                        .parse::<f32>()
+                        .into_diagnostic()?;
+                    let zpos = child
+                        .get_attribute(names.zpos)
+                        .unwrap_or_default()
+                        .parse::<f32>()
+                        .into_diagnostic()?;
+                    let mut common_attributes = CommonAttributes::default();
+                    common_attributes.update_from_element(&child, &names);
+
+                    let marker = Marker {
+                        position: [xpos, ypos, zpos].into(),
+                        map_id,
+                        category,
+                        props: common_attributes.into(),
+                        guid,
+                    };
+
+                    pack.maps.entry(map_id).or_default().markers.push(marker);
+                } else if child.name() == names.trail {
+                    if child
+                        .get_attribute(names.trail_data)
+                        .and_then(|trail_data| {
+                            RelativePathBuf::try_from(trail_data.to_lowercase())
+                                .ok()
+                                .map(|t| pack.tbins.get(&t).map(|tb| tb.map_id))
+                                .flatten()
+                        })
+                        .ok_or_else(|| miette::miette!("missing mapid of trail"))?
+                        != map_id
+                    {
+                        bail!("mapid doesn't match the file name");
+                    }
+
+                    let mut common_attributes = CommonAttributes::default();
+                    common_attributes.update_from_element(&child, &names);
+
+                    let trail = Trail {
+                        category,
+                        props: common_attributes.into(),
+                        guid,
+                    };
+                    pack.maps.entry(map_id).or_default().trails.push(trail);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn recursive_walk_dir_and_read_files(
         dir: &Dir,
         files: &mut HashMap<RelativePathBuf, Vec<u8>>,
         parent_path: &RelativePath,
     ) -> miette::Result<()> {
-        for file in dir.entries().into_diagnostic()? {
-            let file = file.into_diagnostic()?;
+        for file in dir
+            .entries()
+            .into_diagnostic()
+            .wrap_err("failed to get directory entries")?
+        {
+            let file = file
+                .into_diagnostic()
+                .wrap_err("dir entry error when iterating dir entries")?;
             let name = file
                 .file_name()
-                .to_str()
-                .ok_or(miette::miette!("file name is not utf-8"))?
-                .to_lowercase();
-            let path = parent_path.join(&name);
+                .into_string()
+                .map_err(|file_name| miette::miette!("file name is not utf-8: {file_name:?}"))?;
 
-            if file.file_type().into_diagnostic()?.is_file() {
+            let path = parent_path.join_normalized(&name);
+
+            if file
+                .file_type()
+                .into_diagnostic()
+                .wrap_err("failed to get file type")?
+                .is_file()
+            {
                 if name.ends_with("xml") || name.ends_with("png") || name.ends_with("trl") {
                     let mut bytes = vec![];
                     file.open()
-                        .into_diagnostic()?
+                        .into_diagnostic()
+                        .wrap_err("failed to open file")?
                         .read_to_end(&mut bytes)
-                        .into_diagnostic()?;
+                        .into_diagnostic()
+                        .wrap_err("failed to read file contents")?;
                     files.insert(path, bytes);
-                } else if name == "info.json" || name == "activation.json" {
-                    // they are jokolay files, so ignore them
-                } else {
-                    warn!("weird file while loading marker pack: {path}");
                 }
             } else {
-                Self::recursive_walk_dir(&file.open_dir().into_diagnostic()?, files, &path)?;
+                Self::recursive_walk_dir_and_read_files(
+                    &file.open_dir().into_diagnostic()?,
+                    files,
+                    &path,
+                )?;
             }
         }
         Ok(())
@@ -296,7 +376,6 @@ impl Pack {
             let mut tree = Xot::new();
             let names = XotAttributeNameIDs::register_with_xot(&mut tree);
             let od = tree.new_element(names.overlay_data);
-            // let od = tree.document_element(od).into_diagnostic()?;
             let root_node = tree
                 .new_root(od)
                 .into_diagnostic()
@@ -317,7 +396,6 @@ impl Pack {
         }
         // save maps
         {
-            warn!("map count: {}", self.maps.len());
             for (map_id, map_data) in &self.maps {
                 let mut tree = Xot::new();
                 let names = XotAttributeNameIDs::register_with_xot(&mut tree);
@@ -365,21 +443,27 @@ impl Pack {
                 if let Some(parent) = img_path.parent() {
                     dir.create_dir_all(parent.as_str())
                         .into_diagnostic()
-                        .wrap_err("failed to create parent for an image")?;
+                        .wrap_err_with(|| {
+                            miette!("failed to create parent dir for an image: {img_path}")
+                        })?;
                 }
                 dir.create(img_path.as_str())
                     .into_diagnostic()
-                    .wrap_err("failed to create file for image")?
+                    .wrap_err_with(|| miette!("failed to create file for image: {img_path}"))?
                     .write(&img)
                     .into_diagnostic()
-                    .wrap_err("failed to write image bytes to file")?;
+                    .wrap_err_with(|| miette!("failed to write image bytes to file: {img_path}"))?;
             }
         }
         // save tbins
         {
             for (tbin_path, tbin) in &self.tbins {
                 if let Some(parent) = tbin_path.parent() {
-                    dir.create_dir_all(parent.as_str()).into_diagnostic()?;
+                    dir.create_dir_all(parent.as_str())
+                        .into_diagnostic()
+                        .wrap_err_with(|| {
+                            miette!("failed to create parent dir of tbin: {tbin_path}")
+                        })?;
                 }
                 let mut bytes: Vec<u8> = vec![];
                 bytes.reserve(8 + tbin.nodes.len() * 12);
@@ -391,9 +475,11 @@ impl Pack {
                     bytes.extend_from_slice(&node[2].to_ne_bytes());
                 }
                 dir.create(tbin_path.as_str())
-                    .into_diagnostic()?
+                    .into_diagnostic()
+                    .wrap_err_with(|| miette!("failed to create tbin file: {tbin_path}"))?
                     .write_all(&bytes)
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .wrap_err_with(|| miette!("failed to write tbin to path: {tbin_path}"))?;
             }
         }
         Ok(())
@@ -437,9 +523,9 @@ impl Pack {
     /// we will ignore any issues like unknown attributes or xml tags. "unknown" attributes means Any attributes that jokolay doesn't parse into Zpack.
     ///
     /// Generally speaking, if a pack works in `Taco` or `BlishHUD`, it should work here too.
-    pub fn get_pack_from_taco_zip(taco: &[u8]) -> miette::Result<Pack> {
+    pub fn get_pack_from_taco_zip(taco: &[u8]) -> miette::Result<PackCore> {
         // all the contents of ZPack
-        let mut pack = Pack::default();
+        let mut pack = PackCore::default();
         // parse zip file
         let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(taco)).into_diagnostic()?;
         // file paths of different file types
@@ -719,9 +805,7 @@ impl Default for PackInfo {
     }
 }
 
-// Welcome to the messiest part of the code
-#[allow(clippy::too_many_arguments)]
-// a temporary recursive function to parse the marker category tree.
+// a recursive function to parse the marker category tree.
 fn recursive_marker_category_parser(
     tree: &Xot,
     tags: impl Iterator<Item = Node>,
@@ -747,12 +831,14 @@ fn recursive_marker_category_parser(
             .get_attribute(names.separator)
             .unwrap_or_default()
             .parse()
+            .map(|u: u8| if u == 0 { false } else { true })
             .unwrap_or_default();
 
         let default_enabled = ele
             .get_attribute(names.default_enabled)
             .unwrap_or_default()
             .parse()
+            .map(|u: u8| if u == 0 { false } else { true })
             .unwrap_or(true);
         recursive_marker_category_parser(
             tree,
