@@ -1,0 +1,33 @@
+[package]
+name = "jokolink"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+widestring = { version = "1", default-features = false, features = ["std"] }
+bitflags = { version = "2", default-features = false }
+num-derive = { version = "0", default-features = false }
+num-traits = { version = "0", default-features = false }
+tracing-appender = { version = "0" }
+tracing-subscriber = {version = "*"}
+serde_json = { version = "*" }
+glam = "*"
+serde = { version = "*", features = ["derive"] }
+miette = { version = "*" }
+raw-window-handle = { version = "*" }
+tracing = { version = "*" }
+# thiserror = "*"
+
+[target.'cfg(unix)'.dependencies]
+x11rb = { version = "0.12", default-features = false, features = [] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.38.0", features = [
+    "Win32_System_Memory",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+] }

@@ -1,7 +1,5 @@
+use joko_core::prelude::bitflags;
 use relative_path::RelativePathBuf;
-use xot::Element;
-
-use super::XotAttributeNameIDs;
 
 macro_rules! inheritable {
     (
@@ -128,29 +126,6 @@ impl CommonAttributes {
     pub fn inherit_from_template(&mut self, other: &CommonAttributes) {
         self.inherit_if_prop_none(other);
     }
-    pub fn update_from_element(&mut self, ele: &Element, names: &XotAttributeNameIDs) {
-        if let Some(path) = ele.get_attribute(names.icon_file) {
-            self.icon_file = RelativePathBuf::try_from(path.to_lowercase()).ok();
-        }
-        if let Some(path) = ele.get_attribute(names.texture) {
-            self.texture = RelativePathBuf::try_from(path.to_lowercase()).ok();
-        }
-        if let Some(path) = ele.get_attribute(names.trail_data) {
-            self.trail_data_file = RelativePathBuf::try_from(path.to_lowercase()).ok();
-        }
-    }
-
-    pub fn serialize_to_element(&self, ele: &mut Element, names: &XotAttributeNameIDs) {
-        if let Some(icon_file) = &self.icon_file {
-            ele.set_attribute(names.icon_file, icon_file.as_str());
-        }
-        if let Some(texture) = &self.texture {
-            ele.set_attribute(names.texture, texture.as_str());
-        }
-        if let Some(trail_data) = &self.trail_data_file {
-            ele.set_attribute(names.trail_data, trail_data.as_str());
-        }
-    }
 }
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Behavior {
@@ -179,7 +154,7 @@ pub enum Behavior {
     /// I have no idea.
     WvWObjective,
 }
-bitflags::bitflags! {
+bitflags! {
     pub struct MarkerFlags: u8 {
         /// should the trigger activate when within trigger range
         const AUTO_TRIGGER  = 0b00000001;
@@ -197,7 +172,7 @@ bitflags::bitflags! {
         const MINI_MAP_VISIBILITY = 0b01000000;
     }
 }
-bitflags::bitflags! {
+bitflags! {
     /// Filter which races the marker should be active for. if its null, its available for all races
     pub struct Races: u8 {
         const ASURA  = 0b00000001;
@@ -207,7 +182,7 @@ bitflags::bitflags! {
         const SYLVARI = 0b00010000;
     }
 }
-bitflags::bitflags! {
+bitflags! {
     /// Filter which professions the marker should be active for. if its null, its available for all professions
     pub struct Professions: u16 {
         const ELEMENTALIST  = 0b00000001;
@@ -221,7 +196,7 @@ bitflags::bitflags! {
         const WARRIOR = 0b100000000;
     }
 }
-bitflags::bitflags! {
+bitflags! {
     /// Filter which mounts should the player be on for the markers to be visible
     pub struct Mounts: u16 {
         const GRIFFON  = 0b00000001;
@@ -234,7 +209,7 @@ bitflags::bitflags! {
         const WARCLAW = 0b10000000;
     }
 }
-bitflags::bitflags! {
+bitflags! {
     /// Filter for which festivals will the marker be active for
     pub struct Festivals: u8 {
         const DRAGON_BASH  = 0b00000001;
@@ -246,7 +221,7 @@ bitflags::bitflags! {
     }
 }
 
-bitflags::bitflags! {
+bitflags! {
     /// Filter for which festivals will the marker be active for
     pub struct Specializations: u128 {
         const DUELING  = 1 << 0 ;
@@ -324,7 +299,7 @@ bitflags::bitflags! {
     }
 }
 
-bitflags::bitflags! {
+bitflags! {
     pub struct MapTypes: u32 {
         /// <summary>
         /// Redirect map type, e.g. when logging in while in a PvP match.

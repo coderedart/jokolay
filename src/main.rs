@@ -1,7 +1,6 @@
-use miette::Result;
+use joko_core::prelude::*;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    jokolay::start_jokolay().await;
+fn main() -> Result<()> {
+    jokolay::start_jokolay();
     Ok(())
 }

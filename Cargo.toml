@@ -3,10 +3,6 @@ name = "jokolay"
 version = "0.1.0"
 edition = "2021"
 default-run = "jokolay"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[[bin]]
-name = "jokolink"
-path = "src/jokolink/main.rs"
 
 [[bin]]
 name = "jokolay"
@@ -14,115 +10,30 @@ path = "src/main.rs"
 
 
 [dependencies]
-tracing-error = { version = "*" }
 rfd = { version = "*" }
-notify-rust = { version = "*" }
+# notify-rust = { version = "*" }
 # jokoapi deps
-const_format = "0.2.14"
-# itertools = "0.10.0"
-# url = { version = "2.2.2", default-features = false, features = ["serde"] }
 # joko_render deps
 joko_render = { path = "crates/joko_render" }
-egui_backend = { version = "0.4" }
-egui_window_glfw_passthrough = { version = "0.4" }
-egui_render_wgpu = { version = "0.4" }
-intmap = { version = "*" }
-
+joko_core = { path = "crates/joko_core" }
 # jmf deps
 jmf = { path = "crates/joko_marker_format", package = "joko_marker_format" }
-# for marker packs 
-xot = { version = "*" }
-# for representing the paths of files inside xml pack zip
-relative-path = { version = "1", features = ["serde"] }
-# zero copy readonly marker packs
-# rkyv = { version = "0.7", features = ["validation", "bytecheck"] }
-
+jokolink = { path = "crates/jokolink" }
 # to keep the order of files inside zip. markers packs rely on some files like aaa.xml being read first for marker category order
-indexmap = { version = "2", features = ["serde"] }
-# memory map the zpack buffer
-mmarinus = { version = "0.4" }
-# to represent the enabled status of all marker categories of a zpack
-bitvec = { version = "1", features = ["serde"] }
-uuid = { version = "1", features = [
-    "v4",
-    "fast-rng",
-    "macro-diagnostics",
-    "serde",
-] }
-# for marker / trail flags. wait for 2.0 stable release tho
-# bitflags = { git = "https://github.com/bitflags/bitflags.git", default-features = false }
-# for trl files
-bytemuck = { version = "1", default-features = false }
-# for building and traversing category trees
-indextree = { version = "4" }
+indexmap = { version = "2" }
 
-# for easier extraction to folers and compression of folders into zip files (.taco format alias)
-zip = { version = "0.6", default-features = false, features = ["deflate"] }
-zstd = { version = "0.12" }
-# for dealing with png files in marker packs. 
-image = { version = "0.24", default-features = false, features = ["png"] }
-# logging
-tracing = { version = "0", default-features = false }
-# error types
-thiserror = { version = "1", default-features = false }
-# for rapid xml bindings
-cxx = { version = "1.0", features = ["std"] }
 # crevice = {version = "0.8.0", features = ["nalgebra"]}
-# for marker pack list .
-serde_json = { version = "1" }
-# for pack list or marker trail flags etc..
-serde = { version = "1", features = ["derive"] }
-serde_with = { version = "3", features = ["base64"] }
-# for downloading packlist in the background
-poll-promise = { version = "0.2.0" }
-# for downloading packlist
-ureq = { version = "*", features = ["json"] }
 
-# tbin and some markers use types like Vec3. easier to just deserialize directly into this type
-glam = { version = "0", features = ["serde", "fast-math", "bytemuck"] }
-
-# for downloading packs?
-url = { version = "2", default-features = false, features = ["serde"] }
-# for marker pack versions
-semver = { version = "1.0.9", default-features = false, features = ["serde"] }
 # to embed PKG version to compare with repository's format version
 # shadow-rs = { version = "0.16.1", default-features = false }
 # dyn error crate for fast prototyping. as we reach 1.0, we can go full thiserror crate and remove this
 # to setup logging in main?
-tracing-subscriber = { version = "0.3", features = [
-    "env-filter",
-] } # for ErrorLayer
+url = { version = "*", features = ["serde"] }
 
-miette = { version = "*" }
-time = { version = "0.3", features = ["serde-human-readable"] }
-base64 = "0.21.2"
-tokio = { version = "1", features = ["full"] }
-backtrace-ext = { version = "*" }
-backtrace = { version = "*" }
-# cap-directories = { version = "*" }
-cap-std = { version = "*" }
-directories-next = { version = "*" }
-# jokolink deps
-widestring = { version = "1", default-features = false, features = ["std"] }
-bitflags = { version = "2", default-features = false }
-num-derive = { version = "0", default-features = false }
-num-traits = { version = "0", default-features = false }
-tracing-appender = { version = "0" }
+egui_window_glfw_passthrough = "*"
+egui_backend = "*"
 
-# sysinfo = { version = "0.25.1", default-features = false, features = [] }
-[target.'cfg(unix)'.dependencies]
-x11rb = { version = "0.12", default-features = false, features = [] }
-
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.38.0", features = [
-    "Win32_System_Memory",
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_UI_WindowsAndMessaging",
-    "Win32_System_Threading",
-] }
-# [target.'cfg(not(target_arch = "wasm32"))'.dependencies ]
-# egui_render_wgpu = { path = "../etk/crates/egui_render_wgpu" }
+time = { version = "0.3" }
 
 [dev-dependencies]
 # jmf deps
@@ -134,7 +45,7 @@ similar-asserts = "1.2.0"
 [build-dependencies]
 # jmf deps
 # for rapidxml
-cxx-build = { version = "1.0" }
+# cxx-build = { version = "1.0" }
 # shadow-rs = { version = "0.16.1", default-features = false }
 
 [profile.dev.package."*"]
@@ -150,4 +61,10 @@ opt-level = 1
 # panic = "abort"
 
 [workspace]
-members = ["crates/joko_render", "crates/joko_marker_format"]
+members = [
+    "crates/joko_core",
+    "crates/joko_render",
+    "crates/joko_marker_format",
+    "crates/jokolink",
+    # "crates/jokoapi"
+]

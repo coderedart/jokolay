@@ -1,9 +1,6 @@
-use base64::Engine;
-use glam::Vec3;
+use super::CommonAttributes;
+use joko_core::prelude::*;
 use uuid::Uuid;
-use xot::Element;
-
-use super::{CommonAttributes, XotAttributeNameIDs};
 
 #[derive(Debug)]
 pub struct Marker {
@@ -22,15 +19,5 @@ impl Marker {
             category: Default::default(),
             props: Default::default(),
         }
-    }
-
-    pub fn serialize_to_element(&self, ele: &mut Element, names: &XotAttributeNameIDs) {
-        ele.set_attribute(names.xpos, format!("{}", self.position[0]));
-        ele.set_attribute(names.ypos, format!("{}", self.position[1]));
-        ele.set_attribute(names.zpos, format!("{}", self.position[2]));
-        ele.set_attribute(names.guid, super::PackCore::BASE64_ENGINE.encode(self.guid));
-        ele.set_attribute(names.map_id, format!("{}", self.map_id));
-        ele.set_attribute(names.category, &self.category);
-        self.props.serialize_to_element(ele, names);
     }
 }

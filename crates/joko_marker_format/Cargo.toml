@@ -6,73 +6,30 @@ edition = "2021"
 [dependencies]
 # jmf deps
 # for marker packs 
-xot = { version = "*" }
-# for representing the paths of files inside xml pack zip
-relative-path = { version = "1", features = ["serde"] }
-# zero copy readonly marker packs
-# rkyv = { version = "0.7", features = ["validation", "bytecheck"] }
-
-# to keep the order of files inside zip. markers packs rely on some files like aaa.xml being read first for marker category order
-indexmap = { version = "2", features = ["serde"] }
-
-# to represent the enabled status of all marker categories of a zpack
-bitvec = { version = "1", features = ["serde"] }
-uuid = { version = "1", features = [
-    "v4",
-    "fast-rng",
-    "macro-diagnostics",
-    "serde",
-] }
-# for marker / trail flags. wait for 2.0 stable release tho
-# bitflags = { git = "https://github.com/bitflags/bitflags.git", default-features = false }
-# for trl files
-bytemuck = { version = "1", default-features = false }
+xot = { version = "0" }
+relative-path = "1"
+# to keep the order of files inside zip. markers packs rely on some files like aaa.xml being read first for marker category order# for representing the paths of files inside xml pack zip
+indexmap = { version = "2" }
+uuid = { version = "1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
 
 # for easier extraction to folers and compression of folders into zip files (.taco format alias)
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
-zstd = { version = "0.12" }
 # for dealing with png files in marker packs. 
 image = { version = "0.24", default-features = false, features = ["png"] }
-# logging
-tracing = { version = "0", default-features = false }
-# error types
-thiserror = { version = "1", default-features = false }
 # for rapid xml bindings
 cxx = { version = "1.0", features = ["std"] }
-# crevice = {version = "0.8.0", features = ["nalgebra"]}
-# for marker pack list .
-serde_json = { version = "1" }
-# for pack list or marker trail flags etc..
-serde = { version = "1", features = ["derive"] }
-serde_with = { version = "3", features = ["base64"] }
-
-# tbin and some markers use types like Vec3. easier to just deserialize directly into this type
-glam = { version = "0", features = ["serde", "fast-math", "bytemuck"] }
-
-# for downloading packs?
-url = { version = "2", default-features = false, features = ["serde"] }
-# for marker pack versions
-semver = { version = "1.0.9", default-features = false, features = ["serde"] }
-miette = { version = "*" }
-time = { version = "0.3", features = ["serde-human-readable"] }
 base64 = "0.21.2"
-tokio = { version = "1", features = ["full"] }
-bitflags = { version = "2", default-features = false }
-egui = { version = "*" }
-cap-std ={ version = "*"}
-reqwest ={ version = "*", features = ["json"]}
-arc-swap ={ version = "*"}
-rfd ={ version = "*"}
+rfd = { version = "0" }
+joko_core = { path = "../joko_core" }
+
 [dev-dependencies]
 # jmf deps
-rstest = { version = "0.17.0", default-features = false }
+rstest = { version = "0", default-features = false }
 # rstest_reuse = "0.3.0"
-similar-asserts = "1.2.0"
+similar-asserts = "1"
 
 
 [build-dependencies]
-# jmf deps
 # for rapidxml
-cxx-build = { version = "1.0" }
-# shadow-rs = { version = "0.16.1", default-features = false }
+cxx-build = { version = "1" }
