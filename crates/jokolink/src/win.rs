@@ -25,7 +25,8 @@ impl Drop for MumbleWinImpl {
         unsafe {
             UnmapViewOfFile(MEMORY_MAPPED_VIEW_ADDRESS {
                 Value: self.link_ptr as _,
-            }).expect("unmapping link view file error");
+            })
+            .expect("unmapping link view file error");
             CloseHandle(self.mumble_handle).expect("close handle panicked");
         }
     }
