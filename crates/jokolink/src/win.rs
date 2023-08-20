@@ -23,8 +23,10 @@ pub struct MumbleWinImpl {
 impl Drop for MumbleWinImpl {
     fn drop(&mut self) {
         unsafe {
-            UnmapViewOfFile(self.link_ptr as *const std::ffi::c_void);
-            CloseHandle(self.mumble_handle);
+            UnmapViewOfFile(MEMORY_MAPPED_VIEW_ADDRESS {
+                Value: self.link_ptr as _,
+            }).expect("unmapping link view file error");
+            CloseHandle(self.mumble_handle).expect("close handle panicked");
         }
     }
 }
@@ -68,7 +70,7 @@ unsafe extern "system" fn get_handle_by_pid(window_handle: HWND, gw2_pid: LPARAM
     // make a varible to hold the process id of a window handle given to us.
     let mut handle_pid: u32 = 0;
     // get the process id of the handle and then store it in the handle_pid variable.
-    GetWindowThreadProcessId(window_handle, (&mut handle_pid) as *mut u32);
+    GetWindowThreadProcessId(window_handle, Some((&mut handle_pid) as *mut u32));
     // if handle_pid is null, it means we failed to get the pid. so, we return true so that enumWindows can call us again with the handle to the next window.
     if handle_pid == 0 {
         info!("failed to get process id of window handle {window_handle:?}");
@@ -101,8 +103,8 @@ pub fn get_win_pos_dim(window_handle: isize) -> Result<[i32; 4]> {
             bottom: 0,
         };
         let status = GetWindowRect(HWND(window_handle), &mut rect as *mut RECT);
-        if !status.as_bool() {
-            bail!("GetWindowRect call failed");
+        if let Err(e) = status {
+            bail!("GetWindowRect call failed {e}");
         }
         Ok([
             rect.left,
@@ -139,14 +141,14 @@ pub fn get_gw2_window_handle(pid: u32) -> miette::Result<isize> {
         let mut pid = pid as isize;
 
         // enumerate windows and get the handle and assign it to the pid variable if the process id of the handle actually matches the pid
-        let result: BOOL = EnumWindows(
+        let result = EnumWindows(
             Some(get_handle_by_pid),
             LPARAM(((&mut pid) as *mut isize) as isize),
         );
         // check if successful
-        if result.as_bool() {
+        if let Err(e) = result {
             bail!(
-                "couldn't find gw2 window using pid {pid}. error code: {:#?}",
+                "couldn't find gw2 window using pid {pid} because {e}. error code: {:#?}",
                 GetLastError()
             );
         }
@@ -248,7 +250,7 @@ pub fn create_link_shared_mem(key: &str) -> Result<(HANDLE, *const CMumbleLink)>
 
         let file_handle = CreateFileMappingA(
             INVALID_HANDLE_VALUE,
-            std::ptr::null_mut(),
+            None,
             PAGE_READWRITE,
             0,
             C_MUMBLE_LINK_SIZE as u32,
@@ -263,7 +265,8 @@ pub fn create_link_shared_mem(key: &str) -> Result<(HANDLE, *const CMumbleLink)>
         })?;
 
         // map the shared memory into the address space of our process using the handle we got from creating the shm
-        let cml_ptr = MapViewOfFile(file_handle, FILE_MAP_ALL_ACCESS, 0, 0, C_MUMBLE_LINK_SIZE);
+        let cml_ptr =
+            MapViewOfFile(file_handle, FILE_MAP_ALL_ACCESS, 0, 0, C_MUMBLE_LINK_SIZE).Value;
 
         // check if we were successful
         if cml_ptr.is_null() {

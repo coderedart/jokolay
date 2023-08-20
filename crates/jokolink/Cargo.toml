@@ -2,7 +2,8 @@
 name = "jokolink"
 version = "0.1.0"
 edition = "2021"
-
+[lib]
+crate-type = ["cdylib", "lib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -11,7 +12,7 @@ bitflags = { version = "2", default-features = false }
 num-derive = { version = "0", default-features = false }
 num-traits = { version = "0", default-features = false }
 tracing-appender = { version = "0" }
-tracing-subscriber = {version = "*"}
+tracing-subscriber = { version = "*" }
 serde_json = { version = "*" }
 glam = "*"
 serde = { version = "*", features = ["derive"] }
@@ -24,10 +25,13 @@ tracing = { version = "*" }
 x11rb = { version = "0.12", default-features = false, features = [] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.38.0", features = [
+windows = { version = "0.51.1", features = [
     "Win32_System_Memory",
     "Win32_Foundation",
     "Win32_Security",
+    "Win32_System_SystemServices",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemInformation"
 ] }

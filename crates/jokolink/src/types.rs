@@ -10,7 +10,10 @@ use num_derive::FromPrimitive;
 use num_derive::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
-// use jmf::INCHES_PER_METER;
+/// The total size of the CMumbleLink struct. used to know the amount of memory to give to win32 call that creates the shared memory
+pub const C_MUMBLE_LINK_SIZE: usize = std::mem::size_of::<CMumbleLink>();
+/// This is how much of the CMumbleLink memory that is actually useful and updated. the rest is just zeroed out. might change in future
+pub const USEFUL_C_MUMBLE_LINK_SIZE: usize = 1193;
 
 /// As the CMumbleLink has all the fields multiple
 #[derive(Clone, Debug, Default)]
@@ -184,11 +187,6 @@ impl CIdentity {
         Ok(())
     }
 }
-
-/// The total size of the CMumbleLink struct. used to know the amount of memory to give to win32 call that creates the shared memory
-pub const C_MUMBLE_LINK_SIZE: usize = std::mem::size_of::<CMumbleLink>();
-/// This is how much of the CMumbleLink memory that is actually useful and updated. the rest is just zeroed out. might change in future
-pub const USEFUL_C_MUMBLE_LINK_SIZE: usize = 1193;
 
 /// The CMumblelink is how it is represented in the memory. But we rarely use it as it is and instead convert it into MumbleLink before using it for convenience
 /// Many of the fields are documentad in the actual MumbleLink struct
