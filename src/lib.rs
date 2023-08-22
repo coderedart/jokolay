@@ -2,15 +2,10 @@ use std::path::PathBuf;
 
 use egui_backend::{
     egui::{self, Grid, Ui},
-    raw_window_handle::HasRawWindowHandle,
     BackendConfig, GfxBackend, UserApp, WindowBackend,
 };
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
-use joko_core::{
-    init::get_jokolay_dir,
-    prelude::*,
-    trace::{install_miette_panic_hooks, install_tracing},
-};
+use joko_core::{init::get_jokolay_dir, prelude::*, trace::install_tracing};
 
 use jmf::manager::MarkerManager;
 use joko_render::JokoRenderer;
@@ -24,9 +19,8 @@ pub struct Jokolay {
     pub frame_reset_seconds_timestamp: u64,
     pub jdir: Dir,
     pub jpath: PathBuf,
-    pub mumble: Option<MumbleManager>,
-    pub marker_manager: Option<MarkerManager>,
-    pub window_dimensions: [i32; 4],
+    pub mumble: Result<MumbleManager>,
+    pub marker_manager: Result<MarkerManager>,
     pub joko_renderer: JokoRenderer,
     pub egui_context: egui::Context,
     pub window_backend: GlfwBackend,
@@ -34,36 +28,13 @@ pub struct Jokolay {
 
 impl Jokolay {
     fn new(
-        mut window_backend: GlfwBackend,
+        window_backend: GlfwBackend,
         joko_renderer: JokoRenderer,
         jpath: PathBuf,
         jdir: Dir,
-    ) -> Self {
-        let mumble = MumbleManager::new("MumbleLink", window_backend.window.raw_window_handle())
-            .map_err(|e| {
-                warn!("error creating Mumble Manager: {}", e);
-            })
-            .map(|mut mumble| {
-                match mumble.get_latest_window_dimensions() {
-                    Ok([x, y, width, height]) => {
-                        let (wx, wy) = window_backend.window.get_pos();
-                        let (ww, wh) = window_backend.window.get_size();
-
-                        if wx != x || wy != y || ww != width || wh != height {
-                            window_backend.window.set_pos(x, y);
-                            window_backend.window.set_size(width, height);
-                        }
-                    }
-                    Err(e) => error!("failed to get window dimensions: {e}"),
-                }
-                mumble
-            })
-            .ok();
-        let marker_manager = MarkerManager::new(&jdir)
-            .map_err(|e| {
-                warn!("error creating Marker Manager: {}", e);
-            })
-            .ok();
+    ) -> Result<Self> {
+        let mumble = MumbleManager::new("MumbleLink", None);
+        let marker_manager = MarkerManager::new(&jdir);
         let egui_context = egui::Context::default();
         // use roboto for ui fonts
         {
@@ -80,7 +51,7 @@ impl Jokolay {
             egui_context.set_fonts(fonts);
         }
 
-        Self {
+        Ok(Self {
             mumble,
             marker_manager,
 
@@ -89,13 +60,12 @@ impl Jokolay {
             frame_count: 0,
             frame_reset_seconds_timestamp: 0,
             fps: 0,
-            window_dimensions: Default::default(),
             window_backend,
             jdir,
             jpath,
             egui_context,
             show_tracing_window: true,
-        }
+        })
     }
 }
 impl UserApp for Jokolay {
@@ -107,7 +77,6 @@ impl UserApp for Jokolay {
             frame_reset_seconds_timestamp,
             mumble,
             marker_manager,
-            window_dimensions,
             joko_renderer: _,
             egui_context,
             window_backend,
@@ -123,7 +92,7 @@ impl UserApp for Jokolay {
             *frame_count = 0;
             *frame_reset_seconds_timestamp = latest_time as u64;
         }
-        if let Some(mumble) = mumble {
+        if let Ok(mumble) = mumble {
             let _ = mumble.tick();
         }
         egui_context.request_repaint();
@@ -140,18 +109,18 @@ impl UserApp for Jokolay {
                 ui.label(&format!("fps: {}", *fps));
                 let mut is_passthrough = window_backend.window.is_mouse_passthrough();
                 ui.checkbox(&mut is_passthrough, "is window passthrough?");
-                if let Some(mumble) = mumble {
+                if let Ok(mumble) = mumble {
                     if let Some(link) = mumble.get_mumble_link() {
                         mumble_ui(ui, link);
                     }
                 }
             });
-        if let Some(marker_manager) = marker_manager {
+        if let Ok(marker_manager) = marker_manager {
             marker_manager.tick(egui_context, latest_time);
         }
-        if let Some(mumble) = mumble {
+        if let Ok(mumble) = mumble {
             if let Some(_link) = mumble.get_mumble_link() {
-                if let Some(_marker_manager) = marker_manager {
+                if let Ok(_marker_manager) = marker_manager {
                     // marker_manager.render(link.context.map_id as u16, joko_renderer);
                 }
             }
@@ -162,9 +131,9 @@ impl UserApp for Jokolay {
         );
         if latest_time - *last_check > 10. {
             *last_check = latest_time;
-            if let Some(mumble) = mumble {
-                if let Ok(wd @ [x, y, w, h]) = mumble.get_latest_window_dimensions() {
-                    *window_dimensions = wd;
+            if let Ok(mumble) = mumble {
+                let [x, y, w, h] = mumble.get_pos_size();
+                if w != 0 && h != 0 {
                     let (wx, wy) = window_backend.window.get_pos();
                     let (ww, wh) = window_backend.window.get_size();
                     if x != wx || y != wy || w != ww || h != wh {
@@ -197,7 +166,6 @@ impl UserApp for Jokolay {
 }
 
 pub fn start_jokolay() {
-    install_miette_panic_hooks().unwrap();
     let (jokolay_dir_path, jdir) = get_jokolay_dir().unwrap();
     let _log_file_flush_guard = install_tracing(&jdir).unwrap();
     info!("using {jokolay_dir_path:?} as the jokolay data directory");
@@ -225,7 +193,9 @@ pub fn start_jokolay() {
     // remove decorations
     glfw_backend.window.set_decorated(false);
     let jokolay = Jokolay::new(glfw_backend, joko_renderer, jokolay_dir_path, jdir);
-    <Jokolay as UserApp>::UserWindowBackend::run_event_loop(jokolay);
+    <Jokolay as UserApp>::UserWindowBackend::run_event_loop(
+        jokolay.expect("failed to create jokolay app"),
+    );
 }
 
 fn mumble_ui(ui: &mut Ui, link: &jokolink::MumbleLink) {
@@ -234,17 +204,10 @@ fn mumble_ui(ui: &mut Ui, link: &jokolink::MumbleLink) {
         ui.label(format!("{}", link.ui_tick));
         ui.end_row();
         ui.label("character: ");
-        ui.label(&link.identity.name);
+        ui.label(&link.name);
         ui.end_row();
         ui.label("map: ");
-        ui.label(format!("{}", link.context.map_id));
-        ui.end_row();
-        ui.label(format!("pid: {}", link.context.process_id));
-        // ui.label("player position");
-        // ui.label(format!(
-        //     "{:.2} {:.2} {:.2}",
-        //     link.f_avatar_position.x, link.f_avatar_position.y, link.f_avatar_position.z
-        // ));
+        ui.label(format!("{}", link.map_id));
         ui.end_row();
     });
 }

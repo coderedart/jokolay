@@ -1,5 +1,5 @@
-# [build]
-# target = "x86_64-pc-windows-gnu"
+[build]
+target = "x86_64-pc-windows-gnu"
 # we could probably add more features like sse4 later
 [target.x86_64-pc-windows-gnu]
 rustflags = ["-C", "target-feature=+crt-static"]

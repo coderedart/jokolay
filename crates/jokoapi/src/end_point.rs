@@ -2,125 +2,87 @@
 // use miette::eyre::WrapErr;
 
 // use itertools::Itertools;
+use joko_core::prelude::*;
 use serde::de::DeserializeOwned;
-// use surf::Client;
 use std::fmt::Display;
+use ureq::Agent;
 
-pub mod colors;
-pub mod daily_crafting;
-pub mod items;
-pub mod minis;
-pub mod outfits;
-pub mod quaggans;
+pub use serde::{Deserialize, Serialize};
+
+// pub mod colors;
+// pub mod daily_crafting;
+// pub mod items;
+// pub mod minis;
+// pub mod outfits;
+// pub mod quaggans;
+// pub mod races;
+pub mod mounts;
 pub mod races;
 pub mod worlds;
+const AUTHORIZATION_HEADER_NAME: &str = "Authorization";
 
-// #[async_trait]
-pub trait EndPointAuthId {
-    type Id;
-    type RType;
-    fn get_url(id: &Self::Id) -> String;
-    // async fn get_auth_with_id(
-    //     client: Client,
-    //     api_key: &str,
-    //     id: &Self::Id,
-    // ) -> Result<Self::RType>
-    // where
-    //     Self::RType: DeserializeOwned,
-    //     Self::Id: Display + Send + Sync,
-    // {
-    //     let res = client
-    //         .get(&Self::get_url(id))
-    //         .aut(api_key)
-    //         .send()
-    //         .await?;
-    //     Ok(res.json().await.wrap_err(format!(
-    //         "couldn't convert json result to rust type {}",
-    //         type_name::<Self::RType>()
-    //     ))?)
-    // }
-}
+/// We implement this for types which represent the data provided by a particular endpoint.
+/// eg: We create a Color struct with all the fields we expect in color. Then, we simply impl this trait for that
+/// This is useful for MOST (but not all) of the endpoints because of three properties
+/// 1. When you go to endpoint url, we get a list of ids
+/// 2. we can get an item of that type if we go to endpoint/id url, you always get the item type as return value
+/// 3. when you add the `ids` query parameter like endpoint?ids=1,2,3, you will get a list of values which are of the item type
+/// Obviously, to get that item type from json, it needs to impl Deserialize
+///
+/// If the endpoint doesn't need authentication, just use an empty string for the api_key
+pub trait EndPoint: DeserializeOwned {
+    /// The type of the id. For most items it is either a number of a string (or an enum when it is a fixed number of known static strings)
+    type Id: Display + Send + Sync + DeserializeOwned;
+    const URL: &'static str;
+    const AUTH: bool;
 
-// #[async_trait]
-pub trait EndPointAuthIds {
-    type Id: Display + Send + Sync;
-    type RType;
-    fn get_url() -> &'static str;
-    // async fn get_auth_with_id(
-    //     client: Client,
-    //     api_key: &str,
-    //     ids: &[Self::Id],
-    // ) -> Result<Self::RType>
-    // where
-    //     Self::RType: DeserializeOwned,
-    //     Self::Id: Display + Send + Sync,
-    // {
-    //     let res = client
-    //         .get(Self::get_url())
-    //         .bearer_auth(api_key)
-    //         .query(&[("ids", ids.iter().join(","))])
-    //         .send()
-    //         .await?;
-    //     Ok(res.json().await.wrap_err(format!(
-    //         "couldn't convert json result to rust type {}",
-    //         type_name::<Self::RType>()
-    //     ))?)
-    // }
-}
-// #[async_trait]
-pub trait EndPointAuth {
-    type RType: DeserializeOwned;
-    fn get_url() -> &'static str;
-    // async fn get_auth(client: Client, api_key: &str) -> Result<Self::RType>
-    // where
-    //     Self::RType: DeserializeOwned,
-    // {
-    //     let res = client
-    //         .get(Self::get_url())
-    //         .bearer_auth(api_key)
-    //         .send()
-    //         .await?;
-    //     Ok(res.json().await.wrap_err(format!(
-    //         "couldn't convert json result to rust type {}",
-    //         type_name::<Self::RType>()
-    //     ))?)
-    // }
-}
-// #[async_trait]
-pub trait EndPointIds {
-    type Id: Display + Send + Sync;
-    type RType: DeserializeOwned;
-    fn get_url() -> &'static str;
-    // async fn get_with_id(client: Client, ids: &[Self::Id]) -> Result<Self::RType>
-    // where
-    //     Self::RType: DeserializeOwned,
-    //     Self::Id: Display + Send + Sync,
-    // {
-    //     let res = client
-    //         .get(Self::get_url())
-    //         .query(&[("ids", ids.iter().join(","))])
-    //         .send()
-    //         .await?;
-    //     Ok(res.json().await.wrap_err(format!(
-    //         "couldn't convert json result to rust type {}",
-    //         type_name::<Self::RType>()
-    //     ))?)
-    // }
-}
-// #[async_trait]
-pub trait EndPoint {
-    type RType: DeserializeOwned;
-    fn get_url() -> &'static str;
-    // async fn get(client: &Client) -> Result<Self::RType>
-    // where
-    //     Self::RType: DeserializeOwned,
-    // {
-    //     let res = client.get(Self::get_url()).send().await?;
-    //     Ok(res.json().await.wrap_err(format!(
-    //         "couldn't convert json result to rust type {}",
-    //         type_name::<Self::RType>()
-    //     ))?)
-    // }
+    /// This function simply takes the [Self::URL], makes a request and returns a list of ids.
+    fn get(agent: &Agent, api_key: &str) -> Result<Vec<Self::Id>> {
+        agent
+            .get(Self::URL)
+            .pipe(|r| {
+                if Self::AUTH {
+                    r.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
+                } else {
+                    r
+                }
+            })
+            .call()
+            .into_diagnostic()?
+            .into_json()
+            .into_diagnostic()
+    }
+    fn get_id(agent: Agent, api_key: &str, id: &Self::Id) -> Result<Self> {
+        agent
+            .get(&format!("{}/{}", Self::URL, id))
+            .pipe(|r| {
+                if Self::AUTH {
+                    r.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
+                } else {
+                    r
+                }
+            })
+            .call()
+            .into_diagnostic()?
+            .into_json()
+            .into_diagnostic()
+    }
+    fn get_ids(agent: Agent, api_key: &str, ids: &[Self::Id]) -> Result<Vec<Self>> {
+        agent
+            .get(Self::URL)
+            .query("ids", &ids.iter().join(","))
+            .pipe(|r| {
+                if Self::AUTH {
+                    r.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
+                } else {
+                    r
+                }
+            })
+            .call()
+            .into_diagnostic()?
+            .into_json()
+            .into_diagnostic()
+    }
 }
 
 /*

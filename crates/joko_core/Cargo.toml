@@ -15,18 +15,25 @@ backtrace = { version = "*" }
 # cap-directories = { version = "*" }
 # we use this instead of cap-dirs because we want to debug/show the jokolay path to users
 # and `Dir` from cap-dirs doesn't allow us to get the path.
-directories-next = { version = "*" } 
+directories-next = { version = "*" }
 cap-std = { version = "*" }
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",
 ] } # for ErrorLayer
 thiserror = { version = "*" }
 serde = { version = "*", features = ["derive"] }
-miette = { version = "*" }
+miette = { version = "*", features = ["fancy"] }
 tracing-appender = { version = "*" }
 url = { version = "*", features = ["serde"] }
 serde_json = { version = "*" }
-rayon ={ version = "*"}
-bitflags ={ version = "*"} 
-glam ={ version = "*", features = ["fast-math", "bytemuck"]} # bytemuck feature for joko_render
-time ={ version = "*"}
+rayon = { version = "*" }
+bitflags = { version = "*" }
+glam = { version = "*", features = [
+    "fast-math",
+    "bytemuck",
+] } # bytemuck feature for joko_render
+time = { version = "*" }
+ureq = { version = "*", features = ["json", "charset"] }
+itertools = { version = "*" }
+tap = { version = "*" }
+enumflags2 = { version = "*" }

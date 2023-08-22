@@ -22,7 +22,7 @@ cxx = { version = "1.0", features = ["std"] }
 base64 = "0.21.2"
 rfd = { version = "0" }
 joko_core = { path = "../joko_core" }
-
+enumflags2 = { version = "*" }
 [dev-dependencies]
 # jmf deps
 rstest = { version = "0", default-features = false }

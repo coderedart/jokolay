@@ -317,8 +317,7 @@ impl JokoRenderer {
         let center = link.f_camera_position + link.f_camera_front;
         let view_matrix = Mat4::look_at_lh(link.f_camera_position, center, vec3(0.0, 1.0, 0.0));
 
-        let projection_matrix =
-            Mat4::perspective_lh(link.identity.fov, viewport_ratio, 1.0, 10000.0);
+        let projection_matrix = Mat4::perspective_lh(link.fov, viewport_ratio, 1.0, 10000.0);
 
         let view_projection_matrix = projection_matrix * view_matrix;
         self.queue.write_buffer(

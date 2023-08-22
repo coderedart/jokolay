@@ -1,10 +1,9 @@
+use super::{Deserialize, EndPoint, EndPointIds, Serialize};
 use core::str;
-use url::Url;
-
-use super::{EndPoint, EndPointIds};
+use joko_core::prelude::{Url, Value};
 
 pub type ItemId = u32;
-const E_P_URL: &str = const_format::concatcp!(crate::jokoapi::API_BASE_V2_URL, "/items");
+const E_P_URL: &str = const_format::concatcp!(crate::API_BASE_V2_URL, "/items");
 #[derive(Serialize, Deserialize)]
 pub struct Item {
     id: ItemId,
@@ -23,7 +22,7 @@ pub struct Item {
     restrictions: Vec<String>,
     upgrades_into: Option<Vec<ItemUpgrade>>,
     upgrades_from: Option<Vec<ItemUpgrade>>,
-    details: serde_json::Value,
+    details: Value,
 }
 #[derive(Serialize, Deserialize)]
 pub struct ItemUpgrade {

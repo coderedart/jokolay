@@ -87,7 +87,7 @@ impl MarkerManager {
                             packs.insert(name.to_string(), pack_core);
                         }
                         Err(e) => {
-                            error!("error while loading pack: {e}");
+                            error!("error while loading pack: {e:#?}");
                         }
                     }
                     drop(span_guard);
@@ -153,7 +153,7 @@ impl MarkerManager {
                             Err(e) => {
                                 ui.colored_label(
                                     egui::Color32::RED,
-                                    format!("failed to import pack due to error: {e}"),
+                                    format!("failed to import pack due to error: {e:#?}"),
                                 );
                             }
                         }

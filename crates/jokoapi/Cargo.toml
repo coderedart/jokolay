@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
 const_format = "0.2.14"
+joko_core = { path = "../joko_core" }
 serde = { version = "*", features = ["derive"] }
+enumflags2 = { version = "*" }

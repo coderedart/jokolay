@@ -1,7 +1,7 @@
-use super::{items, EndPoint, EndPointIds};
-use url::Url;
+use super::{items, Deserialize, EndPoint, EndPointIds, Serialize};
+use joko_core::prelude::Url;
 type OutfitId = u32;
-const E_P_URL: &str = const_format::concatcp!(crate::jokoapi::API_BASE_V2_URL, "/colors");
+const E_P_URL: &str = const_format::concatcp!(crate::API_BASE_V2_URL, "/colors");
 #[derive(Serialize, Deserialize)]
 pub struct Outfit {
     id: OutfitId,

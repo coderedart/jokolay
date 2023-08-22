@@ -11,7 +11,7 @@ pub fn get_jokolay_dir() -> Result<(PathBuf, cap_std::fs::Dir)> {
     {
         match PathBuf::try_from(&env_dir) {
             Ok(jokolay_dir) => jokolay_dir,
-            Err(e) => return Err(miette::miette!("failed to parse JOKOLAY_DATA_DIR: {e}")),
+            Err(e) => return Err(miette::miette!("failed to parse JOKOLAY_DATA_DIR: {e:#?}")),
         }
     } else {
         match directories_next::ProjectDirs::from("com.jokolay", "", "jokolay") {
@@ -32,14 +32,14 @@ pub fn get_jokolay_dir() -> Result<(PathBuf, cap_std::fs::Dir)> {
         cap_std::fs::Dir::create_ambient_dir_all(&jokolay_data_local_dir_path, authoratah)
     {
         return Err(miette::miette!(
-            "failed to create jokolay directory at {jokolay_data_local_dir_path:?} due to error: {e}"
+            "failed to create jokolay directory at {jokolay_data_local_dir_path:?} due to error: {e:#?}"
         ));
     }
     let jdir = match Dir::open_ambient_dir(&jokolay_data_local_dir_path, authoratah) {
         Ok(jdir) => jdir,
         Err(e) => {
             return Err(miette::miette!(
-                "failed to open jokolay data dir at {jokolay_data_local_dir_path:?} due to {e}"
+                "failed to open jokolay data dir at {jokolay_data_local_dir_path:?} due to {e:#?}"
             ))
         }
     };

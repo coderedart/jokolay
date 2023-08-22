@@ -8,19 +8,14 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 widestring = { version = "1", default-features = false, features = ["std"] }
-bitflags = { version = "2", default-features = false }
 num-derive = { version = "0", default-features = false }
 num-traits = { version = "0", default-features = false }
 tracing-appender = { version = "0" }
 tracing-subscriber = { version = "*" }
-serde_json = { version = "*" }
-glam = "*"
-serde = { version = "*", features = ["derive"] }
-miette = { version = "*" }
-raw-window-handle = { version = "*" }
-tracing = { version = "*" }
-# thiserror = "*"
+joko_core = { path = "../joko_core" }
+jokoapi = { path = "../jokoapi" }
 
+enumflags2 = { version = "*" }
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.12", default-features = false, features = [] }
 
@@ -29,9 +24,9 @@ windows = { version = "0.51.1", features = [
     "Win32_System_Memory",
     "Win32_Foundation",
     "Win32_Security",
-    "Win32_System_SystemServices",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
     "Win32_System_LibraryLoader",
-    "Win32_System_SystemInformation"
+    "Win32_System_SystemInformation",
 ] }
+arcdps = { version = "*", default-features = false }

@@ -1,9 +1,7 @@
-use super::{EndPoint, EndPointIds};
-use url::Url;
-use {Deserialize, Serialize};
-
+use super::{Deserialize, EndPoint, EndPointIds, Serialize};
+use joko_core::prelude::Url;
 pub type QuagganId = String;
-const E_P_URL: &str = const_format::concatcp!(crate::jokoapi::API_BASE_V2_URL, "/quaggans");
+const E_P_URL: &str = const_format::concatcp!(crate::API_BASE_V2_URL, "/quaggans");
 
 #[derive(Serialize, Deserialize)]
 pub struct Quaggan {

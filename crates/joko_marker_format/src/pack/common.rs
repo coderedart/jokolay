@@ -1,4 +1,4 @@
-use joko_core::prelude::bitflags;
+use joko_core::prelude::*;
 use relative_path::RelativePathBuf;
 
 macro_rules! inheritable {
@@ -154,245 +154,232 @@ pub enum Behavior {
     /// I have no idea.
     WvWObjective,
 }
-bitflags! {
-    pub struct MarkerFlags: u8 {
-        /// should the trigger activate when within trigger range
-        const AUTO_TRIGGER  = 0b00000001;
-        /// should we show the countdown timers for markers that are sleeping
-        const COUNT_DOWN  = 0b00000010;
-        /// whether the marker is drawn ingame
-        const IN_GAME_VISIBILITY  = 0b00000100;
-        /// scaling of marker on 2d map (or minimap)
-        const MAP_SCALE  = 0b00001000;
-        /// whether draw on map
-        const MAP_VISIBILITY = 0b00010000;
-        /// whether stays at the boundary of minimap when overbounds, just like personal weaypoint
-        const MINI_MAP_EDGE_HERD = 0b00100000;
-        /// draw on minimap
-        const MINI_MAP_VISIBILITY = 0b01000000;
-    }
-}
-bitflags! {
-    /// Filter which races the marker should be active for. if its null, its available for all races
-    pub struct Races: u8 {
-        const ASURA  = 0b00000001;
-        const CHARR  = 0b00000010;
-        const HUMAN  = 0b00000100;
-        const NORN  = 0b00001000;
-        const SYLVARI = 0b00010000;
-    }
-}
-bitflags! {
-    /// Filter which professions the marker should be active for. if its null, its available for all professions
-    pub struct Professions: u16 {
-        const ELEMENTALIST  = 0b00000001;
-        const ENGINEER  = 0b00000010;
-        const GUARDIAN  = 0b00000100;
-        const MESMER  = 0b00001000;
-        const NECROMANCER = 0b00010000;
-        const RANGER = 0b00100000;
-        const REVENANT = 0b01000000;
-        const THIEF = 0b10000000;
-        const WARRIOR = 0b100000000;
-    }
-}
-bitflags! {
-    /// Filter which mounts should the player be on for the markers to be visible
-    pub struct Mounts: u16 {
-        const GRIFFON  = 0b00000001;
-        const JACKAL  = 0b00000010;
-        const RAPTOR  = 0b00000100;
-        const ROLLER_BEETLE  = 0b00001000;
-        const SKIMMER = 0b00010000;
-        const SKYSCALE = 0b00100000;
-        const SPRINGER = 0b01000000;
-        const WARCLAW = 0b10000000;
-    }
-}
-bitflags! {
-    /// Filter for which festivals will the marker be active for
-    pub struct Festivals: u8 {
-        const DRAGON_BASH  = 0b00000001;
-        const FESTIVAL_OF_THE_FOUR_WINDS  = 0b00000010;
-        const HALLOWEEN  = 0b00000100;
-        const LUNAR_NEW_YEAR  = 0b00001000;
-        const SUPER_ADVENTURE_BOX = 0b00010000;
-        const WINTERSDAY = 0b00100000;
-    }
+#[bitflags]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy)]
+pub enum MarkerFlags {
+    /// should the trigger activate when within trigger range
+    AutoTrigger = 0b00000001,
+    /// should we show the countdown timers for markers that are sleeping
+    CountDown = 0b00000010,
+    /// whether the marker is drawn ingame
+    InGameVisibility = 0b00000100,
+    /// scaling of marker on 2d map (or minimap)
+    MapScale = 0b00001000,
+    /// whether draw on map
+    MapVisibility = 0b00010000,
+    /// whether stays at the boundary of minimap when overbounds, just like personal weaypoint
+    MiniMapEdgeHerd = 0b00100000,
+    /// draw on minimap
+    MiniMapVisibility = 0b01000000,
 }
 
-bitflags! {
-    /// Filter for which festivals will the marker be active for
-    pub struct Specializations: u128 {
-        const DUELING  = 1 << 0 ;
-        const DEATH_MAGIC  = 1 << 1;
-        const INVOCATION  = 1 << 2;
-        const STRENGTH  = 1 << 3;
-        const DRUID = 1 << 4;
-        const EXPLOSIVES = 1 << 5;
-        const DAREDEVIL = 1 << 6;
-        const MARKSMANSHIP = 1 << 7;
-        const RETRIBUTION = 1 << 8;
-        const DOMINATION = 1 << 9;
-        const TACTICS = 1 << 10;
-        const SALVATION = 1 << 11;
-        const VALOR = 1 << 12;
-        const CORRUPTION = 1 << 13;
-        const DEVASTATION = 1 << 14;
-        const RADIANCE = 1 << 15;
-        const WATER = 1 << 16;
-        const BERSERKER = 1 << 17;
-        const BLOOD_MAGIC = 1 << 18;
-        const SHADOW_ARTS = 1 << 19;
-        const TOOLS = 1 << 20;
-        const DEFENSE  = 1 << 21;
-        const INSPIRATION  = 1 << 22;
-        const ILLUSIONS  = 1 << 23;
-        const NATURE_MAGIC = 1 << 24;
-        const EARTH = 1 << 25;
-        const DRAGONHUNTER = 1 << 26;
-        const DEADLY_ARTS = 1 << 27;
-        const ALCHEMY = 1 << 28;
-        const SKIRMISHING = 1 << 29;
-        const FIRE = 1 << 30;
-        const BEAST_MASTERY  = 1 << 31;
-        const WILDERNESS_SURVIVAL  = 1 << 32;
-        const REAPER  = 1 << 33;
-        const CRITICAL_STRIKES = 1 << 34;
-        const ARMS = 1 << 35;
-        const ARCANE = 1 << 36;
-        const FIREARMS = 1 << 37;
-        const CURSES = 1 << 38;
-        const CHRONOMANCER = 1 << 39;
-        const AIR  = 1 << 40 ;
-        const ZEAL  = 1 << 41;
-        const SCRAPPER  = 1 << 42;
-        const TRICKERY  = 1 << 43;
-        const CHAOS = 1 << 44;
-        const VIRTUES = 1 << 45;
-        const INVENTIONS = 1 << 46;
-        const TEMPEST = 1 << 47;
-        const HONOR = 1 << 48;
-        const SOUL_REAPING = 1 << 49;
-        const DISCIPLINE  = 1 << 50 ;
-        const HERALD  = 1 << 51;
-        const SPITE  = 1 << 52;
-        const ACROBATICS  = 1 << 53;
-        const SOULBEAST = 1 << 54;
-        const WEAVER = 1 << 55;
-        const HOLOSMITH = 1 << 56;
-        const DEADEYE = 1 << 57;
-        const MIRAGE = 1 << 58;
-        const SCOURGE = 1 << 59;
-        const SPELLBREAKER  = 1 << 60 ;
-        const FIREBRAND  = 1 << 61;
-        const RENEGADE  = 1 << 62;
-        const HARBINGER  = 1 << 63;
-        const WILLBENDER = 1 << 64;
-        const VIRTUOSO = 1 << 65;
-        const CATALYST = 1 << 66;
-        const BLADESWORN = 1 << 67;
-        const VINDICATOR = 1 << 68;
-        const MECHANIST = 1 << 69;
-        const SPECTER  = 1 << 70 ;
-        const UNTAMED  = 1 << 71;
-    }
+/// Filter which professions the marker should be active for. if its null, its available for all professions
+#[bitflags]
+#[repr(u16)]
+#[derive(Debug, Clone, Copy)]
+pub enum Professions {
+    Elementalist = 1 << 0,
+    Engineer = 1 << 1,
+    Guardian = 1 << 2,
+    Mesmer = 1 << 3,
+    Necromancer = 1 << 4,
+    Ranger = 1 << 5,
+    Revenant = 1 << 6,
+    Thief = 1 << 7,
+    Warrior = 1 << 8,
 }
 
-bitflags! {
-    pub struct MapTypes: u32 {
-        /// <summary>
-        /// Redirect map type, e.g. when logging in while in a PvP match.
-        /// </summary>
-        const REDIRECT = 1 << 0;
-
-        /// <summary>
-        /// Character create map type.
-        /// </summary>
-        const CHARACTER_CREATE = 1 << 1;
-
-        /// <summary>
-        /// PvP map type.
-        /// </summary>
-        const PVP = 1 << 2;
-
-        /// <summary>
-        /// GvG map type. Unused.
-        /// Quote from lye: "lol unused ;_;".
-        /// </summary>
-        const GVG = 1 << 3;
-
-        /// <summary>
-        /// Instance map type, e.g. dungeons and story content.
-        /// </summary>
-        const INSTANCE = 1 << 4;
-
-        /// <summary>
-        /// Public map type, e.g. open world.
-        /// </summary>
-        const PUBLIC = 1 << 5;
-
-        /// <summary>
-        /// Tournament map type. Probably unused.
-        /// </summary>
-        const TOURNAMENT = 1 << 6;
-
-        /// <summary>
-        /// Tutorial map type.
-        /// </summary>
-        const TUTORIAL = 1 << 7;
-
-        /// <summary>
-        /// User tournament map type. Probably unused.
-        /// </summary>
-        const USER_TOURNAMENT = 1 << 8;
-
-        /// <summary>
-        /// Eternal Battlegrounds (WvW) map type.
-        /// </summary>
-        const ETERNAL_BATTLEGROUNDS = 1 << 9;
-
-        /// <summary>
-        /// Blue Borderlands (WvW) map type.
-        /// </summary>
-        const BLUE_BORDERLANDS = 1 << 10;
-
-        /// <summary>
-        /// Green Borderlands (WvW) map type.
-        /// </summary>
-        const GREEN_BORDERLANDS = 1 << 11;
-
-        /// <summary>
-        /// Red Borderlands (WvW) map type.
-        /// </summary>
-        const RED_BORDERLANDS = 1 << 12;
-
-        /// <summary>
-        /// Fortune's Vale. Unused.
-        /// </summary>
-        const FORTUNES_VALE = 1 << 13;
-
-        /// <summary>
-        /// Obsidian Sanctum (WvW) map type.
-        /// </summary>
-        const OBSIDIAN_SANCTUM = 1 << 14;
-
-        /// <summary>
-        /// Edge of the Mists (WvW) map type.
-        /// </summary>
-        const EDGE_OF_THE_MISTS = 1 << 15;
-
-        /// <summary>
-        /// Mini public map type, e.g. Dry Top, the Silverwastes and Mistlock Sanctuary.
-        /// </summary>
-        const PUBLIC_MINI = 1 << 16;
-
-        /// <summary>
-        /// WvW lounge map type, e.g. Armistice Bastion.
-        /// </summary>
-        const WVW_LOUNGE = 1 << 18;
-    }
+/// Filter for which festivals will the marker be active for
+#[bitflags]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy)]
+pub enum Festivals {
+    DragonBash = 0b00000001,
+    FestivalOfTheFourWinds = 0b00000010,
+    Halloween = 0b00000100,
+    LunarNewYear = 0b00001000,
+    SuperAdventureBox = 0b00010000,
+    Wintersday = 0b00100000,
 }
+
+// Filter for which festivals will the marker be active for
+// #[bitflags]
+// #[repr(u128)]
+// #[allow(non_camel_case_types)]
+// #[derive(Debug, Clone, Copy)]
+// pub enum Specializations {
+//     DUELING = 1 << 0,
+//     DEATH_MAGIC = 1 << 1,
+//     INVOCATION = 1 << 2,
+//     STRENGTH = 1 << 3,
+//     DRUID = 1 << 4,
+//     EXPLOSIVES = 1 << 5,
+//     DAREDEVIL = 1 << 6,
+//     MARKSMANSHIP = 1 << 7,
+//     RETRIBUTION = 1 << 8,
+//     DOMINATION = 1 << 9,
+//     TACTICS = 1 << 10,
+//     SALVATION = 1 << 11,
+//     VALOR = 1 << 12,
+//     CORRUPTION = 1 << 13,
+//     DEVASTATION = 1 << 14,
+//     RADIANCE = 1 << 15,
+//     WATER = 1 << 16,
+//     BERSERKER = 1 << 17,
+//     BLOOD_MAGIC = 1 << 18,
+//     SHADOW_ARTS = 1 << 19,
+//     TOOLS = 1 << 20,
+//     DEFENSE = 1 << 21,
+//     INSPIRATION = 1 << 22,
+//     ILLUSIONS = 1 << 23,
+//     NATURE_MAGIC = 1 << 24,
+//     EARTH = 1 << 25,
+//     DRAGONHUNTER = 1 << 26,
+//     DEADLY_ARTS = 1 << 27,
+//     ALCHEMY = 1 << 28,
+//     SKIRMISHING = 1 << 29,
+//     FIRE = 1 << 30,
+//     BEAST_MASTERY = 1 << 31,
+//     WILDERNESS_SURVIVAL = 1 << 32,
+//     REAPER = 1 << 33,
+//     CRITICAL_STRIKES = 1 << 34,
+//     ARMS = 1 << 35,
+//     ARCANE = 1 << 36,
+//     FIREARMS = 1 << 37,
+//     CURSES = 1 << 38,
+//     CHRONOMANCER = 1 << 39,
+//     AIR = 1 << 40,
+//     ZEAL = 1 << 41,
+//     SCRAPPER = 1 << 42,
+//     TRICKERY = 1 << 43,
+//     CHAOS = 1 << 44,
+//     VIRTUES = 1 << 45,
+//     INVENTIONS = 1 << 46,
+//     TEMPEST = 1 << 47,
+//     HONOR = 1 << 48,
+//     SOUL_REAPING = 1 << 49,
+//     DISCIPLINE = 1 << 50,
+//     HERALD = 1 << 51,
+//     SPITE = 1 << 52,
+//     ACROBATICS = 1 << 53,
+//     SOULBEAST = 1 << 54,
+//     WEAVER = 1 << 55,
+//     HOLOSMITH = 1 << 56,
+//     DEADEYE = 1 << 57,
+//     MIRAGE = 1 << 58,
+//     SCOURGE = 1 << 59,
+//     SPELLBREAKER = 1 << 60,
+//     FIREBRAND = 1 << 61,
+//     RENEGADE = 1 << 62,
+//     HARBINGER = 1 << 63,
+//     WILLBENDER = 1 << 64,
+//     VIRTUOSO = 1 << 65,
+//     CATALYST = 1 << 66,
+//     BLADESWORN = 1 << 67,
+//     VINDICATOR = 1 << 68,
+//     MECHANIST = 1 << 69,
+//     SPECTER = 1 << 70,
+//     UNTAMED = 1 << 71,
+// }
+
+/// Most of this data is stolen from BlishHUD.
+#[bitflags]
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+pub enum MapTypes {
+    /// <summary>
+    /// Redirect map type, e.g. when logging in while in a PvP match.
+    /// </summary>
+    Redirect = 1 << 0,
+
+    /// <summary>
+    /// Character create map type.
+    /// </summary>
+    CharacterCreate = 1 << 1,
+
+    /// <summary>
+    /// PvP map type.
+    /// </summary>
+    PVP = 1 << 2,
+
+    /// <summary>
+    /// GvG map type. Unused.
+    /// Quote from lye: "lol unused ;_;".
+    /// </summary>
+    GVG = 1 << 3,
+
+    /// <summary>
+    /// Instance map type, e.g. dungeons and story content.
+    /// </summary>
+    Instance = 1 << 4,
+
+    /// <summary>
+    /// Public map type, e.g. open world.
+    /// </summary>
+    Public = 1 << 5,
+
+    /// <summary>
+    /// Tournament map type. Probably unused.
+    /// </summary>
+    Tournament = 1 << 6,
+
+    /// <summary>
+    /// Tutorial map type.
+    /// </summary>
+    Tutorial = 1 << 7,
+
+    /// <summary>
+    /// User tournament map type. Probably unused.
+    /// </summary>
+    UserTournament = 1 << 8,
+
+    /// <summary>
+    /// Eternal Battlegrounds (WvW) map type.
+    /// </summary>
+    EternalBattlegrounds = 1 << 9,
+
+    /// <summary>
+    /// Blue Borderlands (WvW) map type.
+    /// </summary>
+    BlueBorderlands = 1 << 10,
+
+    /// <summary>
+    /// Green Borderlands (WvW) map type.
+    /// </summary>
+    GreenBorderlands = 1 << 11,
+
+    /// <summary>
+    /// Red Borderlands (WvW) map type.
+    /// </summary>
+    RedBorderlands = 1 << 12,
+
+    /// <summary>
+    /// Fortune's Vale. Unused.
+    /// </summary>
+    FortunesVale = 1 << 13,
+
+    /// <summary>
+    /// Obsidian Sanctum (WvW) map type.
+    /// </summary>
+    ObsidianSanctum = 1 << 14,
+
+    /// <summary>
+    /// Edge of the Mists (WvW) map type.
+    /// </summary>
+    EdgeOfTheMists = 1 << 15,
+
+    /// <summary>
+    /// Mini public map type, e.g. Dry Top, the Silverwastes and Mistlock Sanctuary.
+    /// </summary>
+    PublicMini = 1 << 16,
+
+    /// <summary>
+    /// WvW lounge map type, e.g. Armistice Bastion.
+    /// </summary>
+    WvwLounge = 1 << 18,
+}
+
 /// made it using multi cursor (ctrl + shift + L) by copy-pasting json from api
 fn _get_map_name_static(map_id: u32) -> Option<&'static str> {
     Some(match map_id {

@@ -1,7 +1,7 @@
-use super::{EndPoint, EndPointIds};
+use super::{Deserialize, EndPoint, EndPointIds, Serialize, EndPointId};
 
 type DailycraftingRecipeId = String;
-const E_P_URL: &str = const_format::concatcp!(crate::jokoapi::API_BASE_V2_URL, "/dailycrafting");
+const E_P_URL: &str = const_format::concatcp!(crate::API_BASE_V2_URL, "/dailycrafting");
 #[derive(Serialize, Deserialize)]
 pub struct DailycraftingRecipe {
     id: DailycraftingRecipeId,
@@ -20,6 +20,15 @@ impl EndPointIds for Dailycrafting {
     type RType = Vec<DailycraftingRecipe>;
 
     fn get_url() -> &'static str {
+        E_P_URL
+    }
+}
+impl EndPointId for Dailycrafting {
+    type RType = DailycraftingRecipe;
+
+    type Id = DailycraftingRecipeId;
+
+    fn get_url(id: &Self::Id) -> &'static str {
         E_P_URL
     }
 }

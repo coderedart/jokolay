@@ -66,5 +66,5 @@ members = [
     "crates/joko_render",
     "crates/joko_marker_format",
     "crates/jokolink",
-    # "crates/jokoapi"
+    "crates/jokoapi",
 ]

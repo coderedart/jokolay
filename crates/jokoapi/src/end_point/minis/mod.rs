@@ -1,9 +1,8 @@
-use super::{EndPoint, EndPointIds};
-use url::Url;
-
+use super::{Deserialize, EndPoint, EndPointIds, Serialize};
+use joko_core::prelude::Url;
 pub type MiniId = u32;
 
-const E_P_URL: &str = const_format::concatcp!(crate::jokoapi::API_BASE_V2_URL, "/minis");
+const E_P_URL: &str = const_format::concatcp!(crate::API_BASE_V2_URL, "/minis");
 
 #[derive(Serialize, Deserialize)]
 pub struct Mini {

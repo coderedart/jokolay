@@ -1,7 +1,7 @@
-use super::{EndPoint, EndPointIds};
+use super::{Deserialize, EndPoint, EndPointIds, Serialize};
 
 type ColorId = u32;
-const E_P_URL: &str = const_format::concatcp!(crate::jokoapi::API_BASE_V2_URL, "/colors");
+const E_P_URL: &str = const_format::concatcp!(crate::API_BASE_V2_URL, "/colors");
 #[derive(Serialize, Deserialize)]
 pub struct Color {
     id: ColorId,
