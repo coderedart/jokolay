@@ -1,4 +1,5 @@
-use crate::{MumbleLink, JOKOLINK_MUMBLE_BUFFER_SIZE};
+use crate::ctypes::{CMumbleLink, C_MUMBLE_LINK_SIZE_FULL};
+use crate::MumbleLink;
 use joko_core::prelude::*;
 use std::fs::File;
 use std::io::{Read, Seek};
@@ -14,37 +15,30 @@ pub struct MumbleLinuxImpl {
     link_buffer: LinkBuffer,
 }
 
-type LinkBuffer = Box<[u8; JOKOLINK_MUMBLE_BUFFER_SIZE]>;
+type LinkBuffer = Box<[u8; C_MUMBLE_LINK_SIZE_FULL]>;
 
 impl MumbleLinuxImpl {
-    pub fn new(link_name: &str, _jokolay_window_id: Option<u32>) -> Result<Self> {
+    pub fn new(link_name: &str) -> Result<Self> {
         let mumble_file_name = format!("/dev/shm/{link_name}");
+        info!("creating mumble file at {mumble_file_name}");
         let mut mfile = File::options()
             .read(true)
-            .write(true)
+            .write(true) // write/append is needed for the create flag
             .create(true)
             .open(&mumble_file_name)
             .into_diagnostic()
             .wrap_err("failed to create mumble file")?;
-        let mut link_buffer = LinkBuffer::new([0u8; JOKOLINK_MUMBLE_BUFFER_SIZE]);
+        let mut link_buffer = LinkBuffer::new([0u8; C_MUMBLE_LINK_SIZE_FULL]);
         mfile.rewind().into_diagnostic()?;
         mfile
             .read(link_buffer.as_mut())
             .into_diagnostic()
             .wrap_err("failed to get link buffer from mfile")?;
-        // let jokolay_window_id: u32 = match jokolay_window_id {
-        //     RawWindowHandle::Xlib(id) => id.window.try_into().unwrap(),
-        //     RawWindowHandle::Xcb(id) => id.window,
-        //     _ => 0,
-        // };
-        // let xc = X11Connection::new(jokolay_window_id)
-        //     .into_diagnostic()
-        //     .wrap_err("failed to create x11 connection")?;
-        Ok(MumbleLinuxImpl {
-            mfile,
-            // xc,
-            link_buffer,
-        })
+
+        Ok(MumbleLinuxImpl { mfile, link_buffer })
+    }
+    pub unsafe fn tick(&mut self) -> Result<()> {
+        Ok(())
     }
     pub fn get_link(&mut self) -> Result<MumbleLink> {
         self.mfile.rewind().into_diagnostic()?;
@@ -57,15 +51,24 @@ impl MumbleLinuxImpl {
         Ok(link)
     }
 
-    pub fn get_window_dimensions(&self) -> Result<[i32; 4]> {
-        unimplemented!()
+    pub fn win_pos_size(&self) -> [i32; 4] {
+        CMumbleLink::get_cmumble_link(self.link_buffer.as_ptr() as _)
+            .context
+            .window_pos_size
     }
-    pub fn set_transient_for(&self) -> Result<()> {
-        Ok(())
-        // Ok(self
-        //     .xc
-        //     .set_transient_for(xid_from_buffer(&self.link_buffer))?)
+    pub fn is_alive(&self) -> bool {
+        OffsetDateTime::now_utc().unix_timestamp()
+            - CMumbleLink::get_cmumble_link(self.link_buffer.as_ptr() as _)
+                .context
+                .timestamp as i64
+            > 5
     }
+    // pub fn set_transient_for(&self) -> Result<()> {
+    //     Ok(())
+    // Ok(self
+    //     .xc
+    //     .set_transient_for(xid_from_buffer(&self.link_buffer))?)
+    // }
 }
 
 // struct X11Connection {

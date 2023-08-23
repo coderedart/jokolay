@@ -19,7 +19,7 @@ pub struct Jokolay {
     pub frame_reset_seconds_timestamp: u64,
     pub jdir: Dir,
     pub jpath: PathBuf,
-    pub mumble: Result<MumbleManager>,
+    pub mumble_manager: Result<MumbleManager>,
     pub marker_manager: Result<MarkerManager>,
     pub joko_renderer: JokoRenderer,
     pub egui_context: egui::Context,
@@ -52,7 +52,7 @@ impl Jokolay {
         }
 
         Ok(Self {
-            mumble,
+            mumble_manager: mumble,
             marker_manager,
 
             last_check: 0.0,
@@ -75,7 +75,7 @@ impl UserApp for Jokolay {
             fps,
             frame_count,
             frame_reset_seconds_timestamp,
-            mumble,
+            mumble_manager,
             marker_manager,
             joko_renderer: _,
             egui_context,
@@ -92,9 +92,9 @@ impl UserApp for Jokolay {
             *frame_count = 0;
             *frame_reset_seconds_timestamp = latest_time as u64;
         }
-        if let Ok(mumble) = mumble {
-            let _ = mumble.tick();
-        }
+        if let Ok(mm) = mumble_manager.as_mut() {
+            let _ = mm.tick();
+        };
         egui_context.request_repaint();
         let cursor_position = egui_context.pointer_latest_pos();
         egui::Window::new("Tracing Window")
@@ -109,29 +109,42 @@ impl UserApp for Jokolay {
                 ui.label(&format!("fps: {}", *fps));
                 let mut is_passthrough = window_backend.window.is_mouse_passthrough();
                 ui.checkbox(&mut is_passthrough, "is window passthrough?");
-                if let Ok(mumble) = mumble {
-                    if let Some(link) = mumble.get_mumble_link() {
-                        mumble_ui(ui, link);
+                match mumble_manager {
+                    Ok(mm) => {
+                        let [x, y, w, h] = mm.get_pos_size();
+                        ui.label(format!("pos: {x}, {y}"));
+                        ui.label(format!("size: {w}, {h}"));
+                        match mm.get_mumble_link() {
+                            Ok(link) => {
+                                mumble_ui(ui, link);
+                            }
+                            Err(e) => {
+                                ui.label(format!("mumble link error: {e:#?}"));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        ui.label(format!("mumble manager error: {e:#?}"));
                     }
                 }
             });
         if let Ok(marker_manager) = marker_manager {
             marker_manager.tick(egui_context, latest_time);
         }
-        if let Ok(mumble) = mumble {
-            if let Some(_link) = mumble.get_mumble_link() {
-                if let Ok(_marker_manager) = marker_manager {
-                    // marker_manager.render(link.context.map_id as u16, joko_renderer);
-                }
-            }
-        }
+        // if let Some(_link) = link.as_ref() {
+        //     if let Ok(_marker_manager) = marker_manager {
+        //         // marker_manager.render(link.context.map_id as u16, joko_renderer);
+        //     }
+        // }
+
         // if it doesn't require either keyboard or pointer, set passthrough to true
         window_backend.window.set_mouse_passthrough(
             !(egui_context.wants_keyboard_input() || egui_context.wants_pointer_input()),
         );
         if latest_time - *last_check > 10. {
             *last_check = latest_time;
-            if let Ok(mumble) = mumble {
+
+            if let Ok(mumble) = mumble_manager {
                 let [x, y, w, h] = mumble.get_pos_size();
                 if w != 0 && h != 0 {
                     let (wx, wy) = window_backend.window.get_pos();

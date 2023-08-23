@@ -9,8 +9,8 @@ This jokolink binary is ONLY for linux users to get the `MumbleLink` data from g
 > WARNING: Guild Wars 2 doesn't update MumbleLink Data during character select screen or map loading screens. So, until you load into a map with a character, there is nothing for jokolink to write to `/dev/shm/MumbleLink`
 
 ## Installation
-1. Just run `cargo build -p jokolink --release` to build the `jokolink.dll`
-2. just copy the `jokolink.dll` into `Guild Wars 2` folder right beside `Gw2-64.exe`
+1. Just run `cargo build -p jokolink --release` to build the `jokolink.dll` (or download it )
+2. copy the `jokolink.dll` into `Guild Wars 2` folder right beside `Gw2-64.exe`
 3. If you don't use arcdps, then rename `jokolink.dll` to `d3d11.dll`, so that gw2 will load the dll when it starts
 4. If you use arcdps, then you can rename `jokolink.dll` to `arcdps_jokolink.dll`. All dlls whose names start with `arcdps` will be loaded by arcdps. 
 
@@ -29,7 +29,7 @@ Jokolink configuration is stored in json format.
         type: directory path
         help: a path to a directory, where jokolink will create jokolink.log file
     
-    * mumble_link_names:
+    * mumble_link_name:
         default: "MumbleLink"
         type: string
         help: names of mumble link to copy data from and to. useful if you provide `-mumble` option to Guild Wars 2 for custom link name

@@ -1,7 +1,7 @@
 use joko_core::prelude::*;
 use jokoapi::end_point::{mounts::Mount, races::Race};
 
-use crate::{MumbleLink, UISize, UIState};
+use crate::{UISize, UIState};
 
 /// The total size of the CMumbleLink struct. used to know the amount of memory to give to win32 call that creates the shared memory
 pub const C_MUMBLE_LINK_SIZE_FULL: usize = std::mem::size_of::<CMumbleLink>();
@@ -44,6 +44,25 @@ pub struct CMumbleLink {
     pub context: CMumbleContext,
     /// Useless for now. Nothing is ever written here.
     pub description: [u16; 2048],
+}
+impl Default for CMumbleLink {
+    fn default() -> Self {
+        Self {
+            ui_version: Default::default(),
+            ui_tick: Default::default(),
+            f_avatar_position: Default::default(),
+            f_avatar_front: Default::default(),
+            f_avatar_top: Default::default(),
+            name: [0; 256],
+            f_camera_position: Default::default(),
+            f_camera_front: Default::default(),
+            f_camera_top: Default::default(),
+            identity: [0; 256],
+            context_len: Default::default(),
+            context: Default::default(),
+            description: [0; 2048],
+        }
+    }
 }
 impl CMumbleLink {
     /// This takes a point and reads out the CMumbleLink struct from it. wrapper for unsafe ptr read
@@ -114,12 +133,18 @@ pub struct CMumbleContext {
     /// These fields will be set before writing the link data to the `/dev/shm/MumbleLink` file from which jokolay can pick it up
     ///
     /// timestamp when jokolink wrote this data. unix nanoseconds
-    /// This timestamp will be written every frame even if mumble link is uninitialized.
+    /// This timestamp will be written every frame by jokolink even if mumble link is uninitialized.
+    /// This is [i128] in little endian byte order. We use this instead of [i128] because context is aligned to 4 by default. And
+    /// [i64]/[i128] will change that alignment. This will lead to 4 bytes padding between [CMumbleLink::context_len] and [CMumbleLink::context]
     /// If jokolink doesn't write for more than 1 or 2 seconds, it can be assumed that gw2 was closed/crashed.
-    pub timestamp: u32,
+    /// This is in nanoseconds since unix epoch in UTC timezone.
+    pub timestamp: [u8; 16],
     /// x, y, width, height of guild wars 2 window relative to top left corner of the screen.
     pub window_pos_size: [i32; 4],
-    pub padding: [u8; 136],
+    /// This represents the x11 window id of the gw2 window. AFAIK, wine uses x11 only (no wayland), so this could be useful to set transient for
+    pub xid: u32,
+    /// to make the struct the right size. everything upto now is 120 bytes, so this rounds upto 256 bytes.
+    pub padding: [u8; 132],
 }
 impl Default for CMumbleContext {
     fn default() -> Self {
@@ -144,7 +169,8 @@ impl Default for CMumbleContext {
             mount_index: Default::default(),
             timestamp: Default::default(),
             window_pos_size: Default::default(),
-            padding: [0; 136],
+            padding: [0; 132],
+            xid: Default::default(),
         }
     }
 }
@@ -234,50 +260,5 @@ impl CIdentity {
             4 => Race::SYLVARI,
             _ => return None,
         })
-    }
-}
-impl MumbleLink {
-    /// takes a pointer to [CMumbleLink] and uses it to construct a [MumbleLink].
-    /// will return error if
-    /// 1. pointer is null
-    /// 2. mumble is not initialized
-    /// 3. if name or identity json is invalid utf-16 or invalid json.
-    /// 4. any of the enums/bitflags have invalid values.
-    /// ## Unsafe
-    /// If the pointer points to invalid memory, it will lead to undefined behavior.
-    pub(crate) unsafe fn unsafe_load_from_pointer(
-        link_ptr: *const CMumbleLink,
-    ) -> miette::Result<Self> {
-        if !CMumbleLink::is_valid(link_ptr) {
-            bail!("mumble link uninitialized");
-        }
-        // safety. as the link is valid, we can use as_ref
-        if let Some(cmumblelink) = link_ptr.as_ref().cloned() {
-            let name = widestring::U16CStr::from_slice_truncate(&cmumblelink.name)
-                .into_diagnostic()?
-                .to_string()
-                .into_diagnostic()?;
-            let json_string = widestring::U16CStr::from_slice_truncate(&cmumblelink.identity)
-                .into_diagnostic()?
-                .to_string()
-                .into_diagnostic()?;
-            let identity: CIdentity = from_str(&json_string).into_diagnostic()?;
-
-            Ok(Self {
-                ui_tick: cmumblelink.ui_tick,
-                f_avatar_position: cmumblelink.f_avatar_position.into(),
-                f_avatar_front: cmumblelink.f_avatar_front.into(),
-                f_camera_position: cmumblelink.f_camera_position.into(),
-                f_camera_front: cmumblelink.f_camera_front.into(),
-                name,
-                map_id: cmumblelink.context.map_id,
-                fov: identity.fov,
-                uisz: identity
-                    .get_uisz()
-                    .ok_or(miette::miette!("ui size is invalid"))?,
-            })
-        } else {
-            bail!("link_ptr is null ");
-        }
     }
 }

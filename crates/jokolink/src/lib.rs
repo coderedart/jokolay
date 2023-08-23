@@ -37,7 +37,7 @@ pub struct MumbleManager {
     backend: MumblePlatformImpl,
     changes: BitFlags<MumbleChanges>,
     /// latest mumble link
-    link: Option<MumbleLink>,
+    link: Result<Arc<MumbleLink>>,
 }
 impl MumbleManager {
     pub fn new(name: &str, _jokolay_window_id: Option<u32>) -> Result<Self> {
@@ -45,51 +45,43 @@ impl MumbleManager {
         Ok(Self {
             backend,
             changes: BitFlags::empty(),
-            link: None,
+            link: Err(miette::miette!("mumble not initialized yet")),
         })
     }
     pub fn tick(&mut self) -> Result<()> {
-        unsafe { self.backend.tick()? };
-        self.changes = BitFlags::empty();
-        let link = self.backend.get_link()?;
-        if let Some(previous_link) = self.link.take() {
-            if previous_link.ui_tick != link.ui_tick {
-                self.changes.toggle(MumbleChanges::UiTick);
-                if previous_link.name != link.name {
-                    self.changes.toggle(MumbleChanges::Character);
-                }
-                if previous_link.map_id != link.map_id {
-                    self.changes.toggle(MumbleChanges::Map);
-                }
-            }
+        if let Err(e) = unsafe { self.backend.tick() } {
+            self.link = Err(e);
         }
+        self.changes = BitFlags::empty();
+        let link = self.backend.get_link().map(|link| {
+            let link = Arc::new(link.clone());
+            // if previous link was valid, then only toggle the changes
+            if let Ok(previous_link) = self.link.as_ref() {
+                if previous_link.ui_tick != link.ui_tick {
+                    self.changes.insert(MumbleChanges::UiTick);
+                    if previous_link.name != link.name {
+                        self.changes.insert(MumbleChanges::Character);
+                    }
+                    if previous_link.map_id != link.map_id {
+                        self.changes.insert(MumbleChanges::Map);
+                    }
+                }
+            } else {
+                // if previous link was not valid. Then, trigger all changes
+                self.changes.insert(MumbleChanges::UiTick);
+                self.changes.insert(MumbleChanges::Character);
+                self.changes.insert(MumbleChanges::Game);
+                self.changes.insert(MumbleChanges::Map);
+            }
+            link
+        });
+        self.link = link;
         Ok(())
     }
-    pub fn get_mumble_link(&self) -> &Option<MumbleLink> {
+    pub fn get_mumble_link(&self) -> &Result<Arc<MumbleLink>> {
         &self.link
     }
     pub fn get_pos_size(&mut self) -> [i32; 4] {
         self.backend.win_pos_size()
     }
-    pub fn ui_tick_changed(&self) -> bool {
-        self.changes.contains(MumbleChanges::UiTick)
-    }
-    pub fn map_changed(&self) -> bool {
-        self.changes.contains(MumbleChanges::Map)
-    }
-
-    pub fn character_changed(&self) -> bool {
-        self.changes.contains(MumbleChanges::Character)
-    }
-}
-
-/// These flags represent the changes in mumble link compared to previous values
-#[bitflags]
-#[repr(u8)]
-#[derive(Debug, Clone, Copy)]
-enum MumbleChanges {
-    UiTick = 1,
-    Map = 1 << 1,
-    Character = 1 << 2,
-    Game = 1 << 3,
 }
