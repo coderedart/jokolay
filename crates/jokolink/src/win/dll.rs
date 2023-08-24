@@ -416,10 +416,10 @@ pub mod d3d11 {
             let mut source = MumbleWinImpl::new(&mumble_key)?;
 
             loop {
-                if let Err(e) = unsafe { source.tick() } {
+                if let Err(e) = source.tick() {
                     error!("mumble tick error: {e:#?}");
                 }
-                let link = unsafe { source.get_cmumble_link() };
+                let link = source.get_cmumble_link();
 
                 let buffer: [u8; C_MUMBLE_LINK_SIZE_FULL] =
                     unsafe { std::ptr::read_volatile(&link as *const CMumbleLink as *const _) };

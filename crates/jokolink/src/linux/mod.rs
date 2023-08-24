@@ -1,5 +1,4 @@
 use crate::ctypes::{CMumbleLink, C_MUMBLE_LINK_SIZE_FULL};
-use crate::MumbleLink;
 use joko_core::prelude::*;
 use std::fs::File;
 use std::io::{Read, Seek};
@@ -11,8 +10,10 @@ pub use x11rb::rust_connection::RustConnection;
 /// This is the bak
 pub struct MumbleLinuxImpl {
     mfile: File,
-    // xc: X11Connection,
     link_buffer: LinkBuffer,
+    /// we basically use this as the ui_tick of mumblelink
+    /// If this changed recently, it means jokolink is running (i.e. gw2 is running)
+    previous_jokolink_timestamp: i128,
 }
 
 type LinkBuffer = Box<[u8; C_MUMBLE_LINK_SIZE_FULL]>;
@@ -34,34 +35,34 @@ impl MumbleLinuxImpl {
             .read(link_buffer.as_mut())
             .into_diagnostic()
             .wrap_err("failed to get link buffer from mfile")?;
-
-        Ok(MumbleLinuxImpl { mfile, link_buffer })
+        let previous_jokolink_timestamp =
+            unsafe { CMumbleLink::get_timestamp(link_buffer.as_ptr() as _) };
+        Ok(MumbleLinuxImpl {
+            mfile,
+            link_buffer,
+            previous_jokolink_timestamp,
+        })
     }
-    pub unsafe fn tick(&mut self) -> Result<()> {
-        Ok(())
-    }
-    pub fn get_link(&mut self) -> Result<MumbleLink> {
+    pub fn tick(&mut self) -> Result<()> {
         self.mfile.rewind().into_diagnostic()?;
         self.mfile
             .read(self.link_buffer.as_mut())
             .into_diagnostic()
             .wrap_err("failed to get link buffer")?;
-        let link = unsafe { MumbleLink::unsafe_load_from_pointer(self.link_buffer.as_ptr() as _)? };
-
-        Ok(link)
-    }
-
-    pub fn win_pos_size(&self) -> [i32; 4] {
-        CMumbleLink::get_cmumble_link(self.link_buffer.as_ptr() as _)
-            .context
-            .window_pos_size
+        self.previous_jokolink_timestamp =
+            unsafe { CMumbleLink::get_timestamp(self.link_buffer.as_ptr() as _) };
+        Ok(())
     }
     pub fn is_alive(&self) -> bool {
-        OffsetDateTime::now_utc().unix_timestamp()
-            - CMumbleLink::get_cmumble_link(self.link_buffer.as_ptr() as _)
-                .context
-                .timestamp as i64
-            > 5
+        OffsetDateTime::now_utc().unix_timestamp_nanos() - self.previous_jokolink_timestamp
+            < std::time::Duration::from_secs(1).as_nanos() as i128
+    }
+    pub fn get_cmumble_link(&self) -> CMumbleLink {
+        if self.is_alive() {
+            unsafe { std::ptr::read(self.link_buffer.as_ptr() as _) }
+        } else {
+            Default::default()
+        }
     }
     // pub fn set_transient_for(&self) -> Result<()> {
     //     Ok(())

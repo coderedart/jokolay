@@ -5,7 +5,7 @@ pub mod dll;
 
 use std::time::{Duration, Instant};
 
-use crate::{mumble::ctypes::*, MumbleLink};
+use crate::mumble::ctypes::*;
 use joko_core::prelude::*;
 use windows::{
     core::PCSTR,
@@ -86,15 +86,8 @@ impl MumbleWinImpl {
     pub fn is_alive(&self) -> bool {
         !self.process_handle.is_invalid()
     }
-    pub fn win_pos_size(&self) -> [i32; 4] {
-        self.window_pos_size
-    }
-    pub fn get_link(&mut self) -> Result<MumbleLink> {
-        // unsafe { MumbleLink::unsafe_update_from_pointer(self.link_ptr) }
-        unimplemented!()
-    }
-    pub unsafe fn get_cmumble_link(&mut self) -> CMumbleLink {
-        let mut link = std::ptr::read_volatile(self.link_ptr);
+    pub fn get_cmumble_link(&mut self) -> CMumbleLink {
+        let mut link = unsafe { std::ptr::read_volatile(self.link_ptr) };
         link.context.timestamp = OffsetDateTime::now_utc()
             .unix_timestamp_nanos()
             .to_le_bytes();
@@ -108,81 +101,82 @@ impl MumbleWinImpl {
     /// 3. If it changed, we check if it is less than previous_ui_tick OR if the pid is differnet from previous_pid or if our process handle is invalid
     /// 4. If any of the above conditions are true, we reset and reinitialize the gw2 process handle + window handle + window size etc..
     /// 5. If ui_tick simply increased and nothing else changed, then we proceed with the usual stuf which is check the timer and get updated window pos/size
-    pub unsafe fn tick(&mut self) -> Result<()> {
-        // if ui_tick is zero, we return
-        if !CMumbleLink::is_valid(self.link_ptr) {
-            // if we alive, that means ui_tick turned zero this frame for whatever reason, so we reset.
-            if self.is_alive() {
-                self.reset();
+    pub fn tick(&mut self) -> Result<()> {
+        unsafe {
+            // if ui_tick is zero, we return
+            if !CMumbleLink::is_valid(self.link_ptr) {
+                // if we alive, that means ui_tick turned zero this frame for whatever reason, so we reset.
+                if self.is_alive() {
+                    self.reset();
+                }
+                return Ok(());
             }
-            return Ok(());
-        }
-        let ui_tick = CMumbleLink::get_ui_tick(self.link_ptr);
-        let pid = CMumbleLink::get_pid(self.link_ptr);
-        let previous_ui_tick = self.previous_ui_tick;
-        // if ui tick didn't change. Then it means either we are in loading scree / character select screen or gw2 was closed (or crashed)
-        if ui_tick == previous_ui_tick {
-            // if we are not alive, then we just return because it just means mumble is not being updated.
-            // but if we are alive, then we need to check whehter gw2 is still alive (in loading screen) or dead
-            if self.is_alive() {
-                // we don't want to check every frame. Instead, we check in intervals of 3 seconds until gw2 finally loads into a map or it closes (so we can reset)
-                if self.last_ui_tick_update.elapsed() > Duration::from_secs(3) {
-                    self.last_ui_tick_update = Instant::now();
-                    match check_process_alive(self.process_handle) {
-                        Ok(alive) => {
-                            if !alive {
+            let ui_tick = CMumbleLink::get_ui_tick(self.link_ptr);
+            let pid = CMumbleLink::get_pid(self.link_ptr);
+            let previous_ui_tick = self.previous_ui_tick;
+            // if ui tick didn't change. Then it means either we are in loading scree / character select screen or gw2 was closed (or crashed)
+            if ui_tick == previous_ui_tick {
+                // if we are not alive, then we just return because it just means mumble is not being updated.
+                // but if we are alive, then we need to check whehter gw2 is still alive (in loading screen) or dead
+                if self.is_alive() {
+                    // we don't want to check every frame. Instead, we check in intervals of 3 seconds until gw2 finally loads into a map or it closes (so we can reset)
+                    if self.last_ui_tick_update.elapsed() > Duration::from_secs(3) {
+                        self.last_ui_tick_update = Instant::now();
+                        match check_process_alive(self.process_handle) {
+                            Ok(alive) => {
+                                if !alive {
+                                    self.reset();
+                                }
+                            }
+                            Err(e) => {
+                                error!("failed to get GetExitCodeProcess: {e:#?}");
                                 self.reset();
                             }
                         }
-                        Err(e) => {
-                            error!("failed to get GetExitCodeProcess: {e:#?}");
-                            self.reset();
-                        }
                     }
                 }
+                return Ok(());
             }
-            return Ok(());
-        }
-        // if ui_tick has changed, then we have some stuff to do.
-        if ui_tick < previous_ui_tick // only happens if process changes
+            // if ui_tick has changed, then we have some stuff to do.
+            if ui_tick < previous_ui_tick // only happens if process changes
         || pid != self.previous_pid // gw2 process changed. need to get new handles/sizes etc..
         || !self.is_alive()
-        // if we are in reset status, then its our chance to reinitialize because mumble just updated.
-        {
-            warn!(
-                "found new gw2 process. last_tick: {}, new_tick: {}, new_pid: {}",
-                self.previous_ui_tick, ui_tick, pid
-            );
-            self.reinitialize();
-        }
-        // if reinitialization failed, then we can try again next frame.
-        // if we are alive, that means everything is working as expected.
-        // we update the previous ui_tick and check if we need to update window pos/size
-        if self.is_alive() {
-            self.last_ui_tick_update = Instant::now();
-            self.previous_ui_tick = ui_tick;
-            // check in 2 seconds intervals because it rarely changes
-            if self.last_pos_size_check.elapsed() > Duration::from_secs(2) {
-                self.last_pos_size_check = Instant::now();
-                self.window_pos_size = match get_window_pos_size(self.window_handle) {
-                    Ok(window_pos_size) => {
-                        if self.window_pos_size != window_pos_size {
-                            warn!(
-                                "window position size changed from {:?} to {:?}",
-                                self.window_pos_size, window_pos_size
-                            );
+            // if we are in reset status, then its our chance to reinitialize because mumble just updated.
+            {
+                warn!(
+                    "found new gw2 process. last_tick: {}, new_tick: {}, new_pid: {}",
+                    self.previous_ui_tick, ui_tick, pid
+                );
+                self.reinitialize();
+            }
+            // if reinitialization failed, then we can try again next frame.
+            // if we are alive, that means everything is working as expected.
+            // we update the previous ui_tick and check if we need to update window pos/size
+            if self.is_alive() {
+                self.last_ui_tick_update = Instant::now();
+                self.previous_ui_tick = ui_tick;
+                // check in 2 seconds intervals because it rarely changes
+                if self.last_pos_size_check.elapsed() > Duration::from_secs(2) {
+                    self.last_pos_size_check = Instant::now();
+                    self.window_pos_size = match get_window_pos_size(self.window_handle) {
+                        Ok(window_pos_size) => {
+                            if self.window_pos_size != window_pos_size {
+                                warn!(
+                                    "window position size changed from {:?} to {:?}",
+                                    self.window_pos_size, window_pos_size
+                                );
+                            }
+                            window_pos_size
                         }
-                        window_pos_size
-                    }
-                    Err(e) => {
-                        error!("failed to get window position size: {e}");
-                        self.reset(); // go back to being dead because it shouldn't usually fail
-                        return Ok(());
+                        Err(e) => {
+                            error!("failed to get window position size: {e}");
+                            self.reset(); // go back to being dead because it shouldn't usually fail
+                            return Ok(());
+                        }
                     }
                 }
             }
         }
-
         Ok(())
     }
     /// A function which clears all the gw2 related resources like process/window handles
@@ -309,7 +303,7 @@ unsafe fn create_link_shared_mem(key: &str) -> Result<(HANDLE, *mut CMumbleLink)
             None,
             PAGE_READWRITE,
             0,
-            C_MUMBLE_LINK_SIZE_FULL as u32,
+            C_MUMBLE_LINK_SIZE_FULL as u32 + 4096, // we add the size of description field here.
             PCSTR(key_cstr.as_ptr() as _),
         )
         .into_diagnostic()
@@ -320,7 +314,7 @@ unsafe fn create_link_shared_mem(key: &str) -> Result<(HANDLE, *mut CMumbleLink)
             FILE_MAP_ALL_ACCESS,
             0,
             0,
-            C_MUMBLE_LINK_SIZE_FULL,
+            C_MUMBLE_LINK_SIZE_FULL + 4096, // adding the description field size here
         )
         .Value;
         // check if we were successful

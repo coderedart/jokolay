@@ -42,8 +42,10 @@ pub struct CMumbleLink {
     //// 88 bytes are useful context written by gw2. Jokolink writes some more additional data beyond the 88 bytes like
     ////     X11 ID or window size or the timestamp when it last wrote data to this link etc.. which is useful for linux native clients like jokolay
     pub context: CMumbleContext,
-    /// Useless for now. Nothing is ever written here.
-    pub description: [u16; 2048],
+    // Useless for now. Nothing is ever written here.
+    // we will just remove this field and add the size when creating shared memory.
+    // no point in copying more than 5kb when we only care about the first 1kb.
+    // pub description: [u16; 2048],
 }
 impl Default for CMumbleLink {
     fn default() -> Self {
@@ -60,7 +62,7 @@ impl Default for CMumbleLink {
             identity: [0; 256],
             context_len: Default::default(),
             context: Default::default(),
-            description: [0; 2048],
+            // description: [0; 2048],
         }
     }
 }
@@ -82,13 +84,18 @@ impl CMumbleLink {
     pub unsafe fn get_pid(link_ptr: *const CMumbleLink) -> u32 {
         (*link_ptr).context.process_id
     }
-    /// we will copy the bytes of the struct memory into the slice. we check that we will only copy upto C_MUMBLE_LINK_SIZE or buffer.len() whichever is smaller to avoid buffer overflow reads
-    pub unsafe fn copy_raw_bytes_into(link_ptr: *const CMumbleLink, buffer: &mut [u8]) {
-        // to make sure we don't go beyond the boundary of mumble link allocation
-        let max_len = usize::min(buffer.len(), C_MUMBLE_LINK_SIZE_FULL);
-        unsafe {
-            std::ptr::copy_nonoverlapping(link_ptr as *const u8, buffer.as_mut_ptr(), max_len);
-        }
+    #[cfg(unix)]
+    pub unsafe fn get_xid(link_ptr: *const CMumbleLink) -> u32 {
+        (*link_ptr).context.xid
+    }
+    #[cfg(unix)]
+    pub unsafe fn get_pos_size(link_ptr: *const CMumbleLink) -> [i32; 4] {
+        (*link_ptr).context.window_pos_size
+    }
+    #[cfg(unix)]
+    pub unsafe fn get_timestamp(link_ptr: *const CMumbleLink) -> i128 {
+        let bytes = (*link_ptr).context.timestamp;
+        i128::from_le_bytes(bytes)
     }
 }
 

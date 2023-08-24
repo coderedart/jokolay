@@ -1,15 +1,12 @@
 use std::path::PathBuf;
 
-use egui_backend::{
-    egui::{self, Grid, Ui},
-    BackendConfig, GfxBackend, UserApp, WindowBackend,
-};
+use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
 use joko_core::{init::get_jokolay_dir, prelude::*, trace::install_tracing};
 
 use jmf::manager::MarkerManager;
 use joko_render::JokoRenderer;
-use jokolink::MumbleManager;
+use jokolink::{MumbleChanges, MumbleManager};
 
 pub struct Jokolay {
     pub last_check: f64,
@@ -92,8 +89,16 @@ impl UserApp for Jokolay {
             *frame_count = 0;
             *frame_reset_seconds_timestamp = latest_time as u64;
         }
-        if let Ok(mm) = mumble_manager.as_mut() {
-            let _ = mm.tick();
+        let link = if let Ok(mm) = mumble_manager.as_mut() {
+            match mm.tick(&egui_context) {
+                Ok(ml) => ml,
+                Err(e) => {
+                    error!("mumble manager tick error: {e:#?}");
+                    None
+                }
+            }
+        } else {
+            None
         };
         egui_context.request_repaint();
         let cursor_position = egui_context.pointer_latest_pos();
@@ -109,53 +114,37 @@ impl UserApp for Jokolay {
                 ui.label(&format!("fps: {}", *fps));
                 let mut is_passthrough = window_backend.window.is_mouse_passthrough();
                 ui.checkbox(&mut is_passthrough, "is window passthrough?");
-                match mumble_manager {
-                    Ok(mm) => {
-                        let [x, y, w, h] = mm.get_pos_size();
-                        ui.label(format!("pos: {x}, {y}"));
-                        ui.label(format!("size: {w}, {h}"));
-                        match mm.get_mumble_link() {
-                            Ok(link) => {
-                                mumble_ui(ui, link);
-                            }
-                            Err(e) => {
-                                ui.label(format!("mumble link error: {e:#?}"));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        ui.label(format!("mumble manager error: {e:#?}"));
-                    }
+                if let Err(e) = mumble_manager {
+                    ui.label(format!("mumble manager error: {e:#?}"));
                 }
             });
         if let Ok(marker_manager) = marker_manager {
             marker_manager.tick(egui_context, latest_time);
         }
-        // if let Some(_link) = link.as_ref() {
-        //     if let Ok(_marker_manager) = marker_manager {
-        //         // marker_manager.render(link.context.map_id as u16, joko_renderer);
-        //     }
-        // }
 
         // if it doesn't require either keyboard or pointer, set passthrough to true
         window_backend.window.set_mouse_passthrough(
             !(egui_context.wants_keyboard_input() || egui_context.wants_pointer_input()),
         );
+        if let Some(link) = link.as_ref() {
+            if link.changes.contains(MumbleChanges::WindowPosition)
+                || link.changes.contains(MumbleChanges::WindowSize)
+            {
+                info!(
+                    "resizing/repositioning to match gw2 window dimensions: {:?} {:?}",
+                    link.window_pos, link.window_size
+                );
+                // to account for the invisible border shadows thingy. IDK if these pixel values are the same across all dpi/monitors
+                window_backend
+                    .window
+                    .set_pos(link.window_pos.x + 5, link.window_pos.y + 56);
+                window_backend
+                    .window
+                    .set_size(link.window_size.x - 10, link.window_size.y - 61);
+            }
+        }
         if latest_time - *last_check > 10. {
             *last_check = latest_time;
-
-            if let Ok(mumble) = mumble_manager {
-                let [x, y, w, h] = mumble.get_pos_size();
-                if w != 0 && h != 0 {
-                    let (wx, wy) = window_backend.window.get_pos();
-                    let (ww, wh) = window_backend.window.get_size();
-                    if x != wx || y != wy || w != ww || h != wh {
-                        info!("resizing/repositioning our window from {wx},{wy},{ww},{wh} to match gw2 window dimensions: {x} {y} {w} {h}");
-                        window_backend.window.set_pos(x, y);
-                        window_backend.window.set_size(w, h);
-                    }
-                }
-            }
         }
     }
 
@@ -209,18 +198,4 @@ pub fn start_jokolay() {
     <Jokolay as UserApp>::UserWindowBackend::run_event_loop(
         jokolay.expect("failed to create jokolay app"),
     );
-}
-
-fn mumble_ui(ui: &mut Ui, link: &jokolink::MumbleLink) {
-    Grid::new("link grid").num_columns(2).show(ui, |ui| {
-        ui.label("ui tick: ");
-        ui.label(format!("{}", link.ui_tick));
-        ui.end_row();
-        ui.label("character: ");
-        ui.label(&link.name);
-        ui.end_row();
-        ui.label("map: ");
-        ui.label(format!("{}", link.map_id));
-        ui.end_row();
-    });
 }
