@@ -2,17 +2,14 @@ mod common;
 mod marker;
 mod trail;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 
 pub const MARKER_PNG: &[u8] = include_bytes!("marker.png");
 pub const TRAIL_PNG: &[u8] = include_bytes!("trail.png");
 
-use joko_core::prelude::OffsetDateTime;
 use relative_path::RelativePathBuf;
-
-use uuid::Uuid;
 
 pub use common::*;
 pub use marker::*;
@@ -41,13 +38,4 @@ pub struct Category {
     pub default_enabled: bool,
     pub props: CommonAttributes,
     pub children: IndexMap<String, Category>,
-}
-
-pub struct ActivationData {
-    /// key is packname
-    /// value is a set of category names which are enabled
-    pub cats_status: BTreeMap<String, BTreeSet<String>>,
-    /// the key is marker guid. value is *when* we can remove this marker from the triggered marker list.
-    /// the guids are global across all marker packs and maps
-    pub markers_status: BTreeMap<Uuid, OffsetDateTime>,
 }

@@ -9,7 +9,6 @@ use joko_render::JokoRenderer;
 use jokolink::{MumbleChanges, MumbleManager};
 
 pub struct Jokolay {
-    pub last_check: f64,
     pub show_tracing_window: bool,
     pub fps: u32,
     pub frame_count: u64,
@@ -52,7 +51,6 @@ impl Jokolay {
             mumble_manager: mumble,
             marker_manager,
 
-            last_check: 0.0,
             joko_renderer,
             frame_count: 0,
             frame_reset_seconds_timestamp: 0,
@@ -61,14 +59,13 @@ impl Jokolay {
             jdir,
             jpath,
             egui_context,
-            show_tracing_window: true,
+            show_tracing_window: false,
         })
     }
 }
 impl UserApp for Jokolay {
     fn gui_run(&mut self) {
         let Self {
-            last_check,
             fps,
             frame_count,
             frame_reset_seconds_timestamp,
@@ -121,11 +118,7 @@ impl UserApp for Jokolay {
         if let Ok(marker_manager) = marker_manager {
             marker_manager.tick(egui_context, latest_time);
         }
-
-        // if it doesn't require either keyboard or pointer, set passthrough to true
-        window_backend.window.set_mouse_passthrough(
-            !(egui_context.wants_keyboard_input() || egui_context.wants_pointer_input()),
-        );
+        // check if we need to change window position or size.
         if let Some(link) = link.as_ref() {
             if link.changes.contains(MumbleChanges::WindowPosition)
                 || link.changes.contains(MumbleChanges::WindowSize)
@@ -143,9 +136,11 @@ impl UserApp for Jokolay {
                     .set_size(link.window_size.x - 10, link.window_size.y - 61);
             }
         }
-        if latest_time - *last_check > 10. {
-            *last_check = latest_time;
-        }
+
+        // if it doesn't require either keyboard or pointer, set passthrough to true
+        window_backend.window.set_mouse_passthrough(
+            !(egui_context.wants_keyboard_input() || egui_context.wants_pointer_input()),
+        );
     }
 
     type UserGfxBackend = JokoRenderer;

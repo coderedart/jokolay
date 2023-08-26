@@ -1,7 +1,8 @@
 use base64::Engine;
 use indexmap::IndexMap;
 use joko_core::prelude::*;
-use std::io::Write;
+use relative_path::RelativePathBuf;
+use std::{collections::HashSet, io::Write};
 use xot::{Element, Node, SerializeOptions, Xot};
 
 use crate::{
@@ -11,8 +12,16 @@ use crate::{
 
 use super::XotAttributeNameIDs;
 /// Save the pack core as xml pack using the given directory as pack root path.
-pub fn save_pack_core_to_dir(pack_core: &PackCore, dir: &Dir) -> Result<()> {
-    {
+pub fn save_pack_core_to_dir(
+    pack_core: &PackCore,
+    dir: &Dir,
+    cats: bool,
+    mut maps: HashSet<u32>,
+    mut textures: HashSet<RelativePathBuf>,
+    mut tbins: HashSet<RelativePathBuf>,
+    all: bool,
+) -> Result<()> {
+    if cats || all {
         // save categories
         let mut tree = Xot::new();
         let names = XotAttributeNameIDs::register_with_xot(&mut tree);
@@ -36,8 +45,8 @@ pub fn save_pack_core_to_dir(pack_core: &PackCore, dir: &Dir) -> Result<()> {
             .wrap_err("failed to write to categories.xml")?;
     }
     // save maps
-    {
-        for (map_id, map_data) in &pack_core.maps {
+    for (map_id, map_data) in pack_core.maps.iter() {
+        if maps.remove(map_id) || all {
             let mut tree = Xot::new();
             let names = XotAttributeNameIDs::register_with_xot(&mut tree);
             let od = tree.new_element(names.overlay_data);
@@ -76,11 +85,16 @@ pub fn save_pack_core_to_dir(pack_core: &PackCore, dir: &Dir) -> Result<()> {
                 .write_all(map_xml.as_bytes())
                 .into_diagnostic()
                 .wrap_err("failed to write map data to file")?;
+        } else {
+            let _ = dir.remove_file(format!("{map_id}.xml"));
         }
     }
+    for map_id in maps {
+        let _ = dir.remove_file(format!("{map_id}.xml"));
+    }
     // save images
-    {
-        for (img_path, img) in &pack_core.textures {
+    for (img_path, img) in pack_core.textures.iter() {
+        if textures.remove(img_path) || all {
             if let Some(parent) = img_path.parent() {
                 dir.create_dir_all(parent.as_str())
                     .into_diagnostic()
@@ -96,11 +110,16 @@ pub fn save_pack_core_to_dir(pack_core: &PackCore, dir: &Dir) -> Result<()> {
                 .wrap_err_with(|| {
                     miette::miette!("failed to write image bytes to file: {img_path}")
                 })?;
+        } else {
+            let _ = dir.remove_file(&img_path.as_str());
         }
     }
+    for img_path in textures {
+        let _ = dir.remove_file(img_path.as_str());
+    }
     // save tbins
-    {
-        for (tbin_path, tbin) in &pack_core.tbins {
+    for (tbin_path, tbin) in pack_core.tbins.iter() {
+        if tbins.remove(tbin_path) || all {
             if let Some(parent) = tbin_path.parent() {
                 dir.create_dir_all(parent.as_str())
                     .into_diagnostic()
@@ -123,7 +142,12 @@ pub fn save_pack_core_to_dir(pack_core: &PackCore, dir: &Dir) -> Result<()> {
                 .write_all(&bytes)
                 .into_diagnostic()
                 .wrap_err_with(|| miette::miette!("failed to write tbin to path: {tbin_path}"))?;
+        } else {
+            let _ = dir.remove_file(tbin_path.as_str());
         }
+    }
+    for tbin_path in tbins {
+        let _ = dir.remove_file(tbin_path.as_str());
     }
     Ok(())
 }
