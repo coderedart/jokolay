@@ -385,6 +385,7 @@ impl CategorySelection {
             Self::recursive_create_category_selection(&mut s.children, &cat.children);
         }
     }
+    // fn recursive_selection_ui()
 }
 
 impl LoadedPack {
