@@ -1,5 +1,6 @@
 mod billboard;
 use billboard::BillBoardRenderer;
+use billboard::MarkerQuad;
 use bytemuck::cast_slice;
 use egui_backend::{GfxBackend, WindowBackend};
 use egui_render_wgpu::wgpu::*;
@@ -14,7 +15,7 @@ pub struct JokoRenderer {
     mvp_bg: BindGroup,
     mvp_ub: Buffer,
     player_visibility_pipeline: RenderPipeline,
-    billboard_renderer: BillBoardRenderer,
+    pub billboard_renderer: BillBoardRenderer,
     painter: EguiPainter,
     surface_manager: SurfaceManager,
     dev: Arc<Device>,
@@ -204,6 +205,7 @@ impl GfxBackend for JokoRenderer {
     fn prepare_frame(&mut self, window_backend: &mut impl WindowBackend) {
         self.surface_manager
             .create_current_surface_texture_view(window_backend, &self.dev);
+        self.billboard_renderer.markers.clear();
     }
 
     fn render_egui(
@@ -325,6 +327,14 @@ impl JokoRenderer {
             0,
             cast_slice(view_projection_matrix.as_ref().as_slice()),
         );
+    }
+    pub fn add_billboard(&mut self, position: Vec3, width: u16, height: u16, texture: u64) {
+        self.billboard_renderer.markers.push(MarkerQuad {
+            position,
+            width,
+            height,
+            texture,
+        });
     }
 }
 pub const TRANSFORM_MATRIX_UNIFORM_BINDGROUP_ENTRY: [BindGroupLayoutEntry; 1] =

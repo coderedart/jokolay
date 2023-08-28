@@ -14,11 +14,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use image::EncodableLayout;
 use indexmap::IndexMap;
 use joko_core::prelude::{
-    egui::{CollapsingHeader, Window},
+    egui::{CollapsingHeader, ColorImage, TextureHandle, Window},
     *,
 };
+use jokolink::MumbleLink;
 use relative_path::RelativePathBuf;
 
 use crate::{
@@ -43,11 +45,21 @@ pub const CATEGORY_DATA_DIRECTORY_NAME: &str = "category_data";
 ///     3. marker's texture is uploaded or being uploaded? if not ready, we will upload or use a temporary "loading" texture
 ///     4. render that marker use joko_render  
 pub struct MarkerManager {
+    /// holds data that is useful for the ui
     ui_data: MarkerManagerUI,
+    /// marker manager directory. not useful yet, but in future we could be using this to store config files etc..
     _marker_manager_dir: Dir,
+    /// packs directory which contains marker packs. each directory inside pack directory is an individual marker pack.
+    /// The name of the child directory is the name of the pack
     marker_packs_dir: Dir,
+    /// This contains the category selections of a marker pack. We store category selections separately so that if a pack is removed and added again, the selections stay the same
     category_data_dir: Dir,
+    /// These are the marker packs
+    /// The key is the name of the pack
+    /// The value is a loaded pack that contains additional data for live marker packs like what needs to be saved or category selections etc..
     packs: BTreeMap<String, LoadedPack>,
+    /// This is the interval in number of seconds when we check if any of the packs need to be saved due to changes.
+    /// This allows us to avoid saving the pack too often.
     pub save_interval: f64,
 }
 struct LoadedPack {
@@ -65,11 +77,15 @@ struct LoadedPack {
     pub texture: HashSet<RelativePathBuf>,
     /// whether any tbin needs saving
     pub tbin: HashSet<RelativePathBuf>,
+    pub active_textures: HashMap<RelativePathBuf, TextureHandle>,
+    pub enabled_cats_list: HashSet<String>,
 }
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(crate = "serde")]
 struct CategorySelection {
     pub selected: bool,
+    pub display_name: String,
     pub children: HashMap<String, CategorySelection>,
 }
 
@@ -152,7 +168,7 @@ impl MarkerManager {
                     let span_guard = warn_span!("loading pack from dir", name).entered();
                     match load_pack_core_from_dir(&pack_dir) {
                         Ok(pack_core) => {
-                            let category_data = category_data_dir.exists(name).then(||  {
+                            let mut category_data = category_data_dir.exists(name).then(||  {
                                 match category_data_dir.read_to_string(format!("{name}.json")) {
                                     Ok(cd_json) => {
                                         match from_str(&cd_json) {
@@ -187,6 +203,12 @@ impl MarkerManager {
                                 }
                                 cs
                             });
+                            let mut enabled_cats_list = Default::default();
+                            CategorySelection::recursive_get_full_names(
+                                &mut category_data,
+                                &mut enabled_cats_list,
+                                "",
+                            );
                             packs.insert(
                                 name.to_string(),
                                 LoadedPack {
@@ -197,6 +219,8 @@ impl MarkerManager {
                                     map_dirty: Default::default(),
                                     texture: Default::default(),
                                     tbin: Default::default(),
+                                    active_textures: Default::default(),
+                                    enabled_cats_list,
                                 },
                             );
                         }
@@ -245,12 +269,23 @@ impl MarkerManager {
             }
         });
     }
-    pub fn tick(&mut self, etx: &egui::Context, timestamp: f64) {
+    pub fn tick(
+        &mut self,
+        etx: &egui::Context,
+        timestamp: f64,
+        joko_renderer: &mut joko_render::JokoRenderer,
+        link: &Option<Arc<MumbleLink>>,
+    ) {
         if timestamp - self.save_interval > 10.0 {
             self.save_interval = timestamp;
             for (pack_name, pack) in self.packs.iter_mut() {
                 if pack.is_dirty() {
-                    pack.save(&pack_name, &self.marker_packs_dir, &self.category_data_dir);
+                    pack.save(
+                        &pack_name,
+                        &self.marker_packs_dir,
+                        &self.category_data_dir,
+                        false,
+                    );
                 }
             }
         }
@@ -274,6 +309,15 @@ impl MarkerManager {
                 }
             });
             });
+
+            CollapsingHeader::new("category selection").show(ui, |ui| {
+                for (pack_name, pack) in self.packs.iter_mut() {
+                    ui.menu_button(pack_name, |ui| {
+                        CategorySelection::recursive_selection_ui(&mut pack.cats_selection, ui, &mut pack.cats_selection_dirty);
+                    });
+                }
+            });
+            etx.texture_ui(ui);
             if self.ui_data.import_status.is_some() {
                 if ui.button("clear").on_hover_text(
                     "This will cancel any pack import in progress. If import is already finished, then it wil simply clear the import status").clicked() {
@@ -327,8 +371,10 @@ impl MarkerManager {
                                         map_dirty: Default::default(),
                                         texture: Default::default(),
                                         tbin: Default::default(),
+                                        active_textures: Default::default(),
+                                        enabled_cats_list: Default::default(),
                                     };
-                                    loaded_pack.save(name, &self.marker_packs_dir, &self.category_data_dir);
+                                    loaded_pack.save(name, &self.marker_packs_dir, &self.category_data_dir, true);
                                     self.packs.insert(name.to_string(), loaded_pack);
                                     *saved = true;
                                 }
@@ -345,7 +391,39 @@ impl MarkerManager {
                     }
                 }
             }
+            if let Some(link) = link {
+                let map_id = link.map_id;
+            for (_, pack) in self.packs.iter_mut() {
+                if let Some(map_data) = pack.core.maps.get(&map_id) {
+                    for marker in map_data.markers.iter() {
+                        if pack.enabled_cats_list.contains(&marker.category) {
+                            if let Some(tex_path) = &marker.props.icon_file {
+                                info!("found tex_path {tex_path} in this marker");
+                                if !pack.active_textures.contains_key(tex_path) {
+                                    info!("texture not uploaded yet");
+                                    if let Some(tex) = pack.core.textures.get(tex_path) {
+                                        info!("uploading texture {tex_path}");
+                                        let img = image::load_from_memory(tex).unwrap();
+                                        pack.active_textures.insert(tex_path.clone(), etx.load_texture(tex_path.as_str(), ColorImage::from_rgba_unmultiplied([img.width() as _, img.height() as _], img.into_rgba8().as_bytes()), Default::default()));
+                                    }
+                                } else {
+                                    info!("tex: {tex_path} is already uploaded");
+                                }
+                            }
+                            joko_renderer.add_billboard(marker.position, 100, 100, marker.props.texture.as_ref().map(|tex_path| {
+                                pack.active_textures.get(tex_path).map(|handle| {
+                                    match handle.id() {
+                                        egui::TextureId::Managed(i) => i,
+                                        egui::TextureId::User(_) => todo!(),
+                                    }
+                                })
+                            }).flatten().unwrap_or(0))
+                        }
+                    }
+                }
 
+            }
+            }
             Ok(())
         });
     }
@@ -375,6 +453,23 @@ impl CategorySelection {
         Self::recursive_create_category_selection(&mut selection, &pack.categories);
         selection
     }
+    fn recursive_get_full_names(
+        selection: &mut HashMap<String, CategorySelection>,
+        list: &mut HashSet<String>,
+        parent_name: &str,
+    ) {
+        for (name, cat) in selection {
+            if cat.selected {
+                let full_name = if parent_name.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{parent_name}.{name}")
+                };
+                Self::recursive_get_full_names(&mut cat.children, list, &full_name);
+                list.insert(full_name);
+            }
+        }
+    }
     fn recursive_create_category_selection(
         selection: &mut HashMap<String, CategorySelection>,
         cats: &IndexMap<String, Category>,
@@ -382,10 +477,28 @@ impl CategorySelection {
         for (cat_name, cat) in cats.iter() {
             let s = selection.entry(cat_name.clone()).or_default();
             s.selected = cat.default_enabled;
+            s.display_name = cat.display_name.clone();
             Self::recursive_create_category_selection(&mut s.children, &cat.children);
         }
     }
-    // fn recursive_selection_ui()
+    fn recursive_selection_ui(
+        selection: &mut HashMap<String, CategorySelection>,
+        ui: &mut egui::Ui,
+        changed: &mut bool,
+    ) {
+        for (_cat_name, cat) in selection {
+            ui.horizontal(|ui| {
+                if ui.checkbox(&mut cat.selected, "").changed() {
+                    *changed = true;
+                }
+                ui.menu_button(&cat.display_name, |ui| {
+                    if !cat.children.is_empty() {
+                        Self::recursive_selection_ui(&mut cat.children, ui, changed);
+                    }
+                });
+            });
+        }
+    }
 }
 
 impl LoadedPack {
@@ -396,13 +509,13 @@ impl LoadedPack {
             || !self.texture.is_empty()
             || !self.tbin.is_empty()
     }
-    pub fn save(&mut self, name: &str, marker_packs_dir: &Dir, category_data_dir: &Dir) {
+    pub fn save(&mut self, name: &str, marker_packs_dir: &Dir, category_data_dir: &Dir, all: bool) {
         marker_packs_dir
             .create_dir_all(name)
             .into_diagnostic()
             .unwrap();
         let pack_dir = marker_packs_dir.open_dir(name).unwrap();
-        if self.cats_selection_dirty {
+        if self.cats_selection_dirty || all {
             match to_string_pretty(&self.cats_selection) {
                 Ok(cs_json) => match category_data_dir.write(format!("{name}.json"), &cs_json) {
                     Ok(_) => {
@@ -424,7 +537,7 @@ impl LoadedPack {
             std::mem::take(&mut self.map_dirty),
             std::mem::take(&mut self.texture),
             std::mem::take(&mut self.tbin),
-            false,
+            all,
         ) {
             Ok(_) => {
                 debug!("saved pack: {name} to directory");

@@ -71,7 +71,7 @@ impl UserApp for Jokolay {
             frame_reset_seconds_timestamp,
             mumble_manager,
             marker_manager,
-            joko_renderer: _,
+            joko_renderer,
             egui_context,
             window_backend,
             jdir: _,
@@ -116,7 +116,7 @@ impl UserApp for Jokolay {
                 }
             });
         if let Ok(marker_manager) = marker_manager {
-            marker_manager.tick(egui_context, latest_time);
+            marker_manager.tick(egui_context, latest_time, joko_renderer, &link);
         }
         // check if we need to change window position or size.
         if let Some(link) = link.as_ref() {
@@ -127,6 +127,7 @@ impl UserApp for Jokolay {
                     "resizing/repositioning to match gw2 window dimensions: {:?} {:?}",
                     link.window_pos, link.window_size
                 );
+                joko_renderer.update_from_mumble_link(link);
                 // to account for the invisible border shadows thingy. IDK if these pixel values are the same across all dpi/monitors
                 window_backend
                     .window

@@ -23,6 +23,8 @@ base64 = "0.21.2"
 rfd = { version = "0" }
 joko_core = { path = "../joko_core" }
 enumflags2 = { version = "*" }
+joko_render = { path = "../joko_render" }
+jokolink = { path = "../jokolink" }
 [dev-dependencies]
 # jmf deps
 rstest = { version = "0", default-features = false }

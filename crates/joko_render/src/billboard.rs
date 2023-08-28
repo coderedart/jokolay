@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use egui_render_wgpu::{wgpu::*, EguiTexture};
 pub struct BillBoardRenderer {
-    markers: Vec<MarkerQuad>,
+    pub markers: Vec<MarkerQuad>,
     pipeline: RenderPipeline,
     camera_position: Vec3,
     // player_position: Vec3,
@@ -125,9 +125,9 @@ pub const _BILLBOARD_MAX_VISIBILITY_DISTANCE: f32 = 10000.0;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MarkerQuad {
     pub position: Vec3,
-    pub texture: u32,
     pub width: u16,
     pub height: u16,
+    pub texture: u64,
 }
 impl MarkerQuad {
     pub fn get_vertices(self, camera_position: Vec3) -> [MarkerVertex; 6] {

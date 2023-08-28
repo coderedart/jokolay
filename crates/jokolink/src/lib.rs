@@ -62,7 +62,7 @@ impl MumbleManager {
             return Ok(None);
         }
         // backend is alive and tick is successful. time to get link
-        let cml = self.backend.get_cmumble_link();
+        let cml: ctypes::CMumbleLink = self.backend.get_cmumble_link();
         if cml.ui_tick == 0 && self.link.ui_tick != 0 {
             self.link = Arc::new(Default::default());
         }
