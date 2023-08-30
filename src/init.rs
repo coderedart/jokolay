@@ -1,13 +1,12 @@
-use crate::prelude::*;
 use cap_std::{ambient_authority, fs::Dir};
+use miette::Result;
 use std::path::PathBuf;
-
 /// Jokolay Configuration
 /// We will read a path from env `JOKOLAY_DATA_DIR` or create a folder at data_local_dir/jokolay, where data_local_dir is platform specific
 /// Inside this directory, we will store all of jokolay's data like configuration files, themes, logs etc..
 pub fn get_jokolay_dir() -> Result<(PathBuf, cap_std::fs::Dir)> {
     let authoratah = ambient_authority();
-    let jokolay_data_local_dir_path = if let Some(env_dir) = std::env::var("JOKOLAY_DATA_DIR").ok()
+    let jokolay_data_local_dir_path = if let Ok(env_dir) = std::env::var("JOKOLAY_DATA_DIR")
     {
         match PathBuf::try_from(&env_dir) {
             Ok(jokolay_dir) => jokolay_dir,

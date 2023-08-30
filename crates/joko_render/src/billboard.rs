@@ -1,7 +1,7 @@
-use joko_core::prelude::*;
 use std::collections::BTreeMap;
 
 use egui_render_wgpu::{wgpu::*, EguiTexture};
+use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
 pub struct BillBoardRenderer {
     pub markers: Vec<MarkerQuad>,
     pipeline: RenderPipeline,
@@ -134,18 +134,14 @@ impl MarkerQuad {
         let MarkerQuad {
             position,
             texture: _,
-            width,
-            height,
+            ..
         } = self;
         let mut billboard_direction = position - camera_position;
         billboard_direction.y = 0.0;
         let rotation = Quat::from_rotation_arc(Vec3::Z, billboard_direction.normalize());
         // let rotation = Quat::IDENTITY;
-        let model_matrix = Mat4::from_scale_rotation_translation(
-            vec3(width as f32 / 100.0, height as f32 / 100.0, 1.0),
-            rotation,
-            position,
-        );
+        let model_matrix =
+            Mat4::from_scale_rotation_translation(vec3(1.0, 1.0, 1.0), rotation, position);
         let bottom_left = MarkerVertex {
             position: model_matrix * DEFAULT_QUAD[0],
             texture_coordinates: vec2(0.0, 1.0),
@@ -184,33 +180,34 @@ pub struct MarkerVertex {
     pub texture_coordinates: Vec2,
     pub padding: Vec2,
 }
+const DEFAULT_LENGTH: f32 = 1.0;
 
 const DEFAULT_QUAD: [Vec4; 4] = [
     // bottom left
-    vec4(-50.0, -50.0, 0.0, 1.0),
+    vec4(-1.0 * DEFAULT_LENGTH, -1.0 * DEFAULT_LENGTH, 0.0, 1.0),
     // top left
-    vec4(-50.0, 50.0, 0.0, 1.0),
+    vec4(-1.0 * DEFAULT_LENGTH, 1.0 * DEFAULT_LENGTH, 0.0, 1.0),
     // top right
-    vec4(50.0, 50.0, 0.0, 1.0),
+    vec4(1.0 * DEFAULT_LENGTH, 1.0 * DEFAULT_LENGTH, 0.0, 1.0),
     // bottom right
-    vec4(50.0, -50.0, 0.0, 1.0),
+    vec4(1.0 * DEFAULT_LENGTH, -1.0 * DEFAULT_LENGTH, 0.0, 1.0),
 ];
 
 pub const TEXTURE_BINDGROUP_ENTRIES: [BindGroupLayoutEntry; 2] = [
     BindGroupLayoutEntry {
         binding: 0,
         visibility: ShaderStages::FRAGMENT,
-        ty: BindingType::Sampler(SamplerBindingType::Filtering),
-        count: None,
-    },
-    BindGroupLayoutEntry {
-        binding: 1,
-        visibility: ShaderStages::FRAGMENT,
         ty: BindingType::Texture {
             sample_type: TextureSampleType::Float { filterable: true },
             view_dimension: TextureViewDimension::D2,
             multisampled: false,
         },
+        count: None,
+    },
+    BindGroupLayoutEntry {
+        binding: 1,
+        visibility: ShaderStages::FRAGMENT,
+        ty: BindingType::Sampler(SamplerBindingType::Filtering),
         count: None,
     },
 ];

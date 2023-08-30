@@ -1,14 +1,13 @@
-use base64::Engine;
-use indexmap::IndexMap;
-use joko_core::prelude::*;
-use relative_path::RelativePathBuf;
-use std::{collections::HashSet, io::Write};
-use xot::{Element, Node, SerializeOptions, Xot};
-
 use crate::{
-    pack::{Category, CommonAttributes, Marker, PackCore, Trail},
+    pack::{Category, CommonAttributes, Marker, PackCore, RelativePath, Trail},
     BASE64_ENGINE,
 };
+use base64::Engine;
+use cap_std::fs::Dir;
+use indexmap::IndexMap;
+use miette::{Context, IntoDiagnostic, Result};
+use std::{collections::HashSet, io::Write};
+use xot::{Element, Node, SerializeOptions, Xot};
 
 use super::XotAttributeNameIDs;
 /// Save the pack core as xml pack using the given directory as pack root path.
@@ -17,8 +16,8 @@ pub fn save_pack_core_to_dir(
     dir: &Dir,
     cats: bool,
     mut maps: HashSet<u32>,
-    mut textures: HashSet<RelativePathBuf>,
-    mut tbins: HashSet<RelativePathBuf>,
+    mut textures: HashSet<RelativePath>,
+    mut tbins: HashSet<RelativePath>,
     all: bool,
 ) -> Result<()> {
     if cats || all {
@@ -96,7 +95,7 @@ pub fn save_pack_core_to_dir(
     for (img_path, img) in pack_core.textures.iter() {
         if textures.remove(img_path) || all {
             if let Some(parent) = img_path.parent() {
-                dir.create_dir_all(parent.as_str())
+                dir.create_dir_all(parent)
                     .into_diagnostic()
                     .wrap_err_with(|| {
                         miette::miette!("failed to create parent dir for an image: {img_path}")
@@ -121,7 +120,7 @@ pub fn save_pack_core_to_dir(
     for (tbin_path, tbin) in pack_core.tbins.iter() {
         if tbins.remove(tbin_path) || all {
             if let Some(parent) = tbin_path.parent() {
-                dir.create_dir_all(parent.as_str())
+                dir.create_dir_all(parent)
                     .into_diagnostic()
                     .wrap_err_with(|| {
                         miette::miette!("failed to create parent dir of tbin: {tbin_path}")
@@ -181,6 +180,7 @@ fn recursive_cat_serializer(
 fn serialize_trail_to_element(trail: &Trail, ele: &mut Element, names: &XotAttributeNameIDs) {
     ele.set_attribute(names.guid, BASE64_ENGINE.encode(trail.guid));
     ele.set_attribute(names.category, &trail.category);
+    ele.set_attribute(names.map_id, format!("{}", trail.map_id));
     serialize_common_attributes_to_element(&trail.props, ele, &names);
 }
 

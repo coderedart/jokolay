@@ -2,15 +2,17 @@ mod billboard;
 use billboard::BillBoardRenderer;
 use billboard::MarkerQuad;
 use bytemuck::cast_slice;
-use egui_backend::{GfxBackend, WindowBackend};
+use egui_backend::{egui, GfxBackend, WindowBackend};
 use egui_render_wgpu::wgpu::*;
 use egui_render_wgpu::EguiPainter;
 use egui_render_wgpu::SurfaceManager;
 use egui_render_wgpu::WgpuConfig;
-use joko_core::prelude::*;
+use glam::{Mat4, Vec3};
 use jokolink::MumbleLink;
 use std::num::NonZeroU64;
-
+use std::sync::Arc;
+use tracing::debug;
+use tracing::info;
 pub struct JokoRenderer {
     mvp_bg: BindGroup,
     mvp_ub: Buffer,
@@ -317,7 +319,8 @@ impl JokoRenderer {
         let viewport_ratio = self.surface_manager.surface_config.width as f32
             / self.surface_manager.surface_config.height as f32;
         let center = link.f_camera_position + link.f_camera_front;
-        let view_matrix = Mat4::look_at_lh(link.f_camera_position, center, vec3(0.0, 1.0, 0.0));
+        let view_matrix =
+            Mat4::look_at_lh(link.f_camera_position, center, glam::vec3(0.0, 1.0, 0.0));
 
         let projection_matrix = Mat4::perspective_lh(link.fov, viewport_ratio, 1.0, 10000.0);
 

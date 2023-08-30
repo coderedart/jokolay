@@ -1,5 +1,6 @@
-use joko_core::prelude::*;
-use relative_path::RelativePathBuf;
+use enumflags2::bitflags;
+
+use super::RelativePath;
 
 macro_rules! inheritable {
     (
@@ -57,7 +58,7 @@ inheritable!(
         height_offset: Option<f32>,
         // hide: Option<String>,
         /// The icon to be displayed for the marker. If not given, this defaults to the image shown at the start of this article. This should point to a .png file. The overlay looks for the image files both starting from the root directory and the POIs directory for convenience. Make sure you don't use too high resolution (above 128x128) images because the texture atlas used for these is limited in size and it's a needless waste of resources to fill it quickly.Default value: 20
-        icon_file: Option<RelativePathBuf>,
+        icon_file: Option<RelativePath>,
         /// The size of the icon in the game world. Default is 1.0 if this is not defined. Note that the "screen edges herd icons" option will limit the size of the displayed images for technical reasons.
         icon_size: Option<f32>,
         /// if true, the marker/trails belonging to this category will show up in-game, like the markers you're used to. Default value: true.
@@ -109,13 +110,13 @@ inheritable!(
         // scale_on_map_with_zoom: Option<bool>,
         // show: Option<String>,
         // specialization: Option<Specializations>,
-        texture: Option<RelativePathBuf>,
+        texture: Option<RelativePath>,
         // tip_name: Option<String>,
         // tip_description: Option<String>,
         /// will toggle the specified category on or off when triggered with the action key. or with auto_trigger/trigger_range
         // #[serde(rename = "toggleCategory")]
         // toggle_cateogry: Option<String>,
-        trail_data_file: Option<RelativePathBuf>,
+        trail_data_file: Option<RelativePath>,
         trail_scale: Option<f32>,
         // Determines the range from where the marker is triggered. in meters.
         // trigger_range: Option<f32>,

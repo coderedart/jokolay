@@ -1,4 +1,4 @@
-use joko_core::prelude::bitflags;
+use crate::prelude::*;
 
 #[bitflags]
 #[repr(u16)]

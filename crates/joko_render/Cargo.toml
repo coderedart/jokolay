@@ -10,5 +10,6 @@ egui_backend = { version = "0.4" }
 egui_render_wgpu = { version = "0" }
 bytemuck = { version = "1", default-features = false }
 jokolink = { path = "../jokolink" }
-joko_core = { path = "../joko_core" }
-pollster ={ version = "*"}
+pollster = { version = "*" }
+glam = { workspace = true, features = ["bytemuck"] }
+tracing = { workspace = true }

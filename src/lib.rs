@@ -1,12 +1,17 @@
 use std::path::PathBuf;
 
+use cap_std::fs::Dir;
 use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
-use joko_core::{init::get_jokolay_dir, prelude::*, trace::install_tracing};
-
+mod init;
+mod trace;
+use init::get_jokolay_dir;
 use jmf::manager::MarkerManager;
 use joko_render::JokoRenderer;
 use jokolink::{MumbleChanges, MumbleManager};
+use miette::Result;
+use trace::install_tracing;
+use tracing::{error, info};
 
 pub struct Jokolay {
     pub show_tracing_window: bool,
@@ -87,7 +92,7 @@ impl UserApp for Jokolay {
             *frame_reset_seconds_timestamp = latest_time as u64;
         }
         let link = if let Ok(mm) = mumble_manager.as_mut() {
-            match mm.tick(&egui_context) {
+            match mm.tick(egui_context) {
                 Ok(ml) => ml,
                 Err(e) => {
                     error!("mumble manager tick error: {e:#?}");
@@ -102,7 +107,7 @@ impl UserApp for Jokolay {
         egui::Window::new("Tracing Window")
             .open(show_tracing_window)
             .show(egui_context, |ui| {
-                joko_core::trace::show_tracing_events(ui);
+                trace::show_tracing_events(ui);
             });
         egui::Window::new("egui window")
             .default_width(300.0)
@@ -120,6 +125,7 @@ impl UserApp for Jokolay {
         }
         // check if we need to change window position or size.
         if let Some(link) = link.as_ref() {
+            joko_renderer.update_from_mumble_link(link);
             if link.changes.contains(MumbleChanges::WindowPosition)
                 || link.changes.contains(MumbleChanges::WindowSize)
             {
@@ -127,7 +133,6 @@ impl UserApp for Jokolay {
                     "resizing/repositioning to match gw2 window dimensions: {:?} {:?}",
                     link.window_pos, link.window_size
                 );
-                joko_renderer.update_from_mumble_link(link);
                 // to account for the invisible border shadows thingy. IDK if these pixel values are the same across all dpi/monitors
                 window_backend
                     .window
@@ -167,7 +172,12 @@ pub fn start_jokolay() {
     let (jokolay_dir_path, jdir) = get_jokolay_dir().unwrap();
     let _log_file_flush_guard = install_tracing(&jdir).unwrap();
     info!("using {jokolay_dir_path:?} as the jokolay data directory");
-
+    rayon::ThreadPoolBuilder::default()
+        .panic_handler(|p| {
+            error!("rayon thread paniced. {p:#?}");
+        })
+        .build_global()
+        .expect("failed to set panic handler for rayon");
     let mut glfw_backend = GlfwBackend::new(
         GlfwConfig {
             glfw_callback: Box::new(|glfw_context| {

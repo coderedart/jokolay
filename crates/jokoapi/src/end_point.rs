@@ -2,10 +2,7 @@
 // use miette::eyre::WrapErr;
 
 // use itertools::Itertools;
-use joko_core::prelude::*;
-use serde::de::DeserializeOwned;
-use std::fmt::Display;
-use ureq::Agent;
+use crate::prelude::*;
 
 pub use serde::{Deserialize, Serialize};
 
@@ -37,51 +34,39 @@ pub trait EndPoint: DeserializeOwned {
     const AUTH: bool;
 
     /// This function simply takes the [Self::URL], makes a request and returns a list of ids.
-    fn get(agent: &Agent, api_key: &str) -> Result<Vec<Self::Id>> {
-        agent
-            .get(Self::URL)
-            .pipe(|r| {
-                if Self::AUTH {
-                    r.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
-                } else {
-                    r
-                }
-            })
-            .call()
-            .into_diagnostic()?
-            .into_json()
-            .into_diagnostic()
+    fn get(client: &HttpClient, api_key: &str) -> Result<Vec<Self::Id>> {
+        let req = client.get(Self::URL);
+        let req = if Self::AUTH {
+            req.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
+        } else {
+            req
+        };
+        req.call().into_diagnostic()?.into_json().into_diagnostic()
     }
-    fn get_id(agent: Agent, api_key: &str, id: &Self::Id) -> Result<Self> {
-        agent
-            .get(&format!("{}/{}", Self::URL, id))
-            .pipe(|r| {
-                if Self::AUTH {
-                    r.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
-                } else {
-                    r
-                }
-            })
-            .call()
-            .into_diagnostic()?
-            .into_json()
-            .into_diagnostic()
+    fn get_id(client: &HttpClient, api_key: &str, id: &Self::Id) -> Result<Self> {
+        let req = client.get(&format!("{}/{}", Self::URL, id));
+        let req = if Self::AUTH {
+            req.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
+        } else {
+            req
+        };
+        req.call().into_diagnostic()?.into_json().into_diagnostic()
     }
-    fn get_ids(agent: Agent, api_key: &str, ids: &[Self::Id]) -> Result<Vec<Self>> {
-        agent
-            .get(Self::URL)
-            .query("ids", &ids.iter().join(","))
-            .pipe(|r| {
-                if Self::AUTH {
-                    r.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
-                } else {
-                    r
-                }
-            })
-            .call()
-            .into_diagnostic()?
-            .into_json()
-            .into_diagnostic()
+    fn get_ids(client: HttpClient, api_key: &str, ids: &[Self::Id]) -> Result<Vec<Self>> {
+        let mut ids_str = String::new();
+        for id in ids {
+            if !ids_str.is_empty() {
+                ids_str.push(',');
+            }
+            ids_str.push_str(&format!("{id}"));
+        }
+        let req = client.get(Self::URL).query("ids", &ids_str);
+        let req = if Self::AUTH {
+            req.set(AUTHORIZATION_HEADER_NAME, &format!("Bearer {api_key}"))
+        } else {
+            req
+        };
+        req.call().into_diagnostic()?.into_json().into_diagnostic()
     }
 }
 

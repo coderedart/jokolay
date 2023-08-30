@@ -14,10 +14,16 @@ num-derive = { version = "0", default-features = false }
 num-traits = { version = "0", default-features = false }
 tracing-appender = { version = "0" }
 tracing-subscriber = { version = "*" }
-joko_core = { path = "../joko_core" }
 jokoapi = { path = "../jokoapi" }
+enumflags2 = { workspace = true }
+time = { workspace = true }
+miette = { workspace = true }
+tracing = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+glam = { workspace = true }
+serde_json = { workspace = true }
 
-enumflags2 = { version = "*" }
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.12", default-features = false, features = [] }
 

@@ -1,4 +1,4 @@
-use super::{Deserialize, EndPoint, Serialize};
+use crate::prelude::*;
 
 #[derive(Serialize, Deserialize)]
 pub struct World {
@@ -8,6 +8,6 @@ pub struct World {
 }
 impl EndPoint for World {
     type Id = u32;
-    const URL: &'static str = const_format::concatcp!(crate::API_BASE_V2_URL, "/worlds");
+    const URL: &'static str = const_format::concatcp!(API_BASE_V2_URL, "/worlds");
     const AUTH: bool = false;
 }

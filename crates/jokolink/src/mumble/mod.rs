@@ -1,11 +1,12 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 pub mod ctypes;
-
-use joko_core::prelude::*;
-
+use enumflags2::{bitflags, BitFlags};
+use glam::{IVec2, Vec3};
 use num_derive::FromPrimitive;
 use num_derive::ToPrimitive;
+use serde::Deserialize;
+use serde::Serialize;
 
 /// As the CMumbleLink has all the fields multiple
 #[derive(Clone, Debug, Default)]

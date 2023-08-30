@@ -14,19 +14,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use cap_std::fs::Dir;
+use egui::{CollapsingHeader, ColorImage, TextureHandle, Window};
 use image::EncodableLayout;
 use indexmap::IndexMap;
-use joko_core::prelude::{
-    egui::{CollapsingHeader, ColorImage, TextureHandle, Window},
-    *,
-};
-use jokolink::MumbleLink;
-use relative_path::RelativePathBuf;
+use tracing::{debug, error, info, warn_span};
 
 use crate::{
     io::{load_pack_core_from_dir, save_pack_core_to_dir},
-    pack::Category,
+    pack::{Category, CommonAttributes, RelativePath},
 };
+use jokolink::MumbleLink;
+use miette::{Context, IntoDiagnostic, Result};
+use serde::{Deserialize, Serialize};
 
 use super::pack::PackCore;
 
@@ -58,6 +58,7 @@ pub struct MarkerManager {
     /// The key is the name of the pack
     /// The value is a loaded pack that contains additional data for live marker packs like what needs to be saved or category selections etc..
     packs: BTreeMap<String, LoadedPack>,
+    missing_texture: Option<TextureHandle>,
     /// This is the interval in number of seconds when we check if any of the packs need to be saved due to changes.
     /// This allows us to avoid saving the pack too often.
     pub save_interval: f64,
@@ -74,15 +75,122 @@ struct LoadedPack {
     /// Whether any mapdata needs saving
     pub map_dirty: HashSet<u32>,
     /// whether any texture needs saving
-    pub texture: HashSet<RelativePathBuf>,
+    pub texture: HashSet<RelativePath>,
     /// whether any tbin needs saving
-    pub tbin: HashSet<RelativePathBuf>,
-    pub active_textures: HashMap<RelativePathBuf, TextureHandle>,
-    pub enabled_cats_list: HashSet<String>,
+    pub tbin: HashSet<RelativePath>,
+    pub current_map_data: CurrentMapData,
 }
 
+#[derive(Default)]
+pub struct CurrentMapData {
+    /// the map to which the current map data belongs to
+    pub map_id: u32,
+    /// The textures that are being used by the markers, so must be kept alive by this hashmap
+    pub active_textures: HashMap<RelativePath, TextureHandle>,
+    pub active_markers: Vec<ActiveMarker>,
+}
+
+pub struct ActiveMarker {
+    pub pos: glam::Vec3,
+    pub width: u16,
+    pub height: u16,
+    pub texture: u64,
+}
+impl LoadedPack {
+    fn tick(
+        &mut self,
+        etx: &egui::Context,
+        _timestamp: f64,
+        joko_renderer: &mut joko_render::JokoRenderer,
+        link: &Option<Arc<MumbleLink>>,
+        default_tex_id: &TextureHandle,
+    ) {
+        let link = match link {
+            Some(link) => link,
+            None => return,
+        };
+        for marker in self.current_map_data.active_markers.iter() {
+            joko_renderer.add_billboard(marker.pos, marker.width, marker.height, marker.texture);
+        }
+
+        if self.current_map_data.map_id != link.map_id {
+            info!(
+                self.current_map_data.map_id,
+                link.map_id, "current map data is updated."
+            );
+            if link.map_id == 0 {
+                self.current_map_data = Default::default();
+                return;
+            }
+            self.current_map_data.map_id = link.map_id;
+            let mut enabled_cats_list = Default::default();
+            CategorySelection::recursive_get_full_names(
+                &self.cats_selection,
+                &self.core.categories,
+                &mut enabled_cats_list,
+                "",
+                &Default::default(),
+            );
+            for marker in self
+                .core
+                .maps
+                .get(&link.map_id)
+                .unwrap_or(&Default::default())
+                .markers
+                .iter()
+            {
+                if let Some(category_attributes) = enabled_cats_list.get(&marker.category) {
+                    let mut common_attributes = marker.props.clone();
+                    common_attributes.inherit_if_prop_none(category_attributes);
+                    if let Some(tex_path) = &common_attributes.icon_file {
+                        if !self.current_map_data.active_textures.contains_key(tex_path) {
+                            if let Some(tex) = self.core.textures.get(tex_path) {
+                                let img = image::load_from_memory(tex).unwrap();
+                                self.current_map_data.active_textures.insert(
+                                    tex_path.clone(),
+                                    etx.load_texture(
+                                        tex_path.as_str(),
+                                        ColorImage::from_rgba_unmultiplied(
+                                            [img.width() as _, img.height() as _],
+                                            img.into_rgba8().as_bytes(),
+                                        ),
+                                        Default::default(),
+                                    ),
+                                );
+                            } else {
+                                info!(%tex_path, ?self.core.textures, "failed to find this texture");
+                            }
+                        }
+                    } else {
+                        info!(?marker.props.icon_file, "no texture attribute on this marker");
+                    }
+                    let th = marker
+                        .props
+                        .icon_file
+                        .as_ref()
+                        .map(|path| self.current_map_data.active_textures.get(path))
+                        .flatten()
+                        .unwrap_or(default_tex_id);
+                    let (tex_id, width, height) = match th.id() {
+                        egui::TextureId::Managed(tid) => {
+                            (tid, th.size()[0] as u16, th.size()[1] as u16)
+                        }
+                        egui::TextureId::User(_) => unimplemented!(),
+                    };
+                    self.current_map_data.active_markers.push(ActiveMarker {
+                        pos: marker.position,
+                        width,
+                        height,
+                        texture: tex_id,
+                    });
+                } else {
+                    info!(marker.category, ?marker.guid, "category is disabled. skipping marker");
+                }
+            }
+        }
+    }
+}
 #[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(crate = "serde")]
 struct CategorySelection {
     pub selected: bool,
     pub display_name: String,
@@ -112,7 +220,7 @@ pub struct PackList {
 
 #[derive(Debug)]
 pub struct PackEntry {
-    pub url: Url,
+    pub url: url::Url,
     pub description: String,
 }
 
@@ -168,10 +276,10 @@ impl MarkerManager {
                     let span_guard = warn_span!("loading pack from dir", name).entered();
                     match load_pack_core_from_dir(&pack_dir) {
                         Ok(pack_core) => {
-                            let mut category_data = category_data_dir.exists(name).then(||  {
+                            let category_data = category_data_dir.exists(name).then(||  {
                                 match category_data_dir.read_to_string(format!("{name}.json")) {
                                     Ok(cd_json) => {
-                                        match from_str(&cd_json) {
+                                        match serde_json::from_str(&cd_json) {
                                             Ok(cd) => Some(cd),
                                             Err(e) => {
                                                 error!("failed to deserilize category data: {e:#?}");
@@ -186,7 +294,7 @@ impl MarkerManager {
                                 }
                             }).flatten().unwrap_or_else(|| {
                                 let cs = CategorySelection::default_from_pack_core(&pack_core);
-                                match to_string_pretty(&cs) {
+                                match serde_json::to_string_pretty(&cs) {
                                     Ok(cs_json) => {
                                         match category_data_dir.write(format!("{name}.json"), &cs_json) {
                                             Ok(_) => {
@@ -203,12 +311,6 @@ impl MarkerManager {
                                 }
                                 cs
                             });
-                            let mut enabled_cats_list = Default::default();
-                            CategorySelection::recursive_get_full_names(
-                                &mut category_data,
-                                &mut enabled_cats_list,
-                                "",
-                            );
                             packs.insert(
                                 name.to_string(),
                                 LoadedPack {
@@ -219,8 +321,7 @@ impl MarkerManager {
                                     map_dirty: Default::default(),
                                     texture: Default::default(),
                                     tbin: Default::default(),
-                                    active_textures: Default::default(),
-                                    enabled_cats_list,
+                                    current_map_data: Default::default(),
                                 },
                             );
                         }
@@ -240,6 +341,7 @@ impl MarkerManager {
             ui_data: Default::default(),
             category_data_dir,
             save_interval: 0.0,
+            missing_texture: None,
         })
     }
 
@@ -276,6 +378,18 @@ impl MarkerManager {
         joko_renderer: &mut joko_render::JokoRenderer,
         link: &Option<Arc<MumbleLink>>,
     ) {
+        if self.missing_texture.is_none() {
+            let img = image::load_from_memory(include_bytes!("../pack/marker.png")).unwrap();
+            let size = [img.width() as _, img.height() as _];
+            self.missing_texture = Some(etx.load_texture(
+                "default marker",
+                ColorImage::from_rgba_unmultiplied(size, img.into_rgba8().as_bytes()),
+                egui::TextureOptions {
+                    magnification: egui::TextureFilter::Linear,
+                    minification: egui::TextureFilter::Linear,
+                },
+            ));
+        }
         if timestamp - self.save_interval > 10.0 {
             self.save_interval = timestamp;
             for (pack_name, pack) in self.packs.iter_mut() {
@@ -371,8 +485,7 @@ impl MarkerManager {
                                         map_dirty: Default::default(),
                                         texture: Default::default(),
                                         tbin: Default::default(),
-                                        active_textures: Default::default(),
-                                        enabled_cats_list: Default::default(),
+                                        current_map_data: Default::default()
                                     };
                                     loaded_pack.save(name, &self.marker_packs_dir, &self.category_data_dir, true);
                                     self.packs.insert(name.to_string(), loaded_pack);
@@ -391,41 +504,18 @@ impl MarkerManager {
                     }
                 }
             }
-            if let Some(link) = link {
-                let map_id = link.map_id;
-            for (_, pack) in self.packs.iter_mut() {
-                if let Some(map_data) = pack.core.maps.get(&map_id) {
-                    for marker in map_data.markers.iter() {
-                        if pack.enabled_cats_list.contains(&marker.category) {
-                            if let Some(tex_path) = &marker.props.icon_file {
-                                info!("found tex_path {tex_path} in this marker");
-                                if !pack.active_textures.contains_key(tex_path) {
-                                    info!("texture not uploaded yet");
-                                    if let Some(tex) = pack.core.textures.get(tex_path) {
-                                        info!("uploading texture {tex_path}");
-                                        let img = image::load_from_memory(tex).unwrap();
-                                        pack.active_textures.insert(tex_path.clone(), etx.load_texture(tex_path.as_str(), ColorImage::from_rgba_unmultiplied([img.width() as _, img.height() as _], img.into_rgba8().as_bytes()), Default::default()));
-                                    }
-                                } else {
-                                    info!("tex: {tex_path} is already uploaded");
-                                }
-                            }
-                            joko_renderer.add_billboard(marker.position, 100, 100, marker.props.texture.as_ref().map(|tex_path| {
-                                pack.active_textures.get(tex_path).map(|handle| {
-                                    match handle.id() {
-                                        egui::TextureId::Managed(i) => i,
-                                        egui::TextureId::User(_) => todo!(),
-                                    }
-                                })
-                            }).flatten().unwrap_or(0))
-                        }
-                    }
-                }
 
-            }
-            }
             Ok(())
         });
+        for pack in self.packs.values_mut() {
+            pack.tick(
+                etx,
+                timestamp,
+                joko_renderer,
+                link,
+                self.missing_texture.as_ref().unwrap(),
+            );
+        }
     }
 }
 
@@ -454,19 +544,32 @@ impl CategorySelection {
         selection
     }
     fn recursive_get_full_names(
-        selection: &mut HashMap<String, CategorySelection>,
-        list: &mut HashSet<String>,
+        selection: &HashMap<String, CategorySelection>,
+        cats: &IndexMap<String, Category>,
+        list: &mut HashMap<String, CommonAttributes>,
         parent_name: &str,
+        parent_common_attributes: &CommonAttributes,
     ) {
-        for (name, cat) in selection {
-            if cat.selected {
+        for (name, cat) in cats {
+            if let Some(selected_cat) = selection.get(name) {
+                if !selected_cat.selected {
+                    continue;
+                }
                 let full_name = if parent_name.is_empty() {
                     name.clone()
                 } else {
                     format!("{parent_name}.{name}")
                 };
-                Self::recursive_get_full_names(&mut cat.children, list, &full_name);
-                list.insert(full_name);
+                let mut common_attributes = cat.props.clone();
+                common_attributes.inherit_if_prop_none(&parent_common_attributes);
+                Self::recursive_get_full_names(
+                    &selected_cat.children,
+                    &cat.children,
+                    list,
+                    &full_name,
+                    &common_attributes,
+                );
+                list.insert(full_name, common_attributes);
             }
         }
     }
@@ -516,7 +619,7 @@ impl LoadedPack {
             .unwrap();
         let pack_dir = marker_packs_dir.open_dir(name).unwrap();
         if self.cats_selection_dirty || all {
-            match to_string_pretty(&self.cats_selection) {
+            match serde_json::to_string_pretty(&self.cats_selection) {
                 Ok(cs_json) => match category_data_dir.write(format!("{name}.json"), &cs_json) {
                     Ok(_) => {
                         debug!("wrote category data {name}.json to disk after creating a default from pack");

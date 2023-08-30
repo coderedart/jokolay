@@ -1,30 +1,29 @@
+use crate::{
+    pack::{Category, CommonAttributes, Marker, PackCore, RelativePath, TBin, Trail},
+    BASE64_ENGINE,
+};
 use base64::Engine;
+use cap_std::fs::Dir;
+use glam::Vec3A;
 use indexmap::IndexMap;
-use joko_core::prelude::*;
-use relative_path::{RelativePath, RelativePathBuf};
-use std::{collections::HashMap, io::Read, sync::Arc};
+use miette::{bail, Context, IntoDiagnostic, Result};
+use std::{collections::BTreeMap, io::Read};
+use tracing::{info, info_span, instrument, warn};
 use uuid::Uuid;
 use xot::{Element, Node, Xot};
 
-use crate::{
-    pack::{Category, CommonAttributes, Marker, PackCore, TBin, Trail},
-    BASE64_ENGINE,
-};
-
-use super::{error::PerFileErrors, XotAttributeNameIDs};
+use super::XotAttributeNameIDs;
 
 pub fn load_pack_core_from_dir(dir: &Dir) -> Result<PackCore> {
-    let mut images: HashMap<RelativePathBuf, Vec<u8>> = HashMap::new();
-    let mut tbins: HashMap<RelativePathBuf, TBin> = HashMap::new();
+    let mut pack = PackCore::default();
     // walks the directory and loads all files into the hashmap
     recursive_walk_dir_and_read_images_and_tbins(
         dir,
-        &mut images,
-        &mut tbins,
-        RelativePath::new(""),
+        &mut pack.textures,
+        &mut pack.tbins,
+        &RelativePath::default(),
     )
     .wrap_err("failed to walk dir when loading a markerpack")?;
-    let mut pack = PackCore::default();
 
     // parse map data of the pack
     for entry in dir
@@ -70,7 +69,7 @@ pub fn load_pack_core_from_dir(dir: &Dir) -> Result<PackCore> {
                                 miette::miette!("error parsing map file: {map_id}")
                             })?;
                         } else {
-                            warn!("unrecognized xml file {map_id}")
+                            info!("unrecognized xml file {map_id}")
                         }
                     }
                 }
@@ -81,33 +80,34 @@ pub fn load_pack_core_from_dir(dir: &Dir) -> Result<PackCore> {
 }
 fn recursive_walk_dir_and_read_images_and_tbins(
     dir: &Dir,
-    images: &mut HashMap<RelativePathBuf, Vec<u8>>,
-    tbins: &mut HashMap<RelativePathBuf, TBin>,
+    images: &mut BTreeMap<RelativePath, Vec<u8>>,
+    tbins: &mut BTreeMap<RelativePath, TBin>,
     parent_path: &RelativePath,
 ) -> Result<()> {
-    for file in dir
+    for entry in dir
         .entries()
         .into_diagnostic()
         .wrap_err("failed to get directory entries")?
     {
-        let file = file
+        let entry = entry
             .into_diagnostic()
             .wrap_err("dir entry error when iterating dir entries")?;
-        let name = file
+        let name = entry
             .file_name()
             .into_string()
             .map_err(|file_name| miette::miette!("file name is not utf-8: {file_name:?}"))?;
-        let path = parent_path.join_normalized(&name);
+        let path = parent_path.join_str(&name);
 
-        if file
+        if entry
             .file_type()
             .into_diagnostic()
             .wrap_err("failed to get file type")?
             .is_file()
         {
-            if name.ends_with("png") || name.ends_with("trl") {
+            if path.ends_with("png") || path.ends_with("trl") {
                 let mut bytes = vec![];
-                file.open()
+                entry
+                    .open()
                     .into_diagnostic()
                     .wrap_err("failed to open file")?
                     .read_to_end(&mut bytes)
@@ -119,13 +119,13 @@ fn recursive_walk_dir_and_read_images_and_tbins(
                     if let Some(tbin) = parse_tbin_from_slice(&bytes) {
                         tbins.insert(path, tbin);
                     } else {
-                        warn!("invalid tbin: {path}");
+                        info!("invalid tbin: {path}");
                     }
                 }
             }
         } else {
             recursive_walk_dir_and_read_images_and_tbins(
-                &file.open_dir().into_diagnostic()?,
+                &entry.open_dir().into_diagnostic()?,
                 images,
                 tbins,
                 &path,
@@ -137,8 +137,8 @@ fn recursive_walk_dir_and_read_images_and_tbins(
 fn parse_tbin_from_slice(bytes: &[u8]) -> Option<TBin> {
     let content_length = bytes.len();
     // content_length must be atleast 8 to contain version + map_id
-    // and the remaining length must be a multiple of 12 bytes (size of vec3) to be valid series of position nodes
-    if content_length < 8 || ((content_length - 8) % 12) != 0 {
+    if content_length < 8 {
+        info!("failed to parse tbin because the len is less than 8");
         return None;
     }
 
@@ -149,7 +149,6 @@ fn parse_tbin_from_slice(bytes: &[u8]) -> Option<TBin> {
     map_id_bytes.copy_from_slice(&bytes[4..8]);
     let map_id = u32::from_ne_bytes(map_id_bytes);
 
-    // because we already checked before that the len of the slice is divisible by 12
     // this will either be empty vec or series of vec3s.
     let nodes: Vec<Vec3A> = bytes[8..]
         .chunks_exact(12)
@@ -246,13 +245,13 @@ fn update_common_attributes_from_element(
     names: &XotAttributeNameIDs,
 ) {
     if let Some(path) = ele.get_attribute(names.icon_file) {
-        ca.icon_file = RelativePathBuf::try_from(path.to_lowercase()).ok();
+        ca.icon_file = Some(RelativePath::parse_from_str(path));
     }
     if let Some(path) = ele.get_attribute(names.texture) {
-        ca.texture = RelativePathBuf::try_from(path.to_lowercase()).ok();
+        ca.texture = Some(RelativePath::parse_from_str(path));
     }
     if let Some(path) = ele.get_attribute(names.trail_data) {
-        ca.trail_data_file = RelativePathBuf::try_from(path.to_lowercase()).ok();
+        ca.trail_data_file = Some(RelativePath::parse_from_str(path));
     }
 }
 fn parse_categories_file(cats_xml_str: &str, pack: &mut PackCore) -> Result<()> {
@@ -365,24 +364,19 @@ fn parse_map_file(map_id: u32, map_xml_str: &str, pack: &mut PackCore) -> Result
                 pack.maps.entry(map_id).or_default().markers.push(marker);
             } else if child.name() == names.trail {
                 if child
-                    .get_attribute(names.trail_data)
-                    .and_then(|trail_data| {
-                        RelativePathBuf::try_from(trail_data.to_lowercase())
-                            .ok()
-                            .map(|t| pack.tbins.get(&t).map(|tb| tb.map_id))
-                            .flatten()
-                    })
-                    .ok_or_else(|| miette::miette!("missing mapid of trail"))?
+                    .get_attribute(names.map_id)
+                    .and_then(|map_id| map_id.parse::<u32>().ok())
+                    .ok_or_else(|| miette::miette!("invalid mapid"))?
                     != map_id
                 {
                     bail!("mapid doesn't match the file name");
                 }
-
                 let mut ca = CommonAttributes::default();
                 update_common_attributes_from_element(&mut ca, &child, &names);
 
                 let trail = Trail {
                     category,
+                    map_id,
                     props: ca.into(),
                     guid,
                 };
@@ -400,74 +394,81 @@ fn recursive_marker_category_parser_categories_xml(
     cats: &mut IndexMap<String, Category>,
     names: &XotAttributeNameIDs,
 ) {
-    for tag in tags.filter(|node| tree.is_element(*node)) {
-        let ele = tree.element(tag).unwrap();
-        if ele.name() != names.marker_category {
-            continue;
-        }
-
-        let name = ele.get_attribute(names.name).unwrap_or_default();
-        if name.is_empty() {
-            warn!("category doesn't have a name attribute");
-            continue;
-        }
-        let mut ca = CommonAttributes::default();
-        update_common_attributes_from_element(&mut ca, ele, names);
-
-        let display_name = ele.get_attribute(names.display_name).unwrap_or_default();
-
-        let separator = match ele.get_attribute(names.separator).unwrap_or("0") {
-            "0" => false,
-            "1" => true,
-            ors => {
-                warn!("separator attribute has invalid value: {ors}");
-                false
+    for tag in tags {
+        if let Some(ele) = tree.element(tag) {
+            if ele.name() != names.marker_category {
+                continue;
             }
-        };
 
-        let default_enabled = match ele.get_attribute(names.default_enabled).unwrap_or("1") {
-            "0" => false,
-            "1" => true,
-            ors => {
-                warn!("default_enabled attribute has invalid value: {ors}");
-                true
+            let name = ele.get_attribute(names.name).unwrap_or_default();
+            if name.is_empty() {
+                info!("category doesn't have a name attribute: {ele:#?}");
+                continue;
             }
-        };
-        recursive_marker_category_parser_categories_xml(
-            tree,
-            tree.children(tag),
-            &mut cats
-                .entry(name.to_string())
-                .or_insert_with(|| Category {
-                    display_name: display_name.to_string(),
-                    separator,
-                    default_enabled,
-                    props: ca,
-                    children: Default::default(),
-                })
-                .children,
-            names,
-        );
+            let span_guard = info_span!("category {name}").entered();
+            let mut ca = CommonAttributes::default();
+            update_common_attributes_from_element(&mut ca, ele, names);
+
+            let display_name = ele.get_attribute(names.display_name).unwrap_or_default();
+
+            let separator = match ele.get_attribute(names.separator).unwrap_or("0") {
+                "0" => false,
+                "1" => true,
+                ors => {
+                    info!("separator attribute has invalid value: {ors}");
+                    false
+                }
+            };
+
+            let default_enabled = match ele.get_attribute(names.default_enabled).unwrap_or("1") {
+                "0" => false,
+                "1" => true,
+                ors => {
+                    info!("default_enabled attribute has invalid value: {ors}");
+                    true
+                }
+            };
+            recursive_marker_category_parser_categories_xml(
+                tree,
+                tree.children(tag),
+                &mut cats
+                    .entry(name.to_string())
+                    .or_insert_with(|| Category {
+                        display_name: display_name.to_string(),
+                        separator,
+                        default_enabled,
+                        props: ca,
+                        children: Default::default(),
+                    })
+                    .children,
+                names,
+            );
+            std::mem::drop(span_guard);
+        }
     }
 }
 
 /// This first parses all the files in a zipfile into the memory and then it will try to parse a zpack out of all the files.
 /// will return error if there's an issue with zipfile.
 ///
-/// but any other errors like invalid attributes or missing markers etc.. will just be logged into the Failures struct that is returned.
+/// but any other errors like invalid attributes or missing markers etc.. will just be logged.
 /// the intention is "best effort" parsing and not "validating" xml marker packs.
 /// we will ignore any issues like unknown attributes or xml tags. "unknown" attributes means Any attributes that jokolay doesn't parse into Zpack.
-///
-/// Generally speaking, if a pack works in `Taco` or `BlishHUD`, it should work here too.
+#[instrument(skip_all)]
 pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
     // all the contents of ZPack
     let mut pack = PackCore::default();
     // parse zip file
-    let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(taco)).into_diagnostic()?;
+    let mut zip_archive = zip::ZipArchive::new(std::io::Cursor::new(taco))
+        .into_diagnostic()
+        .wrap_err("failed to read zip archive")?;
+
     // file paths of different file types
     let mut images = vec![];
     let mut tbins = vec![];
     let mut xmls = vec![];
+    // we collect the names first, because reading a file from zip is a mutating operation.
+    // So, we can't iterate AND read the file at the same time
     for name in zip_archive.file_names() {
         if name.ends_with("png") {
             images.push(name.to_string());
@@ -478,82 +479,55 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
         } else if name.ends_with('/') {
             // directory. so, we can ignore this.
         } else {
-            warn!("ignoring file: {name}");
+            info!("ignoring file: {name}");
         }
     }
     for name in images {
-        let file_path: Arc<RelativePath> =
-            match RelativePath::from_path(std::path::Path::new(&name.to_lowercase())) {
-                Ok(file_path) => Arc::from(file_path),
-                Err(_) => {
-                    continue;
+        let span = info_span!("load image {name}").entered();
+        let file_path = RelativePath::parse_from_str(&name);
+        if let Some(bytes) = read_file_bytes_from_zip_by_name(&name, &mut zip_archive) {
+            match image::load_from_memory_with_format(&bytes, image::ImageFormat::Png) {
+                Ok(_) => assert!(
+                    pack.textures.insert(file_path, bytes).is_none(),
+                    "duplicate image file {name}"
+                ),
+                Err(e) => {
+                    info!("failed to parse image file {name} due to {e:#?}");
                 }
-            };
-
-        let mut bytes = vec![];
-        if zip_archive
-            .by_name(&name)
-            .ok()
-            .and_then(|mut file| file.read_to_end(&mut bytes).ok())
-            .is_none()
-        {
-            continue;
-        };
-        match image::load_from_memory_with_format(&bytes, image::ImageFormat::Png) {
-            Ok(_) => {
-                if pack
-                    .textures
-                    .insert(file_path.to_relative_path_buf(), bytes)
-                    .is_some()
-                {}
             }
-            Err(_e) => {}
         }
+        std::mem::drop(span);
     }
 
-    // while parsing tbins, we store the map ids. Later, when parsing xml files,
-    // we can sort the trails into their respective maps by using this map to look up the mapid from respective tbin
-    let mut tbin_map_ids: HashMap<Arc<RelativePath>, u32> = HashMap::new();
     for name in tbins {
-        let file_path: Arc<RelativePath> =
-            match RelativePath::from_path(std::path::Path::new(&name.to_lowercase())) {
-                Ok(file_path) => Arc::from(file_path),
-                Err(_) => {
-                    continue;
-                }
-            };
-        let _this_file_error = PerFileErrors {
-            file_path: Some(file_path.clone()),
-            errors: vec![],
-            warnings: vec![],
-        };
+        let span = info_span!("load tbin {name}").entered();
 
-        let mut bytes = vec![];
-        if zip_archive
-            .by_name(&name)
-            .ok()
-            .and_then(|mut file| file.read_to_end(&mut bytes).ok())
-            .is_none()
-        {
-            continue;
-        };
-        if let Some(tbin) = parse_tbin_from_slice(&bytes) {
-            tbin_map_ids.insert(file_path.clone(), tbin.map_id);
-            pack.tbins.insert(file_path.to_relative_path_buf(), tbin);
+        let file_path = RelativePath::parse_from_str(&name);
+        if let Some(bytes) = read_file_bytes_from_zip_by_name(&name, &mut zip_archive) {
+            if let Some(tbin) = parse_tbin_from_slice(&bytes) {
+                assert!(
+                    pack.tbins.insert(file_path, tbin).is_none(),
+                    "duplicate tbin file {name}"
+                );
+            } else {
+                info!("failed to parse tbin from slice: {file_path}");
+            }
+        } else {
+            info!(name, "failed to read tbin from zipfile");
         }
+        std::mem::drop(span);
     }
-
     for name in xmls {
         let mut xml_str = String::new();
         let xml_file_name = name.clone();
-        let span_guard = warn_span!("deserialize xml file", xml_file_name).entered();
+        let span_guard = info_span!("deserialize xml", xml_file_name).entered();
         if zip_archive
             .by_name(&name)
             .ok()
             .and_then(|mut file| file.read_to_string(&mut xml_str).ok())
             .is_none()
         {
-            warn!("failed to read file");
+            info!("failed to read file from zip");
             continue;
         };
 
@@ -561,8 +535,8 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
         let mut tree = Xot::new();
         let root_node = match tree.parse(&filtered_xml_str) {
             Ok(root) => root,
-            Err(_e) => {
-                warn!("failed to parse as xml");
+            Err(e) => {
+                info!(?e, "failed to parse as xml");
                 continue;
             }
         };
@@ -574,7 +548,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
         {
             Some(od) => od,
             None => {
-                warn!("missing overlay data tag");
+                info!("missing overlay data tag");
                 continue;
             }
         };
@@ -582,107 +556,144 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
         // parse_categories
         recursive_marker_category_parser(&tree, tree.children(od), &mut pack.categories, &names);
 
-        if let Some(pois) = tree.children(od).find(|node| {
+        let pois = match tree.children(od).find(|node| {
             tree.element(*node)
                 .map(|ele: &xot::Element| ele.name() == names.pois)
                 .unwrap_or_default()
         }) {
-            for child_node in tree.children(pois).filter(|node| tree.is_element(*node)) {
-                let child = tree.element(child_node).unwrap();
-                let category = child
-                    .get_attribute(names.category)
-                    .unwrap_or_default()
-                    .to_lowercase();
-
-                let guid = child
-                    .get_attribute(names.guid)
-                    .and_then(|guid| {
-                        let mut buffer = [0u8; 20];
-                        BASE64_ENGINE
-                            .decode_slice(guid, &mut buffer)
-                            .ok()
-                            .and_then(|_| Uuid::from_slice(&buffer[..16]).ok())
-                    })
-                    .unwrap_or_else(|| Uuid::new_v4());
-                if child.name() == names.poi {
-                    if let Some(map_id) = child
-                        .get_attribute(names.map_id)
-                        .and_then(|map_id| map_id.parse::<u32>().ok())
-                    {
-                        let xpos = child
-                            .get_attribute(names.xpos)
-                            .unwrap_or_default()
-                            .parse::<f32>()
-                            .unwrap_or_default();
-                        let ypos = child
-                            .get_attribute(names.ypos)
-                            .unwrap_or_default()
-                            .parse::<f32>()
-                            .unwrap_or_default();
-                        let zpos = child
-                            .get_attribute(names.zpos)
-                            .unwrap_or_default()
-                            .parse::<f32>()
-                            .unwrap_or_default();
-                        let mut common_attributes = CommonAttributes::default();
-                        update_common_attributes_from_element(
-                            &mut common_attributes,
-                            &child,
-                            &names,
-                        );
-                        if let Some(t) = common_attributes.icon_file.as_ref() {
-                            if !pack.textures.contains_key(t) {}
-                        }
-                        let marker = Marker {
-                            position: [xpos, ypos, zpos].into(),
-                            map_id,
-                            category,
-                            props: common_attributes.into(),
-                            guid,
-                        };
-                        pack.maps.entry(map_id).or_default().markers.push(marker);
-                    } else {
-                    }
-                } else if child.name() == names.trail {
-                    if let Some(map_id) =
-                        child
-                            .get_attribute(names.trail_data)
-                            .and_then(|trail_data| {
-                                RelativePathBuf::try_from(trail_data.to_lowercase())
-                                    .ok()
-                                    .map(|t| pack.tbins.get(&t).map(|tb| tb.map_id))
-                                    .flatten()
-                            })
-                    {
-                        let mut common_attributes = CommonAttributes::default();
-                        update_common_attributes_from_element(
-                            &mut common_attributes,
-                            &child,
-                            &names,
-                        );
-
-                        if let Some(tex) = common_attributes.texture.as_ref() {
-                            if !pack.textures.contains_key(tex) {}
-                        }
-
-                        let trail = Trail {
-                            category,
-                            props: common_attributes.into(),
-                            guid,
-                        };
-                        pack.maps.entry(map_id).or_default().trails.push(trail);
-                    } else {
-                        // this_file_error.warnings.push(PackWarning::);
-                    }
-                }
+            Some(pois) => pois,
+            None => {
+                info!("missing pois tag");
+                continue;
             }
         };
+
+        for child_node in tree.children(pois).filter(|node| tree.is_element(*node)) {
+            let child = tree.element(child_node).unwrap();
+            let category = child
+                .get_attribute(names.category)
+                .unwrap_or_default()
+                .to_lowercase();
+
+            let guid = child
+                .get_attribute(names.guid)
+                .and_then(|guid| {
+                    let mut buffer = [0u8; 20];
+                    BASE64_ENGINE
+                        .decode_slice(guid, &mut buffer)
+                        .ok()
+                        .and_then(|_| Uuid::from_slice(&buffer[..16]).ok())
+                        .or_else(|| {
+                            info!(guid, "failed to deserialize guid");
+                            None
+                        })
+                })
+                .unwrap_or_else(|| Uuid::new_v4());
+            if child.name() == names.poi {
+                if let Some(map_id) = child
+                    .get_attribute(names.map_id)
+                    .and_then(|map_id| map_id.parse::<u32>().ok())
+                {
+                    let xpos = child
+                        .get_attribute(names.xpos)
+                        .unwrap_or_default()
+                        .parse::<f32>()
+                        .unwrap_or_default();
+                    let ypos = child
+                        .get_attribute(names.ypos)
+                        .unwrap_or_default()
+                        .parse::<f32>()
+                        .unwrap_or_default();
+                    let zpos = child
+                        .get_attribute(names.zpos)
+                        .unwrap_or_default()
+                        .parse::<f32>()
+                        .unwrap_or_default();
+                    let mut common_attributes = CommonAttributes::default();
+                    update_common_attributes_from_element(&mut common_attributes, &child, &names);
+                    if let Some(t) = common_attributes.icon_file.as_ref() {
+                        if !pack.textures.contains_key(t) {
+                            info!(%t, "failed to find this texture in this pack");
+                        }
+                    } else {
+                        if let Some(icf) = child.get_attribute(names.icon_file) {
+                            info!(icf, "marker's icon file attribute failed to parse");
+                        }
+                    }
+                    let marker = Marker {
+                        position: [xpos, ypos, zpos].into(),
+                        map_id,
+                        category,
+                        props: common_attributes,
+                        guid,
+                    };
+                    pack.maps.entry(map_id).or_default().markers.push(marker);
+                } else {
+                    info!("missing map id")
+                }
+            } else if child.name() == names.trail {
+                if let Some(map_id) = child
+                    .get_attribute(names.trail_data)
+                    .and_then(|trail_data| {
+                        let path = RelativePath::parse_from_str(trail_data);
+                        pack.tbins.get(&path).map(|tb| tb.map_id)
+                    })
+                {
+                    let mut common_attributes = CommonAttributes::default();
+                    update_common_attributes_from_element(&mut common_attributes, &child, &names);
+
+                    if let Some(tex) = common_attributes.texture.as_ref() {
+                        if !pack.textures.contains_key(tex) {}
+                    }
+
+                    let trail = Trail {
+                        category,
+                        map_id,
+                        props: common_attributes.into(),
+                        guid,
+                    };
+                    pack.maps.entry(map_id).or_default().trails.push(trail);
+                } else {
+                    let td = child.get_attribute(names.trail_data);
+                    let rp = RelativePath::parse_from_str(td.unwrap_or_default());
+                    let tbin = pack.tbins.get(&rp).map(|tbin| (tbin.map_id, tbin.version));
+                    info!("missing map_id: {td:?} {rp} {tbin:?}");
+                }
+            } else {
+                info!("unknown tag: {:?}", child.name());
+            }
+        }
+
         drop(span_guard);
     }
 
     Ok(pack)
 }
 
+fn read_file_bytes_from_zip_by_name<T: std::io::Read + std::io::Seek>(
+    name: &str,
+    zip_archive: &mut zip::ZipArchive<T>,
+) -> Option<Vec<u8>> {
+    let mut bytes = vec![];
+    match zip_archive.by_name(&name) {
+        Ok(mut file) => match file.read_to_end(&mut bytes) {
+            Ok(size) => {
+                if size == 0 {
+                    info!("empty file {name}");
+                } else {
+                    return Some(bytes);
+                }
+            }
+            Err(e) => {
+                info!("failed to read file {name} due to error {e:#?}");
+            }
+        },
+        Err(e) => {
+            info!("failed ot read file {name} due to error {e:#?}");
+        }
+    }
+    None
+}
 // #[cfg(test)]
 // mod test {
 
@@ -745,39 +756,39 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
 //     }
 
 //     #[fixture]
-//     fn test_file_entries(test_zip: &[u8]) -> IndexMap<Arc<RelativePath>, Vec<u8>> {
+//     fn test_file_entries(test_zip: &[u8]) -> IndexMap<Arc<String>, Vec<u8>> {
 //         let file_entries = super::read_files_from_zip(test_zip).expect("failed to deserialize");
 //         assert_eq!(file_entries.len(), 3);
 //         let test_xml = std::str::from_utf8(
 //             file_entries
-//                 .get(RelativePath::new("category.xml"))
+//                 .get(String::new("category.xml"))
 //                 .expect("failed to get category.xml"),
 //         )
 //         .expect("failed to get str from category.xml contents");
 //         assert_eq!(test_xml, TEST_XML);
 //         let test_marker_png = file_entries
-//             .get(RelativePath::new("marker.png"))
+//             .get(String::new("marker.png"))
 //             .expect("failed to get marker.png");
 //         assert_eq!(test_marker_png, MARKER_PNG);
 //         file_entries
 //     }
 //     #[fixture]
 //     #[once]
-//     fn test_pack(test_file_entries: IndexMap<Arc<RelativePath>, Vec<u8>>) -> Pack {
+//     fn test_pack(test_file_entries: IndexMap<Arc<String>, Vec<u8>>) -> Pack {
 //         let (pack, failures) = zpack_from_xml_entries(test_file_entries, Version::new(0, 0, 0));
 //         assert!(failures.errors.is_empty() && failures.warnings.is_empty());
 //         assert_eq!(pack.tbins.len(), 1);
 //         assert_eq!(pack.textures.len(), 1);
 //         assert_eq!(
 //             pack.textures
-//                 .get(RelativePath::new(TEST_MARKER_PNG_NAME))
+//                 .get(String::new(TEST_MARKER_PNG_NAME))
 //                 .expect("failed to get marker.png from textures"),
 //             MARKER_PNG
 //         );
 
 //         let tbin = pack
 //             .tbins
-//             .get(RelativePath::new(TEST_TRL_NAME))
+//             .get(String::new(TEST_TRL_NAME))
 //             .expect("failed to get basic trail")
 //             .clone();
 
@@ -788,10 +799,10 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
 //     // #[rstest]
 //     // fn test_tag(test_pack: &Pack) {
 //     //     let mut test_category_menu = CategoryMenu::default();
-//     //     let parent_path = RelativePath::new("parent");
-//     //     let child1_path = RelativePath::new("parent/child1");
-//     //     let subchild_path = RelativePath::new("parent/child1/subchild");
-//     //     let child2_path = RelativePath::new("parent/child2");
+//     //     let parent_path = String::new("parent");
+//     //     let child1_path = String::new("parent/child1");
+//     //     let subchild_path = String::new("parent/child1/subchild");
+//     //     let child2_path = String::new("parent/child2");
 //     //     test_category_menu.create_category(subchild_path);
 //     //     test_category_menu.create_category(child2_path);
 //     //     test_category_menu.set_display_name(parent_path, "Parent".to_string());
@@ -811,7 +822,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
 //             .expect("failed to get queensdale mapdata");
 //         assert_eq!(
 //             marker.props.texture.as_ref().unwrap(),
-//             RelativePath::new(TEST_MARKER_PNG_NAME)
+//             String::new(TEST_MARKER_PNG_NAME)
 //         );
 //         assert_eq!(marker.position, [INCHES_PER_METER; 3].into());
 //     }
@@ -824,11 +835,11 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
 //             .expect("failed to get queensdale mapdata");
 //         assert_eq!(
 //             trail.props.tbin.as_ref().unwrap(),
-//             RelativePath::new(TEST_TRL_NAME)
+//             String::new(TEST_TRL_NAME)
 //         );
 //         assert_eq!(
 //             trail.props.trail_texture.as_ref().unwrap(),
-//             RelativePath::new(TEST_MARKER_PNG_NAME)
+//             String::new(TEST_MARKER_PNG_NAME)
 //         );
 //     }
 // }

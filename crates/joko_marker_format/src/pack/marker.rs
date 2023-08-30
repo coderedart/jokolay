@@ -1,5 +1,5 @@
 use super::CommonAttributes;
-use joko_core::prelude::*;
+use glam::Vec3;
 use uuid::Uuid;
 
 #[derive(Debug)]

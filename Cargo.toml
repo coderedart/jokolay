@@ -10,43 +10,28 @@ path = "src/main.rs"
 
 
 [dependencies]
-rfd = { version = "*" }
-# notify-rust = { version = "*" }
-# jokoapi deps
-# joko_render deps
 joko_render = { path = "crates/joko_render" }
-joko_core = { path = "crates/joko_core" }
-# jmf deps
 jmf = { path = "crates/joko_marker_format", package = "joko_marker_format" }
 jokolink = { path = "crates/jokolink" }
-# to keep the order of files inside zip. markers packs rely on some files like aaa.xml being read first for marker category order
-indexmap = { version = "2" }
-
-# crevice = {version = "0.8.0", features = ["nalgebra"]}
-
-# to embed PKG version to compare with repository's format version
-# shadow-rs = { version = "0.16.1", default-features = false }
-# dyn error crate for fast prototyping. as we reach 1.0, we can go full thiserror crate and remove this
-# to setup logging in main?
-url = { version = "*", features = ["serde"] }
-
+url = { workspace = true, features = ["serde"] }
 egui_window_glfw_passthrough = "*"
 egui_backend = "*"
+# we use this instead of cap-dirs because we want to debug/show the jokolay path to users
+# and `Dir` from cap-dirs doesn't allow us to get the path.
+directories-next = { version = "*" }
+cap-std = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+] } # for ErrorLayer
+tracing-appender = { version = "*" }
+miette = { workspace = true }
 
-time = { version = "0.3" }
+egui = { workspace = true }
+egui_extras = { workspace = true }
 
-[dev-dependencies]
-# jmf deps
-rstest = { version = "0.17.0", default-features = false }
-# rstest_reuse = "0.3.0"
-similar-asserts = "1.2.0"
-
-
-[build-dependencies]
-# jmf deps
-# for rapidxml
-# cxx-build = { version = "1.0" }
-# shadow-rs = { version = "0.16.1", default-features = false }
+ringbuffer = { workspace = true }
+rayon = { workspace = true }
 
 [profile.dev.package."*"]
 opt-level = 3
@@ -54,17 +39,30 @@ opt-level = 3
 [profile.dev]
 opt-level = 1
 
-# [profile.release]
-# lto = true
-# codegen-units = 1
-
-# panic = "abort"
 
 [workspace]
 members = [
-    "crates/joko_core",
     "crates/joko_render",
     "crates/joko_marker_format",
     "crates/jokolink",
     "crates/jokoapi",
 ]
+[workspace.dependencies]
+tracing = { version = "0.1" }
+ringbuffer = { version = "0.14.2" }
+egui = { version = "*" }
+egui_extras = { version = "*" }
+# cap-directories = { version = "*" }
+cap-std = { version = "*" }
+thiserror = { version = "*" }
+serde = { version = "*", features = ["derive"] }
+miette = { version = "*", features = ["fancy"] }
+url = { version = "*", features = ["serde"] }
+serde_json = { version = "*" }
+rayon = { version = "*" }
+glam = { version = "*", features = ["fast-math"] }
+time = { version = "*" }
+ureq = { version = "*" }
+enumflags2 = { version = "*" }
+indexmap = { version = "2" }
+rfd = { version = "*" }

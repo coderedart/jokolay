@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 const_format = "0.2.14"
-joko_core = { path = "../joko_core" }
-serde = { version = "*", features = ["derive"] }
-enumflags2 = { version = "*" }
+serde = { workspace = true }
+enumflags2 = { workspace = true }
+ureq = { workspace = true, features = ["json"] }
+miette = { workspace = true }

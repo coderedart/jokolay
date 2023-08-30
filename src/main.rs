@@ -1,6 +1,3 @@
-use joko_core::prelude::*;
-
-fn main() -> Result<()> {
+fn main() {
     jokolay::start_jokolay();
-    Ok(())
 }

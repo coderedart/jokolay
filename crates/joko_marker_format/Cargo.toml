@@ -7,9 +7,8 @@ edition = "2021"
 # jmf deps
 # for marker packs 
 xot = { version = "0" }
-relative-path = "1"
 # to keep the order of files inside zip. markers packs rely on some files like aaa.xml being read first for marker category order# for representing the paths of files inside xml pack zip
-indexmap = { version = "2" }
+indexmap = { workspace = true }
 uuid = { version = "1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
 
@@ -20,11 +19,19 @@ image = { version = "0.24", default-features = false, features = ["png"] }
 # for rapid xml bindings
 cxx = { version = "1.0", features = ["std"] }
 base64 = "0.21.2"
-rfd = { version = "0" }
-joko_core = { path = "../joko_core" }
-enumflags2 = { version = "*" }
+enumflags2 = { workspace = true }
+cap-std = { workspace = true }
+tracing = { workspace = true }
+miette = { workspace = true }
+glam = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+rayon = { workspace = true }
 joko_render = { path = "../joko_render" }
 jokolink = { path = "../jokolink" }
+rfd = { workspace = true }
 [dev-dependencies]
 # jmf deps
 rstest = { version = "0", default-features = false }

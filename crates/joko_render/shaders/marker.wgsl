@@ -19,11 +19,11 @@ fn vs_main(
     return result;
 }
 
-@group(1) @binding(0) var r_tex_sampler: sampler;
-@group(1) @binding(1) var r_tex_color: texture_2d<f32>;
+@group(1) @binding(0) var r_tex_color: texture_2d<f32>;
+@group(1) @binding(1) var r_tex_sampler: sampler;
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     return textureSample(r_tex_color, r_tex_sampler, vertex.tex_coord);
-    }
+}
 

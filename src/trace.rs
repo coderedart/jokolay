@@ -1,4 +1,3 @@
-use crate::prelude::*;
 use std::{
     collections::BTreeMap,
     sync::{Mutex, OnceLock},
@@ -7,10 +6,10 @@ use std::{
 use cap_std::fs::Dir;
 use egui::Ui;
 use egui_extras::{Column, TableRow};
+use miette::{Context, IntoDiagnostic, Result};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use tracing::{field::Visit, Event, Level, Subscriber};
 use tracing_subscriber::Layer;
-
 struct JokolayTracingLayer;
 static JKL_LOG_TRACING_BUFFER: OnceLock<Mutex<AllocRingBuffer<TracingEvent>>> = OnceLock::new();
 
@@ -86,7 +85,7 @@ impl TracingEvent {
             event.metadata().target().to_string()
         };
         let mut te = Self {
-            level: event.metadata().level().clone(),
+            level: *event.metadata().level(),
             line: event.metadata().line().unwrap_or_default(),
             target,
             message: Default::default(),
@@ -101,13 +100,13 @@ impl TracingEvent {
             ui.label(format!("{}", self.level));
         });
         row.col(|ui| {
-            ui.label(format!("{}", &self.target));
+            ui.label(self.target.to_string());
         });
         row.col(|ui| {
             ui.label(format!("{}", self.line));
         });
         row.col(|ui| {
-            ui.label(format!("{}", &self.message));
+            ui.label(self.message.to_string());
         });
     }
 }
