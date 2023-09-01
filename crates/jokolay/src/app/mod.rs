@@ -1,69 +1,79 @@
-use cap_std::fs::Dir;
+use cap_std::fs_utf8::Dir;
 use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
+mod frame;
 mod init;
+mod theme;
 mod trace;
+use self::theme::ThemeManager;
 use init::get_jokolay_dir;
 use jmf::manager::MarkerManager;
 use joko_render::JokoRenderer;
 use jokolink::{MumbleChanges, MumbleManager};
-use miette::Result;
-use std::path::PathBuf;
-use trace::{install_tracing, show_notifications};
+use miette::{Context, Result};
+use trace::JokolayTracingLayer;
 use tracing::{error, info};
 
+#[allow(unused)]
 pub struct Jokolay {
-    pub show_tracing_window: bool,
-    pub fps: u32,
-    pub frame_count: u64,
-    pub frame_reset_seconds_timestamp: u64,
-    pub jdir: Dir,
-    pub jpath: PathBuf,
-    pub mumble_manager: Result<MumbleManager>,
-    pub marker_manager: Result<MarkerManager>,
-    pub joko_renderer: JokoRenderer,
-    pub egui_context: egui::Context,
-    pub window_backend: GlfwBackend,
+    show_window: ShowWindowStatus,
+    frame_stats: frame::FrameStatistics,
+    jdir: Dir,
+    mumble_manager: MumbleManager,
+    marker_manager: MarkerManager,
+    theme_manager: ThemeManager,
+    joko_renderer: JokoRenderer,
+    egui_context: egui::Context,
+    glfw_backend: GlfwBackend,
 }
 
+#[allow(unused)]
+#[derive(Debug, Default)]
+struct ShowWindowStatus {
+    traces: bool,
+}
 impl Jokolay {
-    fn new(
-        window_backend: GlfwBackend,
-        joko_renderer: JokoRenderer,
-        jpath: PathBuf,
-        jdir: Dir,
-    ) -> Result<Self> {
-        let mumble = MumbleManager::new("MumbleLink", None);
-        let marker_manager = MarkerManager::new(&jdir);
+    fn new(jdir: Dir) -> Result<Self> {
+        let mumble =
+            MumbleManager::new("MumbleLink", None).wrap_err("failed to create mumble manager")?;
+        let marker_manager =
+            MarkerManager::new(&jdir).wrap_err("failed to create marker manager")?;
+        let mut theme_manager =
+            ThemeManager::new(&jdir).wrap_err("failed to create theme manager")?;
         let egui_context = egui::Context::default();
-        // use roboto for ui fonts
-        {
-            let mut fonts = egui::FontDefinitions::default();
-            fonts.font_data.insert(
-                "roboto".to_owned(),
-                egui::FontData::from_static(include_bytes!("../roboto.ttf")),
-            );
-            fonts
-                .families
-                .get_mut(&egui::FontFamily::Proportional)
-                .unwrap()
-                .insert(0, "roboto".to_owned());
-            egui_context.set_fonts(fonts);
-        }
+        theme_manager.init_egui(&egui_context);
+        let mut glfw_backend = GlfwBackend::new(
+            GlfwConfig {
+                glfw_callback: Box::new(|glfw_context| {
+                    glfw_context.window_hint(
+                        egui_window_glfw_passthrough::glfw::WindowHint::SRgbCapable(true),
+                    );
+                    glfw_context.window_hint(
+                        egui_window_glfw_passthrough::glfw::WindowHint::Floating(true),
+                    );
+                }),
+                ..Default::default()
+            },
+            BackendConfig {
+                transparent: Some(true),
+                is_opengl: false,
+                ..Default::default()
+            },
+        );
 
+        let joko_renderer = JokoRenderer::new(&mut glfw_backend, Default::default());
+        // remove decorations
+        glfw_backend.window.set_decorated(false);
         Ok(Self {
             mumble_manager: mumble,
             marker_manager,
-
+            frame_stats: frame::FrameStatistics::new(glfw_backend.glfw.get_time() as _),
             joko_renderer,
-            frame_count: 0,
-            frame_reset_seconds_timestamp: 0,
-            fps: 0,
-            window_backend,
+            glfw_backend,
             jdir,
-            jpath,
             egui_context,
-            show_tracing_window: false,
+            show_window: Default::default(),
+            theme_manager,
         })
     }
 }
@@ -85,7 +95,7 @@ impl UserApp for Jokolay {
         &egui::Context,
     ) {
         (
-            &mut self.window_backend,
+            &mut self.glfw_backend,
             &mut self.joko_renderer,
             &self.egui_context,
         )
@@ -96,63 +106,42 @@ impl UserApp for Jokolay {
         logical_size: [f32; 2],
     ) -> Option<(egui::PlatformOutput, std::time::Duration)> {
         let Self {
-            fps,
-            frame_count,
-            frame_reset_seconds_timestamp,
             mumble_manager,
             marker_manager,
             joko_renderer,
             egui_context,
-            window_backend,
-            jdir: _,
-            jpath: _,
-            show_tracing_window,
+            glfw_backend,
+            frame_stats,
+            ..
         } = self;
         let egui_context = egui_context.clone();
         // don't bother doing anything if there's no window
-        if let Some(full_output) = if window_backend.get_window().is_some() {
-            let input = window_backend.take_raw_input();
-            joko_renderer.prepare_frame(window_backend);
+        if let Some(full_output) = if glfw_backend.get_window().is_some() {
+            let input = glfw_backend.take_raw_input();
+            joko_renderer.prepare_frame(glfw_backend);
             egui_context.begin_frame(input);
-            let latest_time = window_backend.glfw.get_time();
-            *frame_count += 1;
-            if latest_time - *frame_reset_seconds_timestamp as f64 > 1.0 {
-                *fps = *frame_count as u32;
-                *frame_count = 0;
-                *frame_reset_seconds_timestamp = latest_time as u64;
-            }
-            let link = if let Ok(mm) = mumble_manager.as_mut() {
-                match mm.tick(&egui_context) {
-                    Ok(ml) => ml,
-                    Err(e) => {
-                        error!("mumble manager tick error: {e:#?}");
-                        None
-                    }
+            let latest_time = glfw_backend.glfw.get_time();
+            frame_stats.tick(latest_time);
+            let link = match mumble_manager.tick(&egui_context) {
+                Ok(ml) => ml,
+                Err(e) => {
+                    error!("mumble manager tick error: {e:#?}");
+                    None
                 }
-            } else {
-                None
             };
+
             egui_context.request_repaint();
             let cursor_position = egui_context.pointer_latest_pos();
-            egui::Window::new("Tracing Window")
-                .open(show_tracing_window)
-                .show(&egui_context, |ui| {
-                    trace::show_tracing_events(ui);
-                });
+
             egui::Window::new("egui window")
                 .default_width(300.0)
                 .show(&egui_context, |ui| {
                     ui.label(&format!("cursor position: {cursor_position:?}"));
-                    ui.label(&format!("fps: {}", *fps));
-                    let mut is_passthrough = window_backend.window.is_mouse_passthrough();
+                    let mut is_passthrough = glfw_backend.window.is_mouse_passthrough();
                     ui.checkbox(&mut is_passthrough, "is window passthrough?");
-                    if let Err(e) = mumble_manager {
-                        ui.label(format!("mumble manager error: {e:#?}"));
-                    }
                 });
-            if let Ok(marker_manager) = marker_manager {
-                marker_manager.tick(&egui_context, latest_time, joko_renderer, &link);
-            }
+            marker_manager.tick(&egui_context, latest_time, joko_renderer, &link);
+
             // check if we need to change window position or size.
             if let Some(link) = link.as_ref() {
                 joko_renderer.update_from_mumble_link(link);
@@ -164,17 +153,17 @@ impl UserApp for Jokolay {
                         link.window_pos, link.window_size
                     );
                     // to account for the invisible border shadows thingy. IDK if these pixel values are the same across all dpi/monitors
-                    window_backend
+                    glfw_backend
                         .window
                         .set_pos(link.window_pos.x + 5, link.window_pos.y + 56);
-                    window_backend
+                    glfw_backend
                         .window
                         .set_size(link.window_size.x - 10, link.window_size.y - 61);
                 }
             }
-            show_notifications(&egui_context);
+            JokolayTracingLayer::show_notifications(&egui_context);
             // if it doesn't require either keyboard or pointer, set passthrough to true
-            window_backend.window.set_mouse_passthrough(
+            glfw_backend.window.set_mouse_passthrough(
                 !(egui_context.wants_keyboard_input() || egui_context.wants_pointer_input()),
             );
             Some(egui_context.end_frame())
@@ -203,39 +192,40 @@ impl UserApp for Jokolay {
 }
 
 pub fn start_jokolay() {
-    let (jokolay_dir_path, jdir) = get_jokolay_dir().unwrap();
-    let _log_file_flush_guard = install_tracing(&jdir).unwrap();
-    info!("using {jokolay_dir_path:?} as the jokolay data directory");
-    rayon::ThreadPoolBuilder::default()
-        .panic_handler(|p| {
-            error!("rayon thread paniced. {p:#?}");
+    let jdir = match get_jokolay_dir() {
+        Ok(jdir) => jdir,
+        Err(e) => {
+            eprintln!("failed to create jokolay dir: {e:#?}");
+            panic!("failed to create jokolay_dir: {e:#?}");
+        }
+    };
+    let log_file_flush_guard = match JokolayTracingLayer::install_tracing(&jdir) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("failed to install tracing: {e:#?}");
+            panic!("failed to install tracing: {e:#?}");
+        }
+    };
+
+    if let Err(e) = rayon::ThreadPoolBuilder::default()
+        .panic_handler(|panic_info| {
+            error!(?panic_info, "rayon thread paniced.");
         })
         .build_global()
-        .expect("failed to set panic handler for rayon");
-    let mut glfw_backend = GlfwBackend::new(
-        GlfwConfig {
-            glfw_callback: Box::new(|glfw_context| {
-                glfw_context.window_hint(
-                    egui_window_glfw_passthrough::glfw::WindowHint::SRgbCapable(true),
-                );
-                glfw_context.window_hint(egui_window_glfw_passthrough::glfw::WindowHint::Floating(
-                    true,
-                ));
-            }),
-            ..Default::default()
-        },
-        BackendConfig {
-            transparent: Some(true),
-            is_opengl: false,
-            ..Default::default()
-        },
-    );
+    {
+        error!(
+            ?e,
+            "failed to set panic handler and build global threadpool for rayon"
+        );
+    }
 
-    let joko_renderer = JokoRenderer::new(&mut glfw_backend, Default::default());
-    // remove decorations
-    glfw_backend.window.set_decorated(false);
-    let jokolay = Jokolay::new(glfw_backend, joko_renderer, jokolay_dir_path, jdir);
-    <Jokolay as UserApp>::UserWindowBackend::run_event_loop(
-        jokolay.expect("failed to create jokolay app"),
-    );
+    match Jokolay::new(jdir) {
+        Ok(jokolay) => {
+            <Jokolay as UserApp>::UserWindowBackend::run_event_loop(jokolay);
+        }
+        Err(e) => {
+            error!(?e, "failed to create Jokolay App");
+        }
+    };
+    std::mem::drop(log_file_flush_guard);
 }

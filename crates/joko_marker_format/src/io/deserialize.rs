@@ -3,7 +3,7 @@ use crate::{
     BASE64_ENGINE,
 };
 use base64::Engine;
-use cap_std::fs::Dir;
+use cap_std::fs_utf8::Dir;
 use glam::Vec3A;
 use indexmap::IndexMap;
 use miette::{bail, Context, IntoDiagnostic, Result};
@@ -36,8 +36,7 @@ pub fn load_pack_core_from_dir(dir: &Dir) -> Result<PackCore> {
             .wrap_err("entry error whiel reading xml files")?;
         let name = entry
             .file_name()
-            .to_str()
-            .ok_or_else(|| miette::miette!("file name is not utf-8: {:?}", entry.file_name()))?
+            .map_err(|e| miette::miette!("file name is not utf-8: {:?} {e:#?}", entry.file_name()))?
             .to_string();
 
         if name.ends_with("xml") {
@@ -92,10 +91,7 @@ fn recursive_walk_dir_and_read_images_and_tbins(
         let entry = entry
             .into_diagnostic()
             .wrap_err("dir entry error when iterating dir entries")?;
-        let name = entry
-            .file_name()
-            .into_string()
-            .map_err(|file_name| miette::miette!("file name is not utf-8: {file_name:?}"))?;
+        let name = entry.file_name().into_diagnostic()?;
         let path = parent_path.join_str(&name);
 
         if entry

@@ -18,7 +18,7 @@ egui_window_glfw_passthrough = "*"
 egui_backend = "*"
 # we use this instead of cap-dirs because we want to debug/show the jokolay path to users
 # and `Dir` from cap-dirs doesn't allow us to get the path.
-directories-next = { version = "*" }
+cap-directories = { version = "*" }
 cap-std = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = [
@@ -28,8 +28,10 @@ tracing-subscriber = { version = "0.3", features = [
 tracing-appender = { version = "*" }
 miette = { workspace = true }
 
-egui = { workspace = true }
+egui = { workspace = true, features = ["serde"] }
 egui_extras = { workspace = true }
 
 ringbuffer = { workspace = true }
 rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

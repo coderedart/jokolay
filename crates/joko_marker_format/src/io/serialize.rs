@@ -3,7 +3,7 @@ use crate::{
     BASE64_ENGINE,
 };
 use base64::Engine;
-use cap_std::fs::Dir;
+use cap_std::fs_utf8::Dir;
 use indexmap::IndexMap;
 use miette::{Context, IntoDiagnostic, Result};
 use std::{collections::HashSet, io::Write};

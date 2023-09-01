@@ -14,7 +14,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use cap_std::fs::Dir;
+use cap_std::fs_utf8::Dir;
 use egui::{CollapsingHeader, ColorImage, TextureHandle, Window};
 use image::EncodableLayout;
 use indexmap::IndexMap;
@@ -266,7 +266,7 @@ impl MarkerManager {
             if entry.metadata().into_diagnostic()?.is_file() {
                 continue;
             }
-            if let Some(name) = entry.file_name().to_str() {
+            if let Ok(name) = entry.file_name() {
                 let pack_dir = entry
                     .open_dir()
                     .into_diagnostic()
@@ -275,7 +275,7 @@ impl MarkerManager {
                     let span_guard = warn_span!("loading pack from dir", name).entered();
                     match load_pack_core_from_dir(&pack_dir) {
                         Ok(pack_core) => {
-                            let category_data = category_data_dir.exists(name).then(||  {
+                            let category_data = category_data_dir.exists(&name).then(||  {
                                 match category_data_dir.read_to_string(format!("{name}.json")) {
                                     Ok(cd_json) => {
                                         match serde_json::from_str(&cd_json) {
