@@ -1,0 +1,35 @@
+[package]
+name = "jokolay"
+version = "0.2.0"
+edition = "2021"
+default-run = "jokolay"
+
+[[bin]]
+name = "jokolay"
+path = "src/main.rs"
+
+
+[dependencies]
+joko_render = { path = "../joko_render" }
+jmf = { path = "../joko_marker_format", package = "joko_marker_format" }
+jokolink = { path = "../jokolink" }
+url = { workspace = true, features = ["serde"] }
+egui_window_glfw_passthrough = "*"
+egui_backend = "*"
+# we use this instead of cap-dirs because we want to debug/show the jokolay path to users
+# and `Dir` from cap-dirs doesn't allow us to get the path.
+directories-next = { version = "*" }
+cap-std = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "time",
+] } # for ErrorLayer
+tracing-appender = { version = "*" }
+miette = { workspace = true }
+
+egui = { workspace = true }
+egui_extras = { workspace = true }
+
+ringbuffer = { workspace = true }
+rayon = { workspace = true }

@@ -6,8 +6,7 @@ use std::path::PathBuf;
 /// Inside this directory, we will store all of jokolay's data like configuration files, themes, logs etc..
 pub fn get_jokolay_dir() -> Result<(PathBuf, cap_std::fs::Dir)> {
     let authoratah = ambient_authority();
-    let jokolay_data_local_dir_path = if let Ok(env_dir) = std::env::var("JOKOLAY_DATA_DIR")
-    {
+    let jokolay_data_local_dir_path = if let Ok(env_dir) = std::env::var("JOKOLAY_DATA_DIR") {
         match PathBuf::try_from(&env_dir) {
             Ok(jokolay_dir) => jokolay_dir,
             Err(e) => return Err(miette::miette!("failed to parse JOKOLAY_DATA_DIR: {e:#?}")),

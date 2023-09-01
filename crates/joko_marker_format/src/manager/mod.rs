@@ -164,8 +164,7 @@ impl LoadedPack {
                     } else {
                         info!(?marker.props.icon_file, "no texture attribute on this marker");
                     }
-                    let th = marker
-                        .props
+                    let th = common_attributes
                         .icon_file
                         .as_ref()
                         .map(|path| self.current_map_data.active_textures.get(path))
@@ -431,7 +430,6 @@ impl MarkerManager {
                     });
                 }
             });
-            etx.texture_ui(ui);
             if self.ui_data.import_status.is_some() {
                 if ui.button("clear").on_hover_text(
                     "This will cancel any pack import in progress. If import is already finished, then it wil simply clear the import status").clicked() {
