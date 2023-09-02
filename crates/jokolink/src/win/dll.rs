@@ -249,7 +249,7 @@ pub mod d3d11 {
         use crate::mumble::ctypes::*;
         use crate::win::MumbleWinImpl;
         use crate::DEFAULT_MUMBLELINK_NAME;
-        use miette::{Result, IntoDiagnostic, Context};
+        use miette::{Context, IntoDiagnostic, Result};
         use serde::{Deserialize, Serialize};
         use std::io::Write;
         use std::io::{Seek, SeekFrom};
