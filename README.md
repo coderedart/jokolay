@@ -11,6 +11,7 @@ Well, technically, this contains a family of crates related to jokolay.
 ## Minimum Requirements
 1. Requires Vulkan. most GPUs after gtx 750 should be okay.
 2. X11. Wayland is NOT supported. (does not apply to windows obviously).
+3. no HDR support. I have no idea how it works.
 
 ### Compiling
 for now, just look at the github workflow file.

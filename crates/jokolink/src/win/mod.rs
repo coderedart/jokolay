@@ -3,19 +3,24 @@
 pub mod dll;
 //putting all the winapi specific stuff here. so that i can lock it all behind a cfg attr at the mod declaration
 
-use std::time::{Duration, Instant};
-
 use crate::mumble::ctypes::*;
-use joko_core::prelude::*;
+use miette::{bail, Context, IntoDiagnostic, Result};
+use std::time::{Duration, Instant};
+use time::OffsetDateTime;
+use tracing::{error, info, warn};
 use windows::{
     core::PCSTR,
     Win32::{
         Foundation::*,
+        Graphics::{
+            Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS},
+            Gdi::ClientToScreen,
+        },
         System::{
             Memory::*,
             Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
         },
-        UI::WindowsAndMessaging::*,
+        UI::{HiDpi::GetProcessDpiAwareness, WindowsAndMessaging::*},
     },
 };
 
@@ -56,6 +61,12 @@ pub struct MumbleWinImpl {
     /// This is the position and size of gw2 window. This also includes a few hidden pixels around gw2 which serve as the border
     /// Every time we check if the process is alive
     window_pos_size: [i32; 4],
+    /// same as above. But we use DwmGetWindowAttribute, to exclude the drop shadow borders from the window rect
+    window_pos_size_without_borders: [i32; 4],
+    /// this is the position and size of gw2 window's client area. So, no borders or titlebar stuff. Just the viewport.
+    client_pos_size: [i32; 4],
+    /// DPI awareness of the gw2 process
+    dpi_awareness: i32,
     /// This is the window handle of gw2.
     /// This is automatically set when we try to get window size/pos. and will be reset if gw2 process dies or if we find a new gw2 process.
     window_handle: isize,
@@ -80,6 +91,9 @@ impl MumbleWinImpl {
                 previous_pid: 0,
                 xid: 0,
                 last_pos_size_check: Instant::now(),
+                window_pos_size_without_borders: [0; 4],
+                dpi_awareness: 0,
+                client_pos_size: [0; 4],
             })
         }
     }
@@ -92,7 +106,10 @@ impl MumbleWinImpl {
             .unix_timestamp_nanos()
             .to_le_bytes();
         link.context.window_pos_size = self.window_pos_size;
+        link.context.window_pos_size_without_borders = self.window_pos_size_without_borders;
+        link.context.dpi_awareness = self.dpi_awareness;
         link.context.xid = self.xid;
+        link.context.client_pos_size = self.client_pos_size;
         link
     }
     /// This is the most important function which will be called every frame
@@ -143,10 +160,7 @@ impl MumbleWinImpl {
         || !self.is_alive()
             // if we are in reset status, then its our chance to reinitialize because mumble just updated.
             {
-                warn!(
-                    "found new gw2 process. last_tick: {}, new_tick: {}, new_pid: {}",
-                    self.previous_ui_tick, ui_tick, pid
-                );
+                info!(ui_tick, notify = 2u64, "found new gw2 process");
                 self.reinitialize();
             }
             // if reinitialization failed, then we can try again next frame.
@@ -158,22 +172,68 @@ impl MumbleWinImpl {
                 // check in 2 seconds intervals because it rarely changes
                 if self.last_pos_size_check.elapsed() > Duration::from_secs(2) {
                     self.last_pos_size_check = Instant::now();
+
                     self.window_pos_size = match get_window_pos_size(self.window_handle) {
                         Ok(window_pos_size) => {
                             if self.window_pos_size != window_pos_size {
-                                warn!(
-                                    "window position size changed from {:?} to {:?}",
-                                    self.window_pos_size, window_pos_size
+                                info!(
+                                    ?self.window_pos_size, ?window_pos_size,
+                                    "window position size changed"
                                 );
                             }
                             window_pos_size
                         }
                         Err(e) => {
-                            error!("failed to get window position size: {e}");
+                            error!(?e, "failed to get window position size");
                             self.reset(); // go back to being dead because it shouldn't usually fail
                             return Ok(());
                         }
-                    }
+                    };
+                    self.dpi_awareness = match GetProcessDpiAwareness(self.process_handle) {
+                        Ok(dpi) => dpi.0,
+                        Err(e) => {
+                            error!(?e, "failed to get dpi awareness");
+                            0
+                        }
+                    };
+                    self.window_pos_size_without_borders =
+                        match get_window_pos_size_without_borders(HWND(self.window_handle)) {
+                            Ok(window_pos_size_without_borders) => {
+                                if self.window_pos_size_without_borders
+                                    != window_pos_size_without_borders
+                                {
+                                    info!(
+                                        ?self.window_pos_size_without_borders,
+                                        ?window_pos_size_without_borders,
+                                        "window position size changed"
+                                    );
+                                }
+                                window_pos_size_without_borders
+                            }
+                            Err(e) => {
+                                error!(?e, "failed to get window position size");
+                                self.reset(); // go back to being dead because it shouldn't usually fail
+                                return Ok(());
+                            }
+                        };
+                    self.client_pos_size =
+                        match get_client_rect_in_screen_coords(HWND(self.window_handle)) {
+                            Ok(client_pos_size) => {
+                                if self.client_pos_size != client_pos_size {
+                                    info!(
+                                        ?self.client_pos_size,
+                                        ?client_pos_size,
+                                        "window position size changed"
+                                    );
+                                }
+                                client_pos_size
+                            }
+                            Err(e) => {
+                                error!(?e, "failed to get client position size");
+                                self.reset(); // go back to being dead because it shouldn't usually fail
+                                return Ok(());
+                            }
+                        };
                 }
             }
         }
@@ -190,6 +250,8 @@ impl MumbleWinImpl {
         }
         self.process_handle = HANDLE::default();
         self.window_pos_size = [0; 4];
+        self.window_pos_size_without_borders = [0; 4];
+        self.dpi_awareness = 0;
         self.previous_pid = 0;
         self.xid = 0;
     }
@@ -239,7 +301,6 @@ impl MumbleWinImpl {
                 match get_window_pos_size(window_handle) {
                     Ok(pos_size) => {
                         {
-                            info!("got window position and size too. {pos_size:?}");
                             match std::ffi::CString::new("__wine_x11_whole_window") {
                                 Ok(atom_string) => {
                                     let xid = GetPropA(
@@ -257,22 +318,60 @@ impl MumbleWinImpl {
                                         .0
                                         .try_into()
                                         .map_err(|e| {
-                                            error!("failed to fit xx1 winodw id into u32: {xid:?} due to {e}");
+                                            error!(
+                                                ?e,
+                                                ?xid,
+                                                "failed to fit x11 window id into u32"
+                                            );
                                         })
                                         .unwrap_or_default();
                                 }
                                 Err(e) => {
-                                    error!("impossible. But __wine_x11_whole_window apparently not a valid cstring. {e}");
+                                    error!(?e, notify = 0u64, "impossible. But __wine_x11_whole_window apparently not a valid cstring.");
                                 }
                             }
                         }
-                        info!("reinitialization complete with pid: {pid}, process: {process_handle:?}, window: {window_handle}, pos_size: {pos_size:?}, xid: {}", self.xid);
-                        self.process_handle = process_handle;
-                        self.window_handle = window_handle;
-                        self.window_pos_size = pos_size;
-                        self.last_ui_tick_update = Instant::now();
-                        self.previous_pid = pid;
-                        return;
+                        match get_window_pos_size_without_borders(HWND(window_handle)) {
+                            Ok(window_pos_size_without_borders) => {
+                                let dpi_awareness = match GetProcessDpiAwareness(process_handle) {
+                                    Ok(dpi) => dpi.0,
+                                    Err(e) => {
+                                        error!(?e, "failed to get dpi awareness");
+                                        0
+                                    }
+                                };
+                                match get_client_rect_in_screen_coords(HWND(window_handle)) {
+                                    Ok(client_pos_size) => {
+                                        info!(
+                                            pid,
+                                            ?process_handle,
+                                            ?window_handle,
+                                            ?pos_size,
+                                            ?window_pos_size_without_borders,
+                                            dpi_awareness,
+                                            ?client_pos_size,
+                                            "reinitialization complete "
+                                        );
+                                        self.window_pos_size_without_borders =
+                                            window_pos_size_without_borders;
+                                        self.process_handle = process_handle;
+                                        self.window_handle = window_handle;
+                                        self.window_pos_size = pos_size;
+                                        self.dpi_awareness = dpi_awareness;
+                                        self.client_pos_size = client_pos_size;
+                                        self.last_ui_tick_update = Instant::now();
+                                        self.previous_pid = pid;
+                                        return;
+                                    }
+                                    Err(e) => {
+                                        error!(?e, "failed to get client rect");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!(?e, "failed to get window position size without borders");
+                            }
+                        };
                     }
                     Err(e) => {
                         error!(?e, "failed to initialize mumble data because we coudln't get window position and size");
@@ -410,7 +509,68 @@ fn get_window_pos_size(window_handle: isize) -> Result<[i32; 4]> {
         ])
     }
 }
-
+fn get_window_pos_size_without_borders(window_handle: HWND) -> Result<[i32; 4]> {
+    unsafe {
+        let mut rect: RECT = RECT {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        };
+        if let Err(e) = DwmGetWindowAttribute(
+            window_handle,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            &mut rect as *mut RECT as _,
+            std::mem::size_of::<RECT>() as _,
+        ) {
+            bail!("DwmGetWindowAttribute call failed {e:#?}");
+        }
+        Ok([
+            rect.left,
+            rect.top,
+            (rect.right - rect.left)
+                .try_into()
+                .into_diagnostic()
+                .wrap_err("gw2 window width could not be cast into u32")?,
+            (rect.bottom - rect.top)
+                .try_into()
+                .into_diagnostic()
+                .wrap_err("gw2 height could not be cast into u32")?,
+        ])
+    }
+}
+fn get_client_rect_in_screen_coords(window_handle: HWND) -> Result<[i32; 4]> {
+    unsafe {
+        let mut rect: RECT = RECT {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        };
+        if let Err(e) = GetClientRect(window_handle, &mut rect as *mut RECT) {
+            bail!("GetClientRect call failed {e:#?}");
+        }
+        let mut point: POINT = POINT {
+            x: rect.left,
+            y: rect.top,
+        };
+        if !ClientToScreen(window_handle, &mut point as *mut POINT).as_bool() {
+            bail!("ClientToScreen call failed");
+        }
+        Ok([
+            point.x,
+            point.y,
+            (rect.right - rect.left)
+                .try_into()
+                .into_diagnostic()
+                .wrap_err("gw2 window width could not be cast into u32")?,
+            (rect.bottom - rect.top)
+                .try_into()
+                .into_diagnostic()
+                .wrap_err("gw2 height could not be cast into u32")?,
+        ])
+    }
+}
 impl Drop for MumbleWinImpl {
     fn drop(&mut self) {
         unsafe {

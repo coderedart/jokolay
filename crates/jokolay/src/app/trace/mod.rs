@@ -159,20 +159,20 @@ impl Visit for EventVisitor<'_> {
         }
     }
 
-    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-        if field.name() == "notify" {
-            self.0.notify = value as _;
-        } else {
-            self.record_debug(field, &value)
-        }
-    }
-
     fn record_error(
         &mut self,
         field: &tracing::field::Field,
         value: &(dyn std::error::Error + 'static),
     ) {
         self.record_debug(field, &value)
+    }
+
+    fn record_f64(&mut self, field: &tracing::field::Field, value: f64) {
+        if field.name() == "notify" {
+            self.0.notify = value as _;
+        } else {
+            self.record_debug(field, &value)
+        }
     }
 }
 impl TracingEvent {
@@ -190,7 +190,11 @@ impl TracingEvent {
             level,
             line: event.metadata().line().unwrap_or_default(),
             target,
-            notify: if level < Level::INFO { 10.0 } else { 0.0 },
+            notify: match level {
+                Level::TRACE | Level::DEBUG | Level::INFO => 0.0,
+                Level::WARN => 4.0,
+                Level::ERROR => 7.0,
+            },
             ..Default::default()
         };
         event.record(&mut EventVisitor(&mut te));

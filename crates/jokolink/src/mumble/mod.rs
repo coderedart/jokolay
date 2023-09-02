@@ -31,6 +31,11 @@ pub struct MumbleLink {
     pub uisz: UISize,
     pub window_pos: IVec2,
     pub window_size: IVec2,
+    pub window_pos_without_borders: IVec2,
+    pub window_size_without_borders: IVec2,
+    pub dpi_awareness: i32,
+    pub client_pos: IVec2,
+    pub client_size: IVec2,
     /// changes since last mumble link update
     pub changes: BitFlags<MumbleChanges>,
 }

@@ -40,7 +40,7 @@ impl Notifications {
             });
     }
     pub(super) fn add_event(&mut self, ev: &TracingEvent) {
-        if ev.level < Level::INFO {
+        if ev.notify > 0.1 {
             self.current.push(Notification {
                 title: ev.target.clone(),
                 message: ev.message.clone(),

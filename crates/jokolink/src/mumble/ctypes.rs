@@ -143,17 +143,23 @@ pub struct CMumbleContext {
     ///
     /// timestamp when jokolink wrote this data. unix nanoseconds
     /// This timestamp will be written every frame by jokolink even if mumble link is uninitialized.
-    /// This is [i128] in little endian byte order. We use this instead of [i128] because context is aligned to 4 by default. And
-    /// [i64]/[i128] will change that alignment. This will lead to 4 bytes padding between [CMumbleLink::context_len] and [CMumbleLink::context]
-    /// If jokolink doesn't write for more than 1 or 2 seconds, it can be assumed that gw2 was closed/crashed.
+    /// This is [i128] in little endian byte order. We use a byte array instead of [i128] directly because context is aligned to 4 by default. And
+    /// [i64]/[i128] will change that alignment to 8. This will lead to 4 bytes padding between [CMumbleLink::context_len] and [CMumbleLink::context]
+    ///
+    /// If jokolink doesn't write for more than 1 or 2 seconds, it can be safely assumed that gw2 was closed/crashed.
     /// This is in nanoseconds since unix epoch in UTC timezone.
     pub timestamp: [u8; 16],
     /// x, y, width, height of guild wars 2 window relative to top left corner of the screen.
+    /// This is populated with `GetWindowRect` fn
+    /// DPI aware. In screen coordinate. But includes drop shadow too :(.
     pub window_pos_size: [i32; 4],
     /// This represents the x11 window id of the gw2 window. AFAIK, wine uses x11 only (no wayland), so this could be useful to set transient for
     pub xid: u32,
+    pub window_pos_size_without_borders: [i32; 4],
+    pub dpi_awareness: i32,
+    pub client_pos_size: [i32; 4],
     /// to make the struct the right size. everything upto now is 120 bytes, so this rounds upto 256 bytes.
-    pub padding: [u8; 132],
+    pub padding: [u8; 96],
 }
 impl Default for CMumbleContext {
     fn default() -> Self {
@@ -178,8 +184,11 @@ impl Default for CMumbleContext {
             mount_index: Default::default(),
             timestamp: Default::default(),
             window_pos_size: Default::default(),
-            padding: [0; 132],
+            padding: [0; 96],
             xid: Default::default(),
+            window_pos_size_without_borders: Default::default(),
+            dpi_awareness: Default::default(),
+            client_pos_size: Default::default(),
         }
     }
 }

@@ -1,4 +1,5 @@
 use cap_std::fs_utf8::Dir;
+use egui::DragValue;
 use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
 mod frame;
@@ -136,9 +137,14 @@ impl UserApp for Jokolay {
             egui::Window::new("egui window")
                 .default_width(300.0)
                 .show(&egui_context, |ui| {
-                    ui.label(&format!("cursor position: {cursor_position:?}"));
+                    ui.horizontal(|ui| {
+                        ui.label("cursor pos");
+                        let mut cursor_position = cursor_position.unwrap_or_default();
+                        ui.add(DragValue::new(&mut cursor_position.x).fixed_decimals(1));
+                        ui.add(DragValue::new(&mut cursor_position.y).fixed_decimals(1));
+                    });
                     let mut is_passthrough = glfw_backend.window.is_mouse_passthrough();
-                    ui.checkbox(&mut is_passthrough, "is window passthrough?");
+                    ui.checkbox(&mut is_passthrough, "passthrough");
                 });
             marker_manager.tick(&egui_context, latest_time, joko_renderer, &link);
 
@@ -149,16 +155,16 @@ impl UserApp for Jokolay {
                     || link.changes.contains(MumbleChanges::WindowSize)
                 {
                     info!(
-                        "resizing/repositioning to match gw2 window dimensions: {:?} {:?}",
-                        link.window_pos, link.window_size
+                        ?link.client_pos, ?link.client_size,
+                        "resizing/repositioning to match gw2 window dimensions"
                     );
                     // to account for the invisible border shadows thingy. IDK if these pixel values are the same across all dpi/monitors
                     glfw_backend
                         .window
-                        .set_pos(link.window_pos.x + 5, link.window_pos.y + 56);
+                        .set_pos(link.client_pos.x, link.client_pos.y);
                     glfw_backend
                         .window
-                        .set_size(link.window_size.x - 10, link.window_size.y - 61);
+                        .set_size(link.client_size.x, link.client_size.y);
                 }
             }
             JokolayTracingLayer::show_notifications(&egui_context);

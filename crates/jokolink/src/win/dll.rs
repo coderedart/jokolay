@@ -249,18 +249,18 @@ pub mod d3d11 {
         use crate::mumble::ctypes::*;
         use crate::win::MumbleWinImpl;
         use crate::DEFAULT_MUMBLELINK_NAME;
-        use joko_core::prelude::*;
+        use miette::{Result, IntoDiagnostic, Context};
+        use serde::{Deserialize, Serialize};
         use std::io::Write;
         use std::io::{Seek, SeekFrom};
         use std::path::{Path, PathBuf};
         use std::str::FromStr;
         use std::sync::mpsc::{Receiver, SyncSender};
         use std::time::Duration;
+        use tracing::{error, info};
         use tracing_subscriber::filter::LevelFilter;
-
         #[derive(Debug, Clone, Serialize, Deserialize)]
         #[serde(default)]
-        #[serde(crate = "serde")]
         pub struct JokolinkConfig {
             pub loglevel: String,
             pub logdir: PathBuf,
@@ -290,7 +290,8 @@ pub mod d3d11 {
                 let config = std::path::PathBuf::from(config);
                 if !config.exists() {
                     match std::fs::File::create(&config) {
-                        Ok(mut f) => match to_string_pretty(&JokolinkConfig::default()) {
+                        Ok(mut f) => match serde_json::to_string_pretty(&JokolinkConfig::default())
+                        {
                             Ok(config_string) => {
                                 if let Err(e) = f.write_all(config_string.as_bytes()) {
                                     eprintln!(
@@ -306,7 +307,7 @@ pub mod d3d11 {
                     }
                 }
                 let config: JokolinkConfig = match std::fs::File::open(&config) {
-                    Ok(f) => match from_reader(std::io::BufReader::new(f)) {
+                    Ok(f) => match serde_json::from_reader(std::io::BufReader::new(f)) {
                         Ok(config) => config,
                         Err(e) => {
                             eprintln!("failed to deserialize config file due to error {e:#?}");

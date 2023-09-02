@@ -9,6 +9,7 @@
 //!
 
 mod mumble;
+use egui::DragValue;
 use enumflags2::BitFlags;
 use glam::IVec2;
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -108,10 +109,27 @@ impl MumbleManager {
             cml.context.window_pos_size[2],
             cml.context.window_pos_size[3],
         );
-        if self.link.window_pos != window_pos {
+        let window_pos_without_borders = IVec2::new(
+            cml.context.window_pos_size_without_borders[0],
+            cml.context.window_pos_size_without_borders[1],
+        );
+        let window_size_without_borders = IVec2::new(
+            cml.context.window_pos_size_without_borders[2],
+            cml.context.window_pos_size_without_borders[3],
+        );
+        let client_pos = IVec2::new(
+            cml.context.client_pos_size[0],
+            cml.context.client_pos_size[1],
+        );
+        let client_size = IVec2::new(
+            cml.context.client_pos_size[2],
+            cml.context.client_pos_size[3],
+        );
+        let dpi_awareness = cml.context.dpi_awareness;
+        if self.link.client_pos != client_pos {
             changes.insert(MumbleChanges::WindowPosition);
         }
-        if self.link.window_size != window_size {
+        if self.link.client_size != client_size {
             changes.insert(MumbleChanges::WindowSize);
         }
         let link = Arc::new(MumbleLink {
@@ -127,6 +145,11 @@ impl MumbleManager {
             window_pos,
             window_size,
             changes,
+            window_pos_without_borders,
+            window_size_without_borders,
+            dpi_awareness,
+            client_pos,
+            client_size,
         });
         self.link = link.clone();
         egui::Window::new("Mumble Manager")
@@ -135,7 +158,8 @@ impl MumbleManager {
                 if link.ui_tick == 0 {
                     ui.label("Mumble is not initialized");
                 } else {
-                    mumble_ui(ui, &link);
+                    let link: MumbleLink = link.as_ref().clone();
+                    mumble_ui(ui, link);
                 }
             });
         Ok(if self.link.ui_tick == 0 {
@@ -146,22 +170,59 @@ impl MumbleManager {
     }
 }
 
-fn mumble_ui(ui: &mut egui::Ui, link: &MumbleLink) {
-    egui::Grid::new("link grid").num_columns(2).show(ui, |ui| {
-        ui.label("ui tick: ");
-        ui.label(format!("{}", link.ui_tick));
-        ui.end_row();
-        ui.label("character: ");
-        ui.label(&link.name);
-        ui.end_row();
-        ui.label("map: ");
-        ui.label(format!("{}", link.map_id));
-        ui.end_row();
-        ui.label("pos: ");
-        ui.label(format!("{}, {}", link.window_pos.x, link.window_pos.y));
-        ui.end_row();
-        ui.label("size: ");
-        ui.label(format!("{}, {}", link.window_size.x, link.window_size.y));
-        ui.end_row();
-    });
+fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
+    egui::Grid::new("link grid")
+        .num_columns(2)
+        .striped(true)
+        .show(ui, |ui| {
+            ui.label("ui tick");
+            ui.add(DragValue::new(&mut link.ui_tick));
+            ui.end_row();
+            ui.label("character");
+            ui.label(&link.name);
+            ui.end_row();
+            ui.label("map id");
+            ui.add(DragValue::new(&mut link.map_id));
+            ui.end_row();
+            ui.label("position");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.window_pos.x));
+                ui.add(DragValue::new(&mut link.window_pos.y));
+            });
+            ui.end_row();
+            ui.label("size");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.window_size.x));
+                ui.add(DragValue::new(&mut link.window_size.y));
+            });
+            ui.end_row();
+            ui.label("position_nb");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.window_pos_without_borders.x));
+                ui.add(DragValue::new(&mut link.window_pos_without_borders.y));
+            });
+            ui.end_row();
+            ui.label("size_nb");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.window_size_without_borders.x));
+                ui.add(DragValue::new(&mut link.window_size_without_borders.y));
+            });
+            ui.end_row();
+
+            ui.label("client pos");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.client_pos.x));
+                ui.add(DragValue::new(&mut link.client_pos.y));
+            });
+            ui.end_row();
+            ui.label("client size");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.client_size.x));
+                ui.add(DragValue::new(&mut link.client_size.y));
+            });
+            ui.end_row();
+            ui.label("dpi aware");
+            ui.add(DragValue::new(&mut link.dpi_awareness));
+            ui.end_row();
+        });
 }
