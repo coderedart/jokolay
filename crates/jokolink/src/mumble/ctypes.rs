@@ -86,14 +86,14 @@ impl CMumbleLink {
     pub unsafe fn get_pid(link_ptr: *const CMumbleLink) -> u32 {
         (*link_ptr).context.process_id
     }
-    #[cfg(unix)]
-    pub unsafe fn get_xid(link_ptr: *const CMumbleLink) -> u32 {
-        (*link_ptr).context.xid
-    }
-    #[cfg(unix)]
-    pub unsafe fn get_pos_size(link_ptr: *const CMumbleLink) -> [i32; 4] {
-        (*link_ptr).context.window_pos_size
-    }
+    // #[cfg(unix)]
+    // pub unsafe fn get_xid(link_ptr: *const CMumbleLink) -> u32 {
+    //     (*link_ptr).context.xid
+    // }
+    // #[cfg(unix)]
+    // pub unsafe fn get_pos_size(link_ptr: *const CMumbleLink) -> [i32; 4] {
+    //     (*link_ptr).context.client_pos_size
+    // }
     #[cfg(unix)]
     pub unsafe fn get_timestamp(link_ptr: *const CMumbleLink) -> i128 {
         let bytes = (*link_ptr).context.timestamp;

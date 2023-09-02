@@ -4,8 +4,8 @@ name: Build Jokolay
 env:
   CARGO_INCREMENTAL: 0
 jobs:
-  cargo-checkmate:
-    name: cargo-checkmate
+  build-jokolay:
+    name: build-jokolay
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

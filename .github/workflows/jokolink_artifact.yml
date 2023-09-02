@@ -6,7 +6,7 @@ env:
 jobs:
   build-jokolink-dll:
     name: build-jokolink-dll
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -14,16 +14,10 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1
 
-      - name: Install Gnu Windows Target
-        run: rustup target add x86_64-pc-windows-gnu
-
-      - name: Install dependencies 
-        run: sudo apt update && sudo apt install --no-install-recommends mingw-w64
-
       - name: Build Jokolink DLL
-        run: cargo build --release -p jokolink --target=x86_64-pc-windows-gnu
+        run: cargo build --release -p jokolink
 
       - uses: actions/upload-artifact@v3
         with:
           name: jokolink.dll
-          path: "./target/x86_64-pc-windows-gnu/release/jokolink.dll"
+          path: "./target/release/jokolink.dll"
