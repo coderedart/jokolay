@@ -18,7 +18,7 @@ use cap_std::fs_utf8::Dir;
 use egui::{CollapsingHeader, ColorImage, TextureHandle, Window};
 use image::EncodableLayout;
 use indexmap::IndexMap;
-use tracing::{debug, error, info, warn_span};
+use tracing::{debug, error, info, info_span, warn_span};
 
 use crate::{
     io::{load_pack_core_from_dir, save_pack_core_to_dir},
@@ -272,22 +272,23 @@ impl MarkerManager {
                     .into_diagnostic()
                     .wrap_err("failed to open pack entry as directory")?;
                 {
-                    let span_guard = warn_span!("loading pack from dir", name).entered();
+                    let span_guard = info_span!("loading pack from dir", name).entered();
                     match load_pack_core_from_dir(&pack_dir) {
                         Ok(pack_core) => {
+                            let span_guard = info_span!("load category data", name).entered();
                             let category_data = category_data_dir.exists(&name).then(||  {
                                 match category_data_dir.read_to_string(format!("{name}.json")) {
                                     Ok(cd_json) => {
                                         match serde_json::from_str(&cd_json) {
                                             Ok(cd) => Some(cd),
                                             Err(e) => {
-                                                error!("failed to deserilize category data: {e:#?}");
+                                                error!(?e, "failed to deserialize category data");
                                                 None
                                             },
                                         }
                                     },
                                     Err(e) => {
-                                        error!("failed to read string of category data {name}.json: {e:#?}");
+                                        error!(?e, "failed to read string of category data");
                                         None
                                     },
                                 }
@@ -300,16 +301,17 @@ impl MarkerManager {
                                                 debug!("wrote category data {name}.json to disk after creating a default from pack");
                                             },
                                             Err(e) => {
-                                                debug!("failed to write category data {name}.json to disk: {e:#?}");
+                                                debug!(?e, "failed to write category data to disk");
                                             },
                                         }
                                     },
                                     Err(e) => {
-                                        error!("failed ot serialize cat selection: {e:#?}");
+                                        error!(?e, "failed to serialize cat selection");
                                     },
                                 }
                                 cs
                             });
+                            std::mem::drop(span_guard);
                             packs.insert(
                                 name.to_string(),
                                 LoadedPack {
@@ -325,7 +327,7 @@ impl MarkerManager {
                             );
                         }
                         Err(e) => {
-                            error!("error while loading pack: {e:#?}");
+                            error!(?e, "error while loading pack");
                         }
                     }
                     drop(span_guard);
@@ -415,7 +417,7 @@ impl MarkerManager {
                 for pack_name in delete {
                     self.packs.remove(&pack_name);
                     if let Err(e) = self.marker_packs_dir.remove_dir_all(&pack_name) {
-                        error!("failed to remove pack {pack_name} due to error {e:#?}");
+                        error!(?e, pack_name,"failed to remove pack");
                     } else {
                         info!("deleted marker pack: {pack_name}");
                     }
@@ -426,7 +428,7 @@ impl MarkerManager {
             CollapsingHeader::new("category selection").show(ui, |ui| {
                 for (pack_name, pack) in self.packs.iter_mut() {
                     ui.menu_button(pack_name, |ui| {
-                        CategorySelection::recursive_selection_ui(&mut pack.cats_selection, ui, &mut pack.cats_selection_dirty);
+                        CategorySelection::recursive_selection_ui( &mut pack.cats_selection, ui, &mut pack.cats_selection_dirty);
                     });
                 }
             });
@@ -592,11 +594,13 @@ impl CategorySelection {
                 if ui.checkbox(&mut cat.selected, "").changed() {
                     *changed = true;
                 }
-                ui.menu_button(&cat.display_name, |ui| {
-                    if !cat.children.is_empty() {
+                if !cat.children.is_empty() {
+                    ui.menu_button(&cat.display_name, |ui: &mut egui::Ui| {
                         Self::recursive_selection_ui(&mut cat.children, ui, changed);
-                    }
-                });
+                    });
+                } else {
+                    ui.label(&cat.display_name);
+                }
             });
         }
     }
@@ -610,24 +614,34 @@ impl LoadedPack {
             || !self.texture.is_empty()
             || !self.tbin.is_empty()
     }
+    #[tracing::instrument(skip(self, marker_packs_dir, category_data_dir))]
     pub fn save(&mut self, name: &str, marker_packs_dir: &Dir, category_data_dir: &Dir, all: bool) {
-        marker_packs_dir
-            .create_dir_all(name)
-            .into_diagnostic()
-            .unwrap();
-        let pack_dir = marker_packs_dir.open_dir(name).unwrap();
+        if let Err(e) = marker_packs_dir.create_dir_all(name) {
+            error!(?e, "failed to create directory for pack");
+            return;
+        }
+        let pack_dir = match marker_packs_dir.open_dir(name) {
+            Ok(d) => d,
+            Err(e) => {
+                error!(?e, "failed to open marker pack directory to save pack");
+                return;
+            }
+        };
         if self.cats_selection_dirty || all {
             match serde_json::to_string_pretty(&self.cats_selection) {
                 Ok(cs_json) => match category_data_dir.write(format!("{name}.json"), &cs_json) {
                     Ok(_) => {
-                        debug!("wrote category data {name}.json to disk after creating a default from pack");
+                        debug!(
+                            name,
+                            "wrote category data to disk after creating a default from pack"
+                        );
                     }
                     Err(e) => {
-                        debug!("failed to write category data {name}.json to disk: {e:#?}");
+                        error!(?e, "failed to write category data to disk");
                     }
                 },
                 Err(e) => {
-                    error!("failed ot serialize cat selection: {e:#?}");
+                    error!(?e, "failed to serialize cat selection");
                 }
             }
         }
@@ -641,10 +655,10 @@ impl LoadedPack {
             all,
         ) {
             Ok(_) => {
-                debug!("saved pack: {name} to directory");
+                debug!(name, "saved pack to directory");
             }
             Err(e) => {
-                error!("failed to save pack to directory: {e:#?}");
+                error!(?e, "failed to save pack to directory");
             }
         }
     }

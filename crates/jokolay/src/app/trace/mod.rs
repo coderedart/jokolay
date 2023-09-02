@@ -24,7 +24,8 @@ impl JokolayTracingLayer {
         // get the log level
         let filter_layer = EnvFilter::try_from_env("JOKOLAY_LOG")
             .or_else(|_| EnvFilter::try_new("info,wgpu=warn,naga=warn"))
-            .unwrap();
+            .into_diagnostic()
+            .wrap_err("failed to parse log filter levels from env")?;
         // create log file in the data dir. This will also serve as a check that the directory is "writeable" by us
         let writer = std::io::BufWriter::new(
             jokolay_dir

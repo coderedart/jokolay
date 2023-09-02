@@ -129,7 +129,7 @@ impl MumbleWinImpl {
                                 }
                             }
                             Err(e) => {
-                                error!("failed to get GetExitCodeProcess: {e:#?}");
+                                error!(?e, "failed to get GetExitCodeProcess");
                                 self.reset();
                             }
                         }
@@ -185,7 +185,7 @@ impl MumbleWinImpl {
         self.window_handle = 0;
         if !self.process_handle.is_invalid() {
             if let Err(e) = CloseHandle(self.process_handle) {
-                error!("failed to close process handle of old gw2: {e:#?}");
+                error!(?e, "failed to close process handle of old gw2");
             }
         }
         self.process_handle = HANDLE::default();
@@ -224,7 +224,10 @@ impl MumbleWinImpl {
                 // if lparam_pid is still the same as pid, then we couldn't find the relevant window handle
                 if window_handle == pid as isize {
                     if let Err(e) = CloseHandle(process_handle) {
-                        error!("failed to close process handle when we couldn't get window handle. {e:#?}");
+                        error!(
+                            ?e,
+                            "failed to close process handle when we couldn't get window handle."
+                        );
                     }
                     error!(
                         "failed to initialize mumble data because we couldn't find window handle"
@@ -272,12 +275,12 @@ impl MumbleWinImpl {
                         return;
                     }
                     Err(e) => {
-                        error!("failed to initialize mumble data because we coudln't get window position and size: {e:#?}");
+                        error!(?e, "failed to initialize mumble data because we coudln't get window position and size");
                     }
                 }
             }
             Err(e) => {
-                error!("failed to open process handle for pid {pid} due to error {e:#?}");
+                error!(?e, pid, "failed to open process handle");
             }
         }
     }
@@ -415,14 +418,14 @@ impl Drop for MumbleWinImpl {
             if let Err(e) = UnmapViewOfFile(MEMORY_MAPPED_VIEW_ADDRESS {
                 Value: self.link_ptr as _,
             }) {
-                error!("failed to unmap view of mumble file: {e:#?}");
+                error!(?e, "failed to unmap view of mumble file");
             }
             if let Err(e) = CloseHandle(self.mumble_handle) {
-                error!("failed to close handle of mumble link : {e:#?}")
+                error!(?e, "failed to close handle of mumble link ")
             }
             if !self.process_handle.is_invalid() {
                 if let Err(e) = CloseHandle(self.process_handle) {
-                    error!("failed to close handle of mumble link : {e:#?}")
+                    error!(?e, "failed to close handle of mumble link ")
                 }
             }
         }

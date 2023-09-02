@@ -417,7 +417,7 @@ pub mod d3d11 {
 
             loop {
                 if let Err(e) = source.tick() {
-                    error!("mumble tick error: {e:#?}");
+                    error!(?e, "mumble tick error");
                 }
                 let link = source.get_cmumble_link();
 

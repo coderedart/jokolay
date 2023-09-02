@@ -55,7 +55,7 @@ impl MumbleManager {
     }
     pub fn tick(&mut self, ctx: &egui::Context) -> Result<Option<Arc<MumbleLink>>> {
         if let Err(e) = self.backend.tick() {
-            error!("mumble backend tick error: {e:#?}");
+            error!(?e, "mumble backend tick error");
             return Ok(None);
         }
 

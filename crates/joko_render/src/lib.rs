@@ -195,12 +195,7 @@ impl GfxBackend for JokoRenderer {
         );
         self.painter.on_resume(
             &self.dev,
-            self.surface_manager
-                .surface_config
-                .view_formats
-                .first()
-                .copied()
-                .unwrap(),
+            self.surface_manager.surface_config.view_formats[0],
         );
     }
 

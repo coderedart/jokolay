@@ -20,6 +20,12 @@ miette = { version = "*", features = ["fancy"] }
 url = { version = "*", features = ["serde"] }
 serde_json = { version = "*" }
 rayon = { version = "*" }
+# tokio = { version = "*", default-features = false, features = [
+#     "rt-multi-thread",
+#     "sync",
+#     "time",
+#     "parking_lot"
+# ]}
 glam = { version = "*", features = ["fast-math"] }
 time = { version = "*" }
 ureq = { version = "*" }

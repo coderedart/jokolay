@@ -125,7 +125,7 @@ impl UserApp for Jokolay {
             let link = match mumble_manager.tick(&egui_context) {
                 Ok(ml) => ml,
                 Err(e) => {
-                    error!("mumble manager tick error: {e:#?}");
+                    error!(?e, "mumble manager tick error");
                     None
                 }
             };

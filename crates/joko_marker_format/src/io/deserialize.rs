@@ -34,9 +34,11 @@ pub fn load_pack_core_from_dir(dir: &Dir) -> Result<PackCore> {
         let entry = entry
             .into_diagnostic()
             .wrap_err("entry error whiel reading xml files")?;
+
         let name = entry
             .file_name()
-            .map_err(|e| miette::miette!("file name is not utf-8: {:?} {e:#?}", entry.file_name()))?
+            .into_diagnostic()
+            .wrap_err("map data entry name not utf-8")?
             .to_string();
 
         if name.ends_with("xml") {
@@ -190,8 +192,11 @@ fn recursive_marker_category_parser(
     cats: &mut IndexMap<String, Category>,
     names: &XotAttributeNameIDs,
 ) {
-    for tag in tags.filter(|node| tree.is_element(*node)) {
-        let ele = tree.element(tag).unwrap();
+    for tag in tags {
+        let ele = match tree.element(tag) {
+            Some(ele) => ele,
+            None => continue,
+        };
         if ele.name() != names.marker_category {
             continue;
         }
@@ -479,7 +484,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
         }
     }
     for name in images {
-        let span = info_span!("load image {name}").entered();
+        let span = info_span!("load image", name).entered();
         let file_path = RelativePath::parse_from_str(&name);
         if let Some(bytes) = read_file_bytes_from_zip_by_name(&name, &mut zip_archive) {
             match image::load_from_memory_with_format(&bytes, image::ImageFormat::Png) {
@@ -488,7 +493,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                     "duplicate image file {name}"
                 ),
                 Err(e) => {
-                    info!("failed to parse image file {name} due to {e:#?}");
+                    info!(?e, "failed to parse image file");
                 }
             }
         }
@@ -564,13 +569,15 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
             }
         };
 
-        for child_node in tree.children(pois).filter(|node| tree.is_element(*node)) {
-            let child = tree.element(child_node).unwrap();
+        for child_node in tree.children(pois) {
+            let child = match tree.element(child_node) {
+                Some(ele) => ele,
+                None => continue,
+            };
             let category = child
                 .get_attribute(names.category)
                 .unwrap_or_default()
                 .to_lowercase();
-
             let guid = child
                 .get_attribute(names.guid)
                 .and_then(|guid| {
@@ -585,6 +592,10 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                         })
                 })
                 .unwrap_or_else(|| Uuid::new_v4());
+
+            if category.is_empty() {
+                info!(?guid, "missing category (type) attribute on marker");
+            }
             if child.name() == names.poi {
                 if let Some(map_id) = child
                     .get_attribute(names.map_id)
@@ -665,7 +676,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
 
     Ok(pack)
 }
-
+#[instrument(skip(zip_archive))]
 fn read_file_bytes_from_zip_by_name<T: std::io::Read + std::io::Seek>(
     name: &str,
     zip_archive: &mut zip::ZipArchive<T>,
@@ -681,11 +692,11 @@ fn read_file_bytes_from_zip_by_name<T: std::io::Read + std::io::Seek>(
                 }
             }
             Err(e) => {
-                info!("failed to read file {name} due to error {e:#?}");
+                info!(?e, "failed to read file");
             }
         },
         Err(e) => {
-            info!("failed ot read file {name} due to error {e:#?}");
+            info!(?e, "failed to get file from zip");
         }
     }
     None
