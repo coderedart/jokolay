@@ -4,6 +4,7 @@ use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
 mod frame;
 mod init;
+mod menu;
 mod theme;
 mod trace;
 use self::theme::ThemeManager;

@@ -7,6 +7,7 @@ use cap_std::fs_utf8::Dir;
 use indexmap::IndexMap;
 use miette::{Context, IntoDiagnostic, Result};
 use std::{collections::HashSet, io::Write};
+use tracing::info;
 use xot::{Element, Node, SerializeOptions, Xot};
 
 use super::XotAttributeNameIDs;
@@ -46,6 +47,14 @@ pub fn save_pack_core_to_dir(
     // save maps
     for (map_id, map_data) in pack_core.maps.iter() {
         if maps.remove(map_id) || all {
+            if map_data.markers.is_empty() && map_data.trails.is_empty() {
+                if let Err(e) = dir.remove_file(format!("{map_id}.xml")) {
+                    info!(
+                        ?e,
+                        map_id, "failed to remove xml file that had nothing to write to"
+                    );
+                }
+            }
             let mut tree = Xot::new();
             let names = XotAttributeNameIDs::register_with_xot(&mut tree);
             let od = tree.new_element(names.overlay_data);
@@ -84,12 +93,16 @@ pub fn save_pack_core_to_dir(
                 .write_all(map_xml.as_bytes())
                 .into_diagnostic()
                 .wrap_err("failed to write map data to file")?;
-        } else {
-            let _ = dir.remove_file(format!("{map_id}.xml"));
         }
     }
+    // if any other map remained in the maps, then it means the map was deleted from pack, so we remove the xml file too
     for map_id in maps {
-        let _ = dir.remove_file(format!("{map_id}.xml"));
+        if let Err(e) = dir.remove_file(format!("{map_id}.xml")) {
+            info!(
+                ?e,
+                map_id, "failed to remove xml file that had nothing to write to"
+            );
+        }
     }
     // save images
     for (img_path, img) in pack_core.textures.iter() {
@@ -109,12 +122,15 @@ pub fn save_pack_core_to_dir(
                 .wrap_err_with(|| {
                     miette::miette!("failed to write image bytes to file: {img_path}")
                 })?;
-        } else {
-            let _ = dir.remove_file(&img_path.as_str());
         }
     }
     for img_path in textures {
-        let _ = dir.remove_file(img_path.as_str());
+        if let Err(e) = dir.remove_file(img_path.as_str()) {
+            info!(
+                ?e,
+                %img_path, "failed to remove file"
+            );
+        }
     }
     // save tbins
     for (tbin_path, tbin) in pack_core.tbins.iter() {
@@ -141,12 +157,15 @@ pub fn save_pack_core_to_dir(
                 .write_all(&bytes)
                 .into_diagnostic()
                 .wrap_err_with(|| miette::miette!("failed to write tbin to path: {tbin_path}"))?;
-        } else {
-            let _ = dir.remove_file(tbin_path.as_str());
         }
     }
     for tbin_path in tbins {
-        let _ = dir.remove_file(tbin_path.as_str());
+        if let Err(e) = dir.remove_file(tbin_path.as_str()) {
+            info!(
+                ?e,
+                %tbin_path, "failed to remove file"
+            );
+        }
     }
     Ok(())
 }

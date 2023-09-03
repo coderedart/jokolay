@@ -23,7 +23,7 @@ egui = { workspace = true }
 serde = { workspace = true }
 glam = { workspace = true }
 serde_json = { workspace = true }
-
+notify ={ version = "*", default-features = false}
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.12", default-features = false, features = [] }
 
@@ -39,5 +39,7 @@ windows = { version = "0.51.1", features = [
     "Win32_Graphics_Dwm",
     "Win32_UI_HiDpi",
     "Win32_Graphics_Gdi",
+    "Win32_UI_Shell",
+    "Win32_System_Com",
 ] }
 arcdps = { version = "*", default-features = false }
