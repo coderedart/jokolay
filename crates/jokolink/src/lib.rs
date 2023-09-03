@@ -179,6 +179,14 @@ fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
             ui.label("ui tick");
             ui.add(DragValue::new(&mut link.ui_tick));
             ui.end_row();
+            ui.label("fov");
+            ui.add(DragValue::new(&mut link.fov));
+            ui.end_row();
+            ui.label("w/h ratio");
+            let ratio = link.client_size.as_vec2();
+            let mut ratio = ratio.x / ratio.y;
+            ui.add(DragValue::new(&mut ratio));
+            ui.end_row();
             ui.label("character");
             ui.label(&link.name);
             ui.end_row();

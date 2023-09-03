@@ -114,16 +114,33 @@ impl MumbleWinImpl {
                             roaming_str.push_str("Guild Wars 2\\GFXSettings.Gw2-64.exe.xml");
 
                             let dpi_scaling_2 = dpi_scaling.clone();
-                            dpi_scaling_2.store(
-                                check_dpi_scaling_enabled(&roaming_str),
-                                std::sync::atomic::Ordering::Relaxed,
+                            let dpi_scaling_enabled = check_dpi_scaling_enabled(&roaming_str);
+                            info!(
+                                dpi_scaling_enabled,
+                                roaming_str, "dpi scaling when we are starting out"
                             );
+                            dpi_scaling_2
+                                .store(dpi_scaling_enabled, std::sync::atomic::Ordering::Relaxed);
+                            let roaming_str_2 = roaming_str.clone();
                             gw2_config_watcher = notify::recommended_watcher(move |ev| {
                                 info!(?ev, "gw2 config changed");
                                 dpi_scaling_2.store(
-                                    check_dpi_scaling_enabled(&roaming_str),
+                                    check_dpi_scaling_enabled(&roaming_str_2),
                                     std::sync::atomic::Ordering::Relaxed,
                                 );
+                            })
+                            .map_err(|e| {
+                                error!(?e, "failed to create recommended watcher");
+                            })
+                            .map(|mut watcher| {
+                                use notify::Watcher;
+                                if let Err(e) = watcher.watch(
+                                    std::path::Path::new(&roaming_str),
+                                    notify::RecursiveMode::NonRecursive,
+                                ) {
+                                    error!(?e, roaming_str, "failed to watch gw2 config file");
+                                }
+                                watcher
                             })
                             .ok();
                         }
