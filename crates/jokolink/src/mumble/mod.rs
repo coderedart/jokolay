@@ -33,9 +33,17 @@ pub struct MumbleLink {
     // pub window_size: IVec2,
     // pub window_pos_without_borders: IVec2,
     // pub window_size_without_borders: IVec2,
+    /// This is the dpi of gw2 window. 96dpi is the default for a non-hidpi monitor with scaling 1.0
+    /// for a scaling of 2.0, it becomes 192 and so on.
     pub dpi: i32,
-    pub dpi_awareness: i32,
+    /// This is whether gw2 is scaling its UI elements to match the dpi. So, if the dpi is bigger than 96, gw2 will make text/ui bigger.
+    /// -1 means we couldn't get the setting from gw2's config file in appdata/roaming
+    /// 0 means scaling is disabled (false)
+    /// 1 means scaling is enabled (true).
+    pub dpi_scaling: i32,
+    /// This is the position of the gw2's viewport (client area. x/y) relative to the top left corner of the desktop in *screen coords*
     pub client_pos: IVec2,
+    /// This is the size of gw2's viewport (width/height) in screen coordinates
     pub client_size: IVec2,
     /// changes since last mumble link update
     pub changes: BitFlags<MumbleChanges>,

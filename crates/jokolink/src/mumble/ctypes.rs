@@ -162,7 +162,7 @@ pub struct CMumbleContext {
     /// DPI_AWARENESS_PER_MONITOR_AWARE
     /// Value: 2
     /// Per monitor DPI aware. This process checks for the DPI when it is created and adjusts the scale factor whenever the DPI changes. These processes are not automatically scaled by the system.
-    pub dpi_awareness: i32,
+    pub dpi_scaling: i32,
     /// This is the actual dpi of the gw2 window. 96 is the default (scale 1.0) value.
     pub dpi: i32,
     /// This is the client (gw2 window's viewport/surface) position and area. This tells jokolay where to position and size itself to match gw2 window.
@@ -196,7 +196,7 @@ impl Default for CMumbleContext {
             padding: [0; 96],
             xid: Default::default(),
             // window_pos_size_without_borders: Default::default(),
-            dpi_awareness: Default::default(),
+            dpi_scaling: Default::default(),
             dpi: Default::default(),
             client_pos_size: Default::default(),
         }

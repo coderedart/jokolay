@@ -147,7 +147,7 @@ impl MumbleManager {
             changes,
             // window_pos_without_borders,
             // window_size_without_borders,
-            dpi_awareness: cml.context.dpi_awareness,
+            dpi_scaling: cml.context.dpi_scaling,
             dpi: cml.context.dpi,
             client_pos,
             client_size,
@@ -197,8 +197,8 @@ fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
                 ui.add(DragValue::new(&mut link.client_size.y));
             });
             ui.end_row();
-            ui.label("dpi aware");
-            ui.add(DragValue::new(&mut link.dpi_awareness));
+            ui.label("dpi scaling");
+            ui.add(DragValue::new(&mut link.dpi_scaling));
             ui.end_row();
             ui.label("dpi");
             ui.add(DragValue::new(&mut link.dpi));

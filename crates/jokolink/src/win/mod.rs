@@ -166,7 +166,7 @@ impl MumbleWinImpl {
             .to_le_bytes();
         // link.context.window_pos_size = self.window_pos_size;
         // link.context.window_pos_size_without_borders = self.window_pos_size_without_borders;
-        link.context.dpi_awareness = self.dpi_scaling.load(std::sync::atomic::Ordering::Relaxed);
+        link.context.dpi_scaling = self.dpi_scaling.load(std::sync::atomic::Ordering::Relaxed);
         link.context.dpi = self.dpi;
         link.context.xid = self.xid;
         link.context.client_pos_size = self.client_pos_size;
