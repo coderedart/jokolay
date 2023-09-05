@@ -5,9 +5,14 @@ pub mod dll;
 
 use crate::mumble::ctypes::*;
 use miette::{bail, Context, IntoDiagnostic, Result};
-use std::time::{Duration, Instant};
+use notify::Watcher;
+use std::{
+    path::PathBuf,
+    str::FromStr,
+    time::{Duration, Instant},
+};
 use time::OffsetDateTime;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use windows::{
     core::PCSTR,
     Win32::{
@@ -71,7 +76,7 @@ pub struct MumbleWinImpl {
     /// 1 for true
     /// -1 for no idea. maybe because we couldn't find the config or read it or whatever.
     /// I recommend just assuming that it is true when in doubt. Because the text is too small to read when dpi scaling is turned off.
-    dpi_scaling: std::sync::Arc<std::sync::atomic::AtomicI32>,
+    dpi_scaling: i32,
     /// DPI of the gw2 window
     /// We get this via win32 api
     dpi: i32,
@@ -83,14 +88,15 @@ pub struct MumbleWinImpl {
     xid: u32,
     /// This is the $USER/AppData/Roaming/Guild Wars 2/GFXSettings.Gw2-64.exe.xml
     /// But we get this programmatically via ShGetKnownFolderPath
-    _gw2_config_watcher: Option<notify::RecommendedWatcher>,
-    /*
-    /// This is the position and size of gw2 window. This also includes a few hidden pixels around gw2 which serve as the border
-    /// Every time we check if the process is alive
-    window_pos_size: [i32; 4],
-    /// same as above. But we use DwmGetWindowAttribute, to exclude the drop shadow borders from the window rect
-    window_pos_size_without_borders: [i32; 4],
-    */
+    _gw2_config_watcher: notify::RecommendedWatcher,
+    gw2_config_changed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    gw2_config_path: PathBuf, /*
+                              /// This is the position and size of gw2 window. This also includes a few hidden pixels around gw2 which serve as the border
+                              /// Every time we check if the process is alive
+                              window_pos_size: [i32; 4],
+                              /// same as above. But we use DwmGetWindowAttribute, to exclude the drop shadow borders from the window rect
+                              window_pos_size_without_borders: [i32; 4],
+                              */
 }
 
 impl MumbleWinImpl {
@@ -98,62 +104,62 @@ impl MumbleWinImpl {
         unsafe {
             let (handle, link_ptr) =
                 create_link_shared_mem(key).wrap_err("failed to create mumblelink shm ")?;
-            let mut gw2_config_watcher = None;
-            let dpi_scaling = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(-1));
-            match SHGetKnownFolderPath(
-                &FOLDERID_RoamingAppData as *const _,
-                Default::default(),
-                HANDLE::default(),
-            ) {
-                Ok(roaming) => {
-                    match roaming.to_string() {
-                        Ok(mut roaming_str) => {
-                            if !roaming_str.ends_with('\\') {
-                                roaming_str.push('\\');
-                            }
-                            roaming_str.push_str("Guild Wars 2\\GFXSettings.Gw2-64.exe.xml");
+            let gw2_config_changed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let gw2_config_path = {
+                let roaming_appdata_pwstr = SHGetKnownFolderPath(
+                    &FOLDERID_RoamingAppData as *const _,
+                    Default::default(),
+                    HANDLE::default(),
+                )
+                .into_diagnostic()
+                .wrap_err("failed to get known folder roaming app data path")?;
 
-                            let dpi_scaling_2 = dpi_scaling.clone();
-                            let dpi_scaling_enabled = check_dpi_scaling_enabled(&roaming_str);
-                            info!(
-                                dpi_scaling_enabled,
-                                roaming_str, "dpi scaling when we are starting out"
-                            );
-                            dpi_scaling_2
-                                .store(dpi_scaling_enabled, std::sync::atomic::Ordering::Relaxed);
-                            let roaming_str_2 = roaming_str.clone();
-                            gw2_config_watcher = notify::recommended_watcher(move |ev| {
-                                info!(?ev, "gw2 config changed");
-                                dpi_scaling_2.store(
-                                    check_dpi_scaling_enabled(&roaming_str_2),
-                                    std::sync::atomic::Ordering::Relaxed,
-                                );
-                            })
-                            .map_err(|e| {
-                                error!(?e, "failed to create recommended watcher");
-                            })
-                            .map(|mut watcher| {
-                                use notify::Watcher;
-                                if let Err(e) = watcher.watch(
-                                    std::path::Path::new(&roaming_str),
-                                    notify::RecursiveMode::NonRecursive,
-                                ) {
-                                    error!(?e, roaming_str, "failed to watch gw2 config file");
-                                }
-                                watcher
-                            })
-                            .ok();
-                        }
-                        Err(e) => {
-                            error!(?e, "appdata/roaming is not a utf-8 path");
-                        }
-                    }
-                    CoTaskMemFree(Some(roaming.0 as _));
+                let mut roaming_str = roaming_appdata_pwstr
+                    .to_string()
+                    .into_diagnostic()
+                    .wrap_err("appdata/roaming is not a utf-8 path")?;
+                info!(roaming_str, "RoamingAppData path");
+                CoTaskMemFree(Some(roaming_appdata_pwstr.0 as _));
+                if !roaming_str.ends_with('\\') {
+                    roaming_str.push('\\');
                 }
-                Err(e) => {
-                    error!(?e, "failed to get appdata/roaming directory path");
-                }
+                roaming_str.push_str("Guild Wars 2\\GFXSettings.Gw2-64.exe.xml");
+                info!(roaming_str, "gw2 config path");
+                roaming_str
+            };
+            let gw2_config_path = std::path::PathBuf::from_str(&gw2_config_path)
+                .into_diagnostic()
+                .wrap_err("failed to create pathbuf from gw2 config path in roaming appdata")?;
+            std::fs::create_dir_all(&gw2_config_path.parent().unwrap())
+                .into_diagnostic()
+                .wrap_err("failed to create gw2 config dir in appdata roaming ")?;
+            if !gw2_config_path.exists() {
+                std::fs::File::create(&gw2_config_path)
+                    .into_diagnostic()
+                    .wrap_err("failed to create empty gw2 config file ")?;
             }
+            let dpi_scaling = check_dpi_scaling_enabled(&gw2_config_path);
+
+            info!(
+                ?dpi_scaling,
+                ?gw2_config_path,
+                "dpi scaling when we are starting out"
+            );
+            // lets just assume that the scaling is true by default
+            let dpi_scaling = dpi_scaling.unwrap_or(1);
+            gw2_config_changed.store(false, std::sync::atomic::Ordering::Relaxed);
+            let gw2_config_changed_2 = gw2_config_changed.clone();
+            let mut gw2_config_watcher = notify::recommended_watcher(move |ev| {
+                debug!(?ev, "gw2 config changed");
+                gw2_config_changed_2.store(true, std::sync::atomic::Ordering::Relaxed);
+            })
+            .into_diagnostic()
+            .wrap_err("failed to create gw2 config directory watcher")?;
+            gw2_config_watcher
+                .watch(&gw2_config_path, notify::RecursiveMode::NonRecursive)
+                .into_diagnostic()
+                .wrap_err("faield to watch gw2 config dir")?;
+
             Ok(Self {
                 link_ptr,
                 mumble_handle: handle,
@@ -170,6 +176,8 @@ impl MumbleWinImpl {
                 client_pos_size: [0; 4],
                 dpi: 0,
                 _gw2_config_watcher: gw2_config_watcher,
+                gw2_config_changed,
+                gw2_config_path,
             })
         }
     }
@@ -183,7 +191,7 @@ impl MumbleWinImpl {
             .to_le_bytes();
         // link.context.window_pos_size = self.window_pos_size;
         // link.context.window_pos_size_without_borders = self.window_pos_size_without_borders;
-        link.context.dpi_scaling = self.dpi_scaling.load(std::sync::atomic::Ordering::Relaxed);
+        link.context.dpi_scaling = self.dpi_scaling;
         link.context.dpi = self.dpi;
         link.context.xid = self.xid;
         link.context.client_pos_size = self.client_pos_size;
@@ -283,6 +291,27 @@ impl MumbleWinImpl {
                         info!(dpi, self.dpi, "dpi changed for gw2 window");
                     }
                     self.dpi = dpi;
+                    // if the config changed, we will attempt to read dpi scaling.
+                    // if we fail, we will just ignore it, and try again during next check of window pos (2 secs?)
+                    // if we succeed, we will store false in the atomic bool
+                    if self
+                        .gw2_config_changed
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        match check_dpi_scaling_enabled(&self.gw2_config_path) {
+                            Ok(dpi_scaling) => {
+                                if self.dpi_scaling != dpi_scaling {
+                                    info!(self.dpi_scaling, dpi_scaling, "dpi scaling changed");
+                                }
+                                self.dpi_scaling = dpi_scaling;
+                                self.gw2_config_changed
+                                    .store(false, std::sync::atomic::Ordering::Relaxed);
+                            }
+                            Err(e) => {
+                                error!(notify = 0.0f64, ?e, "failed to open gw2 config file to check for dpi scaling changes");
+                            }
+                        }
+                    }
                     // self.window_pos_size_without_borders =
                     //     match get_window_pos_size_without_borders(HWND(self.window_handle)) {
                     //         Ok(window_pos_size_without_borders) => {
@@ -453,7 +482,9 @@ impl MumbleWinImpl {
                             }
                         };
                         let dpi = GetDpiForWindow(HWND(self.window_handle)) as i32;
-
+                        if dpi != self.dpi {
+                            info!(dpi, self.dpi, "dpi changed for gw2 window");
+                        }
                         info!(
                             ?client_pos_size,
                             dpi_awareness,
@@ -483,26 +514,23 @@ impl MumbleWinImpl {
     }
 }
 
-fn check_dpi_scaling_enabled(path: &str) -> i32 {
+fn check_dpi_scaling_enabled(path: &std::path::Path) -> Result<i32> {
     // from $USER/AppData/Roaming/Guild Wars 2/GFXSettings.Gw2-64.exe.xml
-
+    // life is too short to parse an xml out of this file. just find the following strings
     const DPI_SCALING_TRUE: &str = r#"dpiScaling" Registered="True" Type="Bool" Value="true"#;
     const DPI_SCALING_FALSE: &str = r#"dpiScaling" Registered="True" Type="Bool" Value="false"#;
-    std::fs::read_to_string(path)
-        .map_err(|e| {
-            error!(?e, path, "failed to read gw2 config file");
-        })
-        .map(|contents| {
-            if contents.find(DPI_SCALING_FALSE).is_some() {
-                return 0;
-            };
-            if contents.find(DPI_SCALING_TRUE).is_some() {
-                return 1;
-            };
-            error!(contents, "failed to read dpi scaling from gw2 config file");
-            -1
-        })
-        .unwrap_or(-1)
+    let contents = std::fs::read_to_string(path)
+        .into_diagnostic()
+        .wrap_err("failed to read gw2 file")?;
+
+    if contents.find(DPI_SCALING_FALSE).is_some() {
+        return Ok(0);
+    };
+    if contents.find(DPI_SCALING_TRUE).is_some() {
+        return Ok(1);
+    };
+    error!(contents, "failed to read dpi scaling from gw2 config file");
+    Ok(-1)
 }
 /// This function creates/opens the shared memory with the key as the name.
 /// Then, it maps the shared memory into the address space of our process.

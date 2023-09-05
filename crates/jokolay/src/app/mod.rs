@@ -133,16 +133,15 @@ impl UserApp for Jokolay {
             };
 
             egui_context.request_repaint();
-            let cursor_position = egui_context.pointer_latest_pos();
 
             egui::Window::new("egui window")
                 .default_width(300.0)
                 .show(&egui_context, |ui| {
+                    let mut cursor_position = glfw_backend.window.get_cursor_pos();
                     ui.horizontal(|ui| {
                         ui.label("cursor pos");
-                        let mut cursor_position = cursor_position.unwrap_or_default();
-                        ui.add(DragValue::new(&mut cursor_position.x).fixed_decimals(1));
-                        ui.add(DragValue::new(&mut cursor_position.y).fixed_decimals(1));
+                        ui.add(DragValue::new(&mut cursor_position.0).fixed_decimals(1));
+                        ui.add(DragValue::new(&mut cursor_position.1).fixed_decimals(1));
                     });
                     let mut is_passthrough = glfw_backend.window.is_mouse_passthrough();
                     ui.checkbox(&mut is_passthrough, "passthrough");
@@ -159,13 +158,16 @@ impl UserApp for Jokolay {
                         ?link.client_pos, ?link.client_size,
                         "resizing/repositioning to match gw2 window dimensions"
                     );
-                    // to account for the invisible border shadows thingy. IDK if these pixel values are the same across all dpi/monitors
+                    
                     glfw_backend
                         .window
                         .set_pos(link.client_pos.x, link.client_pos.y);
+                    // if gw2 is in windowed fullscreen mode, then the size is full resolution of the screen/monitor.
+                    // But if we set that size, when you focus jokolay, the screen goes blank on win11 (some kind of fullscreen optimization maybe?)
+                    // so we remove a pixel from right/bottom edges. mostly indistinguishable, but makes sure that transparency works even in windowed fullscrene mode of gw2
                     glfw_backend
                         .window
-                        .set_size(link.client_size.x, link.client_size.y);
+                        .set_size(link.client_size.x - 1, link.client_size.y - 1);
                 }
             }
             JokolayTracingLayer::show_notifications(&egui_context);

@@ -12,55 +12,84 @@
 //!     This is something we get from gw2's config file in AppData/Roaming and store in mumble link as dpi scaling
 
 /*
+all units are in pixels.
+conclusions:
+1. total width // 10 = width of each icon. There are some extra pixels between some icons which add a few extra pixels
+2. width of each icon = height of each icon. so they are technically squares
+3. scaling beyond 2.0 doesn't changed the sizes of icons (atleast at 4k resolutin)
+4.
+dpi width / non-dpi width = 1.877-ish. so, instead of 2.0, they are increased by this scale.
+dpi height / non-dpi height = 1.9-ish.
+the 1.9 or 1.8 could be influenced by the width/height ratio which is 0.9 (which gives 1.8 when multiplying scale 2.0)
+Blish assumes larger as the 1.0 and measure the rest of the UIsizes as the ratio against larger
+https://github.com/blish-hud/Blish-HUD/blob/dev/Blish%20HUD/GameServices/GraphicsService.cs#L130
+small / large = 0.81
+normal / large = 0.89
+large / large = 1.0
+larger / large = 1.1
+dpi or non-dpi. This ratio seems consistent (within a precision of 0.02).
+this ratio applies to both widths AND heights.
+
+The first column is the width of the menu row (10 icons in total). and second row is the height of the row.
+
+with dpi disabled, values were same regardless of scale/platform
+small  -> 288     27
+normal -> 319     31
+large  -> 355     34
+larger -> 391     38
+
+with dpi enabled, there's some math involved it seems.
 Linux ->
 width 1920 pixels. height 2113 pixels. ratio 0.91. fov 1.01. scaling 2.0. dpi enabled
-small  -> 270       26.5
-normal -> 299.5     29.5
-large  -> 333.5     32.5
-larger -> 367.0     36
-
-same but with dpi disabled
-small  -> 144       13.5
-normal -> 159.5     15.5
-large  -> 177.5     17
-larger -> 195.5     19
-*/
-/*
-Linux:
-When gw2 is set to 1000 points width. on a 4k monitor with 192 (2.0) scale
-menu bar lengths (based on UI size) and heights are (in points according to jokolay which respects dpi scaling)
-small  -> 253       24.5
-normal -> 280.5     27.5
-large  -> 312.5     30.5
-larger -> 344.0     33.5
-
-when gw2 is set to 1000 points width on 4k monitor with no dpi scaling
-small  -> 144
-normal -> 159.5
-large  -> 177.5
-larger -> 195.5
+small  -> 540     53
+normal -> 599     59
+large  -> 667     65
+larger -> 734     72
 
 
-Windows:
-gw2 1000 points (2000 pixels) width. 4k monitor with 192 dpi (2.0 scale) and dpi scaling enabled in settings
-small  -> 281
-normal -> 312
-large  -> 347
-larger -> 382
+Windows ->
+width 1920 pixels. height 2113 pixels. ratio 0.91. fov 1.01. scaling 2.0. dpi enabled.
+small  -> 540     53
+normal -> 599     59
+large  -> 667     65
+larger -> 734     72
 
-gw2 with dpi scaling disabled
-small  -> 144
-normal -> 159.5
-large  -> 177.5
-larger -> 195.
+width 1914 pixels. height 2072 pixels. ratio 0.92. fov 1.01. scaling 3.0. dpi enabled. dpi 288
+small  -> 538     52
+normal -> 598     58
+large  -> 665     65
+larger -> 731     72
 
-same setup as above, but with 500 points (1000 pixels width) and dpi scaling enabled
-small  -> 140.5
-normal -> 156
-large  -> 173.5
-larger -> 191
+width 3840. height 2160. ratio 1.78. scaling 3. dpi true. dpi 288 (windowed fullscreen)
+small  -> 810     80
+normal -> 900     89
+large  -> 1000    99
+larger -> 1100    109
 
-clearly, they follow a certain "ratio" as to how much space the menu icons want to occupy.
-The only question is how to know if dpi scaling is enabled or not.
+width 1916 pixels. height 2113 pixels. ratio 0.91. fov 1.01. scaling 1.5. dpi enabled. dpi 144
+small  -> 432     42
+normal -> 480     47
+large  -> 533     52
+larger -> 586     57
+
+width 1000 pixels. height 1000 pixels. ratio 1. fov 1.01. scaling 2.0. dpi enabled.
+small  -> 281     26
+normal -> 312     29
+large  -> 347     33
+larger -> 382     36
+
+width 2000 pixels. height 1000 pixels. ratio 2. fov 1.01. scaling 2.0. dpi enabled.
+small  -> 375     36
+normal -> 416     40
+large  -> 463     45
+larger -> 509     49
+
+width 2000 pixels. height 2000 pixels. ratio 1. fov 1.01. scaling 2.0. dpi enabled.
+small  -> 562     55
+normal -> 624     61
+large  -> 694     68
+larger -> 764     75
+
+
 */
 mod linux {}
