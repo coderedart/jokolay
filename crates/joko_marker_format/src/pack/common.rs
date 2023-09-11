@@ -41,16 +41,16 @@ inheritable!(
         // bounce_duration: Option<f32>,
         // bounce_height: Option<f32>,
         /// hex value. The color tint of the marker. sRGBA8
-        color: Option<[u8; 4]>,
+        // color: Option<[u8; 4]>,
         // copy: Option<String>,
         // copy_message: Option<String>,
         // cull: Option<String>,
         /// Determines how far the marker will completely disappear. If below 0, the marker won't disappear at any distance. Default is -1. FadeFar needs to be higher than fadeNear for sane results. This value is in game units (inches).
         // #[serde(rename = "fadeFar")]
-        // fade_far: Option<i32>,
+        fade_far: Option<f32>,
         /// Determines how far the marker will start to fade out. If below 0, the marker won't disappear at any distance. Default is -1. This value is in game units (inches).
         // #[serde(rename = "fadeNear")]
-        // fade_near: Option<i32>,
+        fade_near: Option<f32>,
         // festival: Option<Festivals>,
         /// Determines if a marker has a countdown timer display when triggered
         // has_countdown: Option<bool>,
@@ -101,10 +101,10 @@ inheritable!(
         /// this will supply data for behavior 5. The data will be given in seconds.
         // #[serde(rename = "resetOffset")]
         // reset_offset: Option<u32>,
-        rotate: Option<[f32; 3]>,
-        rotate_x: Option<f32>,
-        rotate_y: Option<f32>,
-        rotate_z: Option<f32>,
+        // rotate: Option<[f32; 3]>,
+        // rotate_x: Option<f32>,
+        // rotate_y: Option<f32>,
+        // rotate_z: Option<f32>,
         /// if true, the markers/width of the trails belonging to this category will scale with the zoom level as you zoom in and out. Default value: true.
         // #[serde(rename = "scaleOnMapWithZoom")]
         // scale_on_map_with_zoom: Option<bool>,

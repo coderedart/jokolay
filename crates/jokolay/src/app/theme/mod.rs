@@ -12,6 +12,19 @@ pub struct ThemeManager {
     themes: BTreeMap<String, Theme>,
     fonts: BTreeMap<String, Vec<u8>>,
     config: ThemeManagerConfig,
+    ui_data: ThemeUIData,
+}
+
+#[derive(Debug, Default)]
+struct ThemeUIData {
+    tab: ThemeUITab,
+    theme_name: String,
+}
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+enum ThemeUITab {
+    #[default]
+    LiveEditor,
+    Config,
 }
 /// This holds all the theme settings for jokolay
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -174,6 +187,7 @@ impl ThemeManager {
             themes,
             fonts,
             config,
+            ui_data: Default::default(),
         })
     }
     pub fn init_egui(&mut self, etx: &egui::Context) {
@@ -191,5 +205,91 @@ impl ThemeManager {
             error!(%self.config.default_theme, "failed to find the default theme in the loaded themes :(");
         }
     }
-    pub fn gui(&mut self, ui: &mut egui::Ui) {}
+    pub fn gui(&mut self, etx: &egui::Context, open: &mut bool) {
+        egui::Window::new("Theme Manager")
+            .open(open)
+            .scroll2([false, true])
+            .show(etx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.selectable_value(
+                        &mut self.ui_data.tab,
+                        ThemeUITab::LiveEditor,
+                        "Live Editor",
+                    );
+                    ui.selectable_value(&mut self.ui_data.tab, ThemeUITab::Config, "Configuration");
+                });
+                match self.ui_data.tab {
+                    ThemeUITab::LiveEditor => {
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label("current theme name: ");
+                                ui.text_edit_singleline(&mut self.ui_data.theme_name);
+                            });
+                            if ui
+                                .button("save")
+                                .on_hover_text("save this theme with the above name")
+                                .clicked()
+                            {
+                                let style = etx.style().as_ref().clone();
+                                let theme = Theme { style };
+                                let theme_name = self.ui_data.theme_name.clone();
+                                match serde_json::to_string_pretty(&theme) {
+                                    Ok(theme_json) => {
+                                        match self.themes_dir.write(
+                                            format!("{theme_name}.json"),
+                                            theme_json.as_bytes(),
+                                        ) {
+                                            Ok(_) => {
+                                                tracing::info!(
+                                                    notify = 3.0f64,
+                                                    "saved theme {theme_name} to themes directory"
+                                                );
+                                            }
+                                            Err(e) => {
+                                                error!(?e, "failed to save theme to directory:(");
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!(?e, "failed to serialize theme to json :(");
+                                    }
+                                }
+                                self.themes.insert(theme_name, theme);
+                            }
+                            etx.style_ui(ui);
+                        });
+                    }
+                    ThemeUITab::Config => {
+                        ui.group(|ui| {
+                            ui.heading("Theme Manger Config");
+                            egui::Grid::new("theme manager config")
+                                .num_columns(2)
+                                .striped(true)
+                                .show(ui, |ui| {
+                                    ui.label("default theme: ");
+                                    egui::ComboBox::new("default theme", "default theme")
+                                        .selected_text(&self.config.default_theme)
+                                        .show_ui(ui, |ui| {
+                                            for (theme_name, theme) in self.themes.iter() {
+                                                let checked =
+                                                    theme_name == &self.config.default_theme;
+                                                if ui
+                                                    .selectable_label(checked, theme_name)
+                                                    .clicked()
+                                                {
+                                                    if !checked {
+                                                        self.config.default_theme =
+                                                            theme_name.clone();
+                                                        etx.set_style(theme.style.clone());
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    ui.end_row();
+                                });
+                        });
+                    }
+                }
+            });
+    }
 }

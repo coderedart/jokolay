@@ -6,6 +6,7 @@ members = [
     "crates/jokolink",
     "crates/jokoapi",
     "crates/jokolay",
+    "crates/joko_core",
 ]
 
 

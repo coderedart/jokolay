@@ -55,8 +55,12 @@ impl JokolayTracingLayer {
             .init();
         Ok(guard)
     }
-
-    pub fn show_tracing_events(ui: &mut Ui) {
+    pub fn gui(etx: &egui::Context, open: &mut bool) {
+        egui::Window::new("Tracing").open(open).show(etx, |ui| {
+            Self::show_tracing_events(ui);
+        });
+    }
+    fn show_tracing_events(ui: &mut Ui) {
         egui_extras::TableBuilder::new(ui)
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))

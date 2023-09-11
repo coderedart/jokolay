@@ -2,7 +2,7 @@ use uuid::Uuid;
 
 use super::CommonAttributes;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Trail {
     pub guid: Uuid,
     pub map_id: u32,
@@ -10,7 +10,7 @@ pub struct Trail {
     pub props: CommonAttributes,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TBin {
     pub map_id: u32,
     pub version: u32,

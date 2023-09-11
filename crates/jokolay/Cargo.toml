@@ -8,6 +8,9 @@ default-run = "jokolay"
 name = "jokolay"
 path = "src/main.rs"
 
+[features]
+# will not work because wayland won't allow us to get global cursor position
+wayland = ["egui_window_glfw_passthrough/wayland"]
 
 [dependencies]
 joko_render = { path = "../joko_render" }
@@ -35,3 +38,5 @@ ringbuffer = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+sea-orm ={ version = "*", features = ["sqlx-sqlite"]}

@@ -43,7 +43,6 @@ pub struct MumbleManager {
     backend: MumblePlatformImpl,
     /// latest mumble link
     link: Arc<MumbleLink>,
-    show_window: bool,
 }
 impl MumbleManager {
     pub fn new(name: &str, _jokolay_window_id: Option<u32>) -> Result<Self> {
@@ -51,10 +50,9 @@ impl MumbleManager {
         Ok(Self {
             backend,
             link: Arc::new(Default::default()),
-            show_window: true,
         })
     }
-    pub fn tick(&mut self, ctx: &egui::Context) -> Result<Option<Arc<MumbleLink>>> {
+    pub fn tick(&mut self) -> Result<Option<Arc<MumbleLink>>> {
         if let Err(e) = self.backend.tick() {
             error!(?e, "mumble backend tick error");
             return Ok(None);
@@ -153,21 +151,23 @@ impl MumbleManager {
             client_size,
         });
         self.link = link.clone();
-        egui::Window::new("Mumble Manager")
-            .open(&mut self.show_window)
-            .show(ctx, |ui| {
-                if link.ui_tick == 0 {
-                    ui.label("Mumble is not initialized");
-                } else {
-                    let link: MumbleLink = link.as_ref().clone();
-                    mumble_ui(ui, link);
-                }
-            });
         Ok(if self.link.ui_tick == 0 {
             None
         } else {
-            Some(self.link.clone())
+            Some(link)
         })
+    }
+    pub fn gui(&mut self, etx: &egui::Context, open: &mut bool) {
+        egui::Window::new("Mumble Manager")
+            .open(open)
+            .show(etx, |ui| {
+                if self.link.ui_tick == 0 {
+                    ui.label("Mumble is not initialized");
+                } else {
+                    let link: MumbleLink = self.link.as_ref().clone();
+                    mumble_ui(ui, link);
+                }
+            });
     }
 }
 
@@ -179,6 +179,35 @@ fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
             ui.label("ui tick");
             ui.add(DragValue::new(&mut link.ui_tick));
             ui.end_row();
+            ui.label("player position");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.f_avatar_position.x));
+                ui.add(DragValue::new(&mut link.f_avatar_position.y));
+                ui.add(DragValue::new(&mut link.f_avatar_position.z));
+            });
+            ui.end_row();
+            ui.label("player direction");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.f_avatar_front.x));
+                ui.add(DragValue::new(&mut link.f_avatar_front.y));
+                ui.add(DragValue::new(&mut link.f_avatar_front.z));
+            });
+            ui.end_row();
+            ui.label("camera position");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.f_camera_position.x));
+                ui.add(DragValue::new(&mut link.f_camera_position.y));
+                ui.add(DragValue::new(&mut link.f_camera_position.z));
+            });
+            ui.end_row();
+            ui.label("camera direction");
+            ui.horizontal(|ui| {
+                ui.add(DragValue::new(&mut link.f_camera_front.x));
+                ui.add(DragValue::new(&mut link.f_camera_front.y));
+                ui.add(DragValue::new(&mut link.f_camera_front.z));
+            });
+            ui.end_row();
+
             ui.label("fov");
             ui.add(DragValue::new(&mut link.fov));
             ui.end_row();

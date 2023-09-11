@@ -254,6 +254,46 @@ fn update_common_attributes_from_element(
     if let Some(path) = ele.get_attribute(names.trail_data) {
         ca.trail_data_file = Some(RelativePath::parse_from_str(path));
     }
+    if let Some(value) = ele.get_attribute(names.icon_size) {
+        match value.trim().parse::<f32>() {
+            Ok(value) => {
+                ca.icon_size = Some(value);
+            }
+            Err(e) => {
+                info!(?e, value, "failed to parse iconSize");
+            }
+        }
+    }
+    if let Some(value) = ele.get_attribute(names.fade_near) {
+        match value.trim().parse::<f32>() {
+            Ok(value) => {
+                ca.fade_near = Some(value);
+            }
+            Err(e) => {
+                info!(?e, value, "failed to parse fadeNear");
+            }
+        }
+    }
+    if let Some(value) = ele.get_attribute(names.fade_far) {
+        match value.trim().parse::<f32>() {
+            Ok(value) => {
+                ca.fade_far = Some(value);
+            }
+            Err(e) => {
+                info!(?e, value, "failed to parse fadeFar");
+            }
+        }
+    }
+    if let Some(value) = ele.get_attribute(names.height_offset) {
+        match value.trim().parse::<f32>() {
+            Ok(value) => {
+                ca.height_offset = Some(value);
+            }
+            Err(e) => {
+                info!(?e, value, "failed to parse heightOffset");
+            }
+        }
+    }
 }
 fn parse_categories_file(cats_xml_str: &str, pack: &mut PackCore) -> Result<()> {
     let mut tree = xot::Xot::new();

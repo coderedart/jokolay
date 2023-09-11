@@ -13,3 +13,5 @@ jokolink = { path = "../jokolink" }
 pollster = { version = "*" }
 glam = { workspace = true, features = ["bytemuck"] }
 tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

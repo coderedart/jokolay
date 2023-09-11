@@ -1,13 +1,15 @@
 mod billboard;
 use billboard::BillBoardRenderer;
-use billboard::MarkerQuad;
+pub use billboard::MarkerObject;
+pub use billboard::MarkerVertex;
 use bytemuck::cast_slice;
 use egui_backend::{egui, GfxBackend, WindowBackend};
 use egui_render_wgpu::wgpu::*;
 use egui_render_wgpu::EguiPainter;
 use egui_render_wgpu::SurfaceManager;
 use egui_render_wgpu::WgpuConfig;
-use glam::{Mat4, Vec3};
+use glam::Mat4;
+use glam::Vec3;
 use jokolink::MumbleLink;
 use std::num::NonZeroU64;
 use std::sync::Arc;
@@ -18,6 +20,7 @@ pub struct JokoRenderer {
     mvp_ub: Buffer,
     player_visibility_pipeline: RenderPipeline,
     pub billboard_renderer: BillBoardRenderer,
+    link: Option<Arc<MumbleLink>>,
     painter: EguiPainter,
     surface_manager: SurfaceManager,
     dev: Arc<Device>,
@@ -183,6 +186,7 @@ impl GfxBackend for JokoRenderer {
             instance,
             billboard_renderer,
             painter,
+            link: None,
         }
     }
 
@@ -226,8 +230,14 @@ impl GfxBackend for JokoRenderer {
             ],
             &mut command_encoder,
         );
-        self.billboard_renderer
-            .prepare_render_data(&mut command_encoder, &self.queue, &self.dev);
+        if let Some(link) = self.link.as_ref() {
+            self.billboard_renderer.prepare_render_data(
+                link,
+                &mut command_encoder,
+                &self.queue,
+                &self.dev,
+            );
+        }
         {
             let mut render_pass = command_encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("joko render pass"),
@@ -310,29 +320,26 @@ intmap of user textures :)
 */
 
 impl JokoRenderer {
-    pub fn update_from_mumble_link(&mut self, link: &MumbleLink) {
-        let viewport_ratio = self.surface_manager.surface_config.width as f32
-            / self.surface_manager.surface_config.height as f32;
-        let center = link.f_camera_position + link.f_camera_front;
-        let view_matrix =
-            Mat4::look_at_lh(link.f_camera_position, center, glam::vec3(0.0, 1.0, 0.0));
+    pub fn tick(&mut self, link: Option<Arc<MumbleLink>>) {
+        if let Some(link) = link.as_ref() {
+            let viewport_ratio = self.surface_manager.surface_config.width as f32
+                / self.surface_manager.surface_config.height as f32;
+            let center = link.f_camera_position + link.f_camera_front;
+            let view_matrix = Mat4::look_at_lh(link.f_camera_position, center, Vec3::Y);
 
-        let projection_matrix = Mat4::perspective_lh(link.fov, viewport_ratio, 1.0, 10000.0);
+            let projection_matrix = Mat4::perspective_lh(link.fov, viewport_ratio, 1.0, 1000.0);
 
-        let view_projection_matrix = projection_matrix * view_matrix;
-        self.queue.write_buffer(
-            &self.mvp_ub,
-            0,
-            cast_slice(view_projection_matrix.as_ref().as_slice()),
-        );
+            let view_projection_matrix = projection_matrix * view_matrix;
+            self.queue.write_buffer(
+                &self.mvp_ub,
+                0,
+                cast_slice(view_projection_matrix.as_ref().as_slice()),
+            );
+        }
+        self.link = link;
     }
-    pub fn add_billboard(&mut self, position: Vec3, width: u16, height: u16, texture: u64) {
-        self.billboard_renderer.markers.push(MarkerQuad {
-            position,
-            width,
-            height,
-            texture,
-        });
+    pub fn add_billboard(&mut self, marker_object: MarkerObject) {
+        self.billboard_renderer.markers.push(marker_object);
     }
 }
 pub const TRANSFORM_MATRIX_UNIFORM_BINDGROUP_ENTRY: [BindGroupLayoutEntry; 1] =

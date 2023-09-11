@@ -1,12 +1,10 @@
 use std::collections::BTreeMap;
 
 use egui_render_wgpu::{wgpu::*, EguiTexture};
-use glam::{vec2, vec3, vec4, Mat4, Quat, Vec2, Vec3, Vec4};
+use glam::{Vec2, Vec3, Vec4};
 pub struct BillBoardRenderer {
-    pub markers: Vec<MarkerQuad>,
+    pub markers: Vec<MarkerObject>,
     pipeline: RenderPipeline,
-    camera_position: Vec3,
-    // player_position: Vec3,
     vb: Buffer,
     vb_len: u64,
 }
@@ -38,7 +36,7 @@ impl BillBoardRenderer {
                 buffers: &[ VertexBufferLayout {
                     array_stride: std::mem::size_of::<MarkerVertex>() as u64,
                     step_mode: VertexStepMode::Vertex,
-                    attributes: &egui_render_wgpu::wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x2],
+                    attributes: &egui_render_wgpu::wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2],
                 } ],
             },
             primitive: PIPELINE_PRIMITIVE_STATE,
@@ -49,7 +47,7 @@ impl BillBoardRenderer {
                 entry_point: "fs_main",
                 targets: &[Some(egui_render_wgpu::wgpu::ColorTargetState {
                     format: surface_format,
-                    blend: Some(PIPELINE_BLEND_STATE),
+                    blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::all(),
                 })],
             }),
@@ -68,24 +66,24 @@ impl BillBoardRenderer {
             pipeline,
             vb,
             vb_len: 0,
-            camera_position: Default::default(),
-            // player_position: Default::default(),
         }
     }
     pub fn prepare_render_data(
         &mut self,
+        _link: &jokolink::MumbleLink,
         _encoder: &mut CommandEncoder,
         queue: &Queue,
         dev: &Device,
     ) {
         let mut vb = vec![];
+
         vb.reserve(self.markers.len() * 6 * std::mem::size_of::<MarkerVertex>());
-        for verts in self
-            .markers
-            .iter()
-            .map(|mq| mq.get_vertices(self.camera_position))
-        {
-            vb.extend_from_slice(&verts);
+        // sort by depth
+        self.markers.sort_unstable_by(|first, second| {
+            first.distance.total_cmp(&second.distance).reverse() // we need the farther markers (more distance from camera) to be rendered first, for correct alpha blending
+        });
+        for marker_object in self.markers.iter() {
+            vb.extend_from_slice(&marker_object.vertices);
         }
         let required_size_in_bytes = (vb.len() * std::mem::size_of::<MarkerVertex>()) as u64;
         if required_size_in_bytes > self.vb_len {
@@ -110,9 +108,9 @@ impl BillBoardRenderer {
         rpass.set_bind_group(0, mvp_bg, &[]);
 
         rpass.set_vertex_buffer(0, self.vb.slice(..));
-        for (index, mq) in self.markers.iter().enumerate() {
+        for (index, mo) in self.markers.iter().enumerate() {
             let index: u32 = index.try_into().unwrap();
-            if let Some(texture) = textures.get(&(mq.texture as _)) {
+            if let Some(texture) = textures.get(&mo.texture) {
                 rpass.set_bind_group(1, &texture.bindgroup, &[]);
                 rpass.draw((index * 6)..((index + 1) * 6), 0..1);
             }
@@ -120,78 +118,13 @@ impl BillBoardRenderer {
     }
 }
 
-pub const _BILLBOARD_MAX_VISIBILITY_DISTANCE: f32 = 10000.0;
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct MarkerQuad {
-    pub position: Vec3,
-    pub width: u16,
-    pub height: u16,
-    pub texture: u64,
-}
-impl MarkerQuad {
-    pub fn get_vertices(self, camera_position: Vec3) -> [MarkerVertex; 6] {
-        let MarkerQuad {
-            position,
-            texture: _,
-            ..
-        } = self;
-        let mut billboard_direction = position - camera_position;
-        billboard_direction.y = 0.0;
-        let rotation = Quat::from_rotation_arc(Vec3::Z, billboard_direction.normalize());
-        // let rotation = Quat::IDENTITY;
-        let model_matrix =
-            Mat4::from_scale_rotation_translation(vec3(1.0, 1.0, 1.0), rotation, position);
-        let bottom_left = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[0],
-            texture_coordinates: vec2(0.0, 1.0),
-            padding: Vec2::default(),
-        };
-
-        let top_left = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[1],
-            texture_coordinates: vec2(0.0, 0.0),
-            padding: Vec2::default(),
-        };
-        let top_right = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[2],
-            texture_coordinates: vec2(1.0, 0.0),
-            padding: Vec2::default(),
-        };
-        let bottom_right = MarkerVertex {
-            position: model_matrix * DEFAULT_QUAD[3],
-            texture_coordinates: vec2(1.0, 1.0),
-            padding: Vec2::default(),
-        };
-        [
-            top_left,
-            bottom_left,
-            bottom_right,
-            bottom_right,
-            top_right,
-            top_left,
-        ]
-    }
-}
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct MarkerVertex {
-    pub position: Vec4,
+    pub position: Vec3,
     pub texture_coordinates: Vec2,
     pub padding: Vec2,
 }
-const DEFAULT_LENGTH: f32 = 1.0;
-
-const DEFAULT_QUAD: [Vec4; 4] = [
-    // bottom left
-    vec4(-1.0 * DEFAULT_LENGTH, -1.0 * DEFAULT_LENGTH, 0.0, 1.0),
-    // top left
-    vec4(-1.0 * DEFAULT_LENGTH, 1.0 * DEFAULT_LENGTH, 0.0, 1.0),
-    // top right
-    vec4(1.0 * DEFAULT_LENGTH, 1.0 * DEFAULT_LENGTH, 0.0, 1.0),
-    // bottom right
-    vec4(1.0 * DEFAULT_LENGTH, -1.0 * DEFAULT_LENGTH, 0.0, 1.0),
-];
 
 pub const TEXTURE_BINDGROUP_ENTRIES: [BindGroupLayoutEntry; 2] = [
     BindGroupLayoutEntry {
@@ -211,7 +144,6 @@ pub const TEXTURE_BINDGROUP_ENTRIES: [BindGroupLayoutEntry; 2] = [
         count: None,
     },
 ];
-pub const PIPELINE_BLEND_STATE: BlendState = BlendState::ALPHA_BLENDING;
 
 pub const PIPELINE_PRIMITIVE_STATE: PrimitiveState = PrimitiveState {
     topology: PrimitiveTopology::TriangleList,
@@ -222,3 +154,14 @@ pub const PIPELINE_PRIMITIVE_STATE: PrimitiveState = PrimitiveState {
     polygon_mode: PolygonMode::Fill,
     conservative: false,
 };
+
+pub struct MarkerObject {
+    /// The six vertices that make up the marker quad
+    pub vertices: [MarkerVertex; 6],
+    /// The (managed) texture id from egui data
+    pub texture: u64,
+    /// The distance from camera
+    /// As markers have transparency, we need to render them from far -> near order
+    /// So, we will sort them using this distance just before rendering
+    pub distance: f32,
+}

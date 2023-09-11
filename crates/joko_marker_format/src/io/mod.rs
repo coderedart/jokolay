@@ -20,6 +20,10 @@ struct XotAttributeNameIDs {
     pub ypos: NameId,
     pub zpos: NameId,
     pub icon_file: NameId,
+    pub icon_size: NameId,
+    pub fade_near: NameId,
+    pub fade_far: NameId,
+    pub height_offset: NameId,
     pub texture: NameId,
     pub trail_data: NameId,
     pub separator: NameId,
@@ -50,6 +54,10 @@ impl XotAttributeNameIDs {
             display_name: tree.add_name("DisplayName"),
             map_id: tree.add_name("MapID"),
             guid: tree.add_name("GUID"),
+            icon_size: tree.add_name("iconSize"),
+            fade_near: tree.add_name("fadeNear"),
+            fade_far: tree.add_name("fadeFar"),
+            height_offset: tree.add_name("heightOffset"),
         }
     }
 }

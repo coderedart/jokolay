@@ -13,7 +13,7 @@ pub use common::*;
 pub use marker::*;
 pub use trail::*;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct PackCore {
     pub textures: BTreeMap<RelativePath, Vec<u8>>,
     pub tbins: BTreeMap<RelativePath, TBin>,
@@ -21,7 +21,7 @@ pub struct PackCore {
     pub maps: BTreeMap<u32, MapData>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct MapData {
     pub markers: Vec<Marker>,
     pub trails: Vec<Trail>,
@@ -29,7 +29,7 @@ pub struct MapData {
 
 impl PackCore {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Category {
     pub display_name: String,
     pub separator: bool,
