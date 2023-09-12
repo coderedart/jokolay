@@ -31,7 +31,7 @@ impl Notifications {
                         ui.label(&notif.message);
                     });
                     // reduce the ttl by the amount of time since last frame
-                    notif.time_to_live = notif.time_to_live - dt;
+                    notif.time_to_live -= dt;
                     // push to current if its still alive
                     if notif.time_to_live > 0.0 {
                         self.current.push(notif);

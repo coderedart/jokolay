@@ -24,7 +24,7 @@ impl BillBoardRenderer {
         });
         let pipeline_layout = dev.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("marker pipeline"),
-            bind_group_layouts: &[&transform_bgl, &texture_bgl],
+            bind_group_layouts: &[transform_bgl, &texture_bgl],
             push_constant_ranges: &[],
         });
         let pipeline = dev.create_render_pipeline(&RenderPipelineDescriptor {

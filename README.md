@@ -12,11 +12,19 @@ Well, technically, this contains a family of crates related to jokolay.
 1. Requires Vulkan. most GPUs after gtx 750 should be okay.
 2. X11. Wayland is NOT supported. (does not apply to windows obviously).
 3. no HDR support. I have no idea how it works.
+4. A few braincells. because this is beta software and you need to provide me info/logs to debug stuff.
 
 ### Compiling
 for now, just look at the github workflow file.
 - dependencies: `cmake`, 
 - linux deps: gtk, xorg, 
+
+### Installing
+#### Linux
+
+1. You can download the `jokolink.dll` and `jokolay` from the latest releases https://github.com/coderedart/jokolay/releases/latest
+2. You need to get `jokolink` working. Go to [Jokolink's README](crates/jokolink/README.md) and follow those instructions
+3. Just start `jokolay` binary. 
 
 ### Window Managers
 - compositing must be turned on or transparency won't work. you will just see a black window other wise. 
@@ -25,6 +33,6 @@ for now, just look at the github workflow file.
 #### Officially supported
 1. KDE.
 
-I will primarily be testing Jokolay on Endeavour (Arch) OS / KDE Plasma latest. need more guinea pigs to test things on other DEs. 
+I will primarily be testing `Jokolay` on `Endeavour (Arch) OS` / `KDE Plasma` latest. need more guinea pigs to test things on other DEs. 
 
 

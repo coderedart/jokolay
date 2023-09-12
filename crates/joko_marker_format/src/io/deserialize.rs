@@ -214,14 +214,14 @@ fn recursive_marker_category_parser(
             .get_attribute(names.separator)
             .unwrap_or_default()
             .parse()
-            .map(|u: u8| if u == 0 { false } else { true })
+            .map(|u: u8| u != 0)
             .unwrap_or_default();
 
         let default_enabled = ele
             .get_attribute(names.default_enabled)
             .unwrap_or_default()
             .parse()
-            .map(|u: u8| if u == 0 { false } else { true })
+            .map(|u: u8| u != 0)
             .unwrap_or(true);
         recursive_marker_category_parser(
             tree,
@@ -232,7 +232,7 @@ fn recursive_marker_category_parser(
                     display_name: display_name.to_string(),
                     separator,
                     default_enabled,
-                    props: ca.into(),
+                    props: ca,
                     children: Default::default(),
                 })
                 .children,
@@ -299,7 +299,7 @@ fn parse_categories_file(cats_xml_str: &str, pack: &mut PackCore) -> Result<()> 
     let mut tree = xot::Xot::new();
     let xot_names = XotAttributeNameIDs::register_with_xot(&mut tree);
     let root_node = tree
-        .parse(&cats_xml_str)
+        .parse(cats_xml_str)
         .into_diagnostic()
         .wrap_err("invalid xml")?;
 
@@ -392,13 +392,13 @@ fn parse_map_file(map_id: u32, map_xml_str: &str, pack: &mut PackCore) -> Result
                     .parse::<f32>()
                     .into_diagnostic()?;
                 let mut ca = CommonAttributes::default();
-                update_common_attributes_from_element(&mut ca, &child, &names);
+                update_common_attributes_from_element(&mut ca, child, &names);
 
                 let marker = Marker {
                     position: [xpos, ypos, zpos].into(),
                     map_id,
                     category,
-                    props: ca.into(),
+                    props: ca,
                     guid,
                 };
 
@@ -413,12 +413,12 @@ fn parse_map_file(map_id: u32, map_xml_str: &str, pack: &mut PackCore) -> Result
                     bail!("mapid doesn't match the file name");
                 }
                 let mut ca = CommonAttributes::default();
-                update_common_attributes_from_element(&mut ca, &child, &names);
+                update_common_attributes_from_element(&mut ca, child, &names);
 
                 let trail = Trail {
                     category,
                     map_id,
-                    props: ca.into(),
+                    props: ca,
                     guid,
                 };
                 pack.maps.entry(map_id).or_default().trails.push(trail);
@@ -631,7 +631,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                             None
                         })
                 })
-                .unwrap_or_else(|| Uuid::new_v4());
+                .unwrap_or_else(Uuid::new_v4);
 
             if category.is_empty() {
                 info!(?guid, "missing category (type) attribute on marker");
@@ -657,15 +657,13 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                         .parse::<f32>()
                         .unwrap_or_default();
                     let mut common_attributes = CommonAttributes::default();
-                    update_common_attributes_from_element(&mut common_attributes, &child, &names);
+                    update_common_attributes_from_element(&mut common_attributes, child, &names);
                     if let Some(t) = common_attributes.icon_file.as_ref() {
                         if !pack.textures.contains_key(t) {
                             info!(%t, "failed to find this texture in this pack");
                         }
-                    } else {
-                        if let Some(icf) = child.get_attribute(names.icon_file) {
-                            info!(icf, "marker's icon file attribute failed to parse");
-                        }
+                    } else if let Some(icf) = child.get_attribute(names.icon_file) {
+                        info!(icf, "marker's icon file attribute failed to parse");
                     }
                     let marker = Marker {
                         position: [xpos, ypos, zpos].into(),
@@ -687,7 +685,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                     })
                 {
                     let mut common_attributes = CommonAttributes::default();
-                    update_common_attributes_from_element(&mut common_attributes, &child, &names);
+                    update_common_attributes_from_element(&mut common_attributes, child, &names);
 
                     if let Some(tex) = common_attributes.texture.as_ref() {
                         if !pack.textures.contains_key(tex) {}
@@ -696,7 +694,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                     let trail = Trail {
                         category,
                         map_id,
-                        props: common_attributes.into(),
+                        props: common_attributes,
                         guid,
                     };
                     pack.maps.entry(map_id).or_default().trails.push(trail);
@@ -722,7 +720,7 @@ fn read_file_bytes_from_zip_by_name<T: std::io::Read + std::io::Seek>(
     zip_archive: &mut zip::ZipArchive<T>,
 ) -> Option<Vec<u8>> {
     let mut bytes = vec![];
-    match zip_archive.by_name(&name) {
+    match zip_archive.by_name(name) {
         Ok(mut file) => match file.read_to_end(&mut bytes) {
             Ok(size) => {
                 if size == 0 {

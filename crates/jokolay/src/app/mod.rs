@@ -328,9 +328,9 @@ impl MenuPanel {
                 1.0
             };
 
-            ui_scaling_factor = ui_scaling_factor * gw2_scale;
+            ui_scaling_factor *= gw2_scale;
             let uisz_scale = convert_uisz_to_scale(link.uisz);
-            ui_scaling_factor = ui_scaling_factor * uisz_scale;
+            ui_scaling_factor *= uisz_scale;
 
             // ui.horizontal(|ui| {
             //     ui.label("width * gw2 dpi");
@@ -344,13 +344,13 @@ impl MenuPanel {
             let min_height_ratio = min_height.min(gw2_height) / min_height;
 
             let min_ratio = min_height_ratio.min(min_width_ratio);
-            ui_scaling_factor = ui_scaling_factor * min_ratio;
+            ui_scaling_factor *= min_ratio;
             // ui.horizontal(|ui| {
             //     ui.label("width * min aspect ratio");
             //     ui.add(DragValue::new(&mut x));
             // });
             let egui_scale = etx.pixels_per_point();
-            ui_scaling_factor = ui_scaling_factor / egui_scale;
+            ui_scaling_factor /= egui_scale;
             // ui.horizontal(|ui| {
             //     ui.label("width / egui_scale");
             //     ui.add(DragValue::new(&mut x));
@@ -367,7 +367,7 @@ fn convert_uisz_to_scale(uisize: jokolink::UISize) -> f32 {
     const NORMAL: f32 = 319.0;
     const LARGE: f32 = 355.0;
     const LARGER: f32 = 391.0;
-    const SMALL_SCALING_RATIO: f32 = SMALL / SMALL;
+    const SMALL_SCALING_RATIO: f32 = 1.0;
     const NORMAL_SCALING_RATIO: f32 = NORMAL / SMALL;
     const LARGE_SCALING_RATIO: f32 = LARGE / SMALL;
     const LARGER_SCALING_RATIO: f32 = LARGER / SMALL;

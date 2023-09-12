@@ -16,7 +16,7 @@ This jokolink binary is ONLY for linux users to get the `MumbleLink` data from g
 
 
 ## Configuration
-Jokolink configuration is stored in json format. 
+Jokolink configuration is stored in json format and a default config file will be created in the same directory as the dll. 
 
     * loglevel: 
       default: "info"

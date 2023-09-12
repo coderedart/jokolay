@@ -74,15 +74,28 @@ impl CMumbleLink {
         unsafe { std::ptr::read_volatile(link_ptr) }
     }
 
-    /// Checks if the uitick is actually initialized
-    pub fn is_valid(link_ptr: *const CMumbleLink) -> bool {
+    /// Checks if the MumbleLink memory is actually initialized by checking if [CMumbleLink::ui_tick] is non-zero.
+    /// Even if it returns true because [`CMumbleLink::ui_tick`] is non-zero, it could be a remnant from an older gw2 process.
+    /// The only way to verify that gw2 is active (with a character logged into a map), is to check if the tick changed from last frame to current frame.
+    /// # Safety
+    /// 1. `link_ptr` must point to valid memory atleast [USEFUL_C_MUMBLE_LINK_SIZE] bytes in size
+    pub unsafe fn is_valid(link_ptr: *const CMumbleLink) -> bool {
         unsafe { (*link_ptr).ui_tick > 0 }
     }
 
     /// gets uitick if we want to know the frame number since initialization of CMumbleLink
+    /// # Safety
+    /// 1. `link_ptr` must point to valid memory atleast [USEFUL_C_MUMBLE_LINK_SIZE] bytes in size
+    /// 2. If MumbleLink (i.e. memory referenced by link_ptr) is unintialized, then return value will be zero
+    /// 3. Even if it is not zero, the ui_tick maybe a stale because the game is dead (or in map loading screen / character select screen / cutscene)
     pub unsafe fn get_ui_tick(link_ptr: *const CMumbleLink) -> u32 {
         (*link_ptr).ui_tick
     }
+    /// gets the pid from [CMumbleLink::context] field
+    /// # Safety
+    /// 1. `link_ptr` must point to valid memory atleast [USEFUL_C_MUMBLE_LINK_SIZE] bytes in size
+    /// 2. If MumbleLink (i.e. memory referenced by link_ptr) is unintialized, then pid will be zero
+    /// 3. Even if it is initialized, the process could be dead and the pid may be reused for a different process now
     pub unsafe fn get_pid(link_ptr: *const CMumbleLink) -> u32 {
         (*link_ptr).context.process_id
     }
@@ -94,6 +107,13 @@ impl CMumbleLink {
     // pub unsafe fn get_pos_size(link_ptr: *const CMumbleLink) -> [i32; 4] {
     //     (*link_ptr).context.client_pos_size
     // }
+    /// This gets the timestamp written by `jokolink`
+    /// The return value is nanoseconds since unix_epoch.
+    /// This is an easy way to check that jokolink (and by extension gw2) is still alive even if ui_tick doesn't change.
+    /// This happens when gw2 is in character select screen or cutscene etc.. when ui_tick stops updating.
+    /// # Safety
+    /// 1. `link_ptr` must be valid and point to memory of atleast [USEFUL_C_MUMBLE_LINK_SIZE] bytes in size
+    /// 2. If it is uninitialized, the return value could be zero
     #[cfg(unix)]
     pub unsafe fn get_timestamp(link_ptr: *const CMumbleLink) -> i128 {
         let bytes = (*link_ptr).context.timestamp;

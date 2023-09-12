@@ -166,7 +166,7 @@ impl ThemeManager {
         if !dir.exists(format!("{}.json", Self::THEME_MANAGER_CONFIG_NAME)) {
             dir.write(
                 format!("{}.json", Self::THEME_MANAGER_CONFIG_NAME),
-                &serde_json::to_vec_pretty(&ThemeManagerConfig::default())
+                serde_json::to_vec_pretty(&ThemeManagerConfig::default())
                     .into_diagnostic()
                     .wrap_err("failed to serialize theme manager config")?,
             )
@@ -276,12 +276,10 @@ impl ThemeManager {
                                                 if ui
                                                     .selectable_label(checked, theme_name)
                                                     .clicked()
+                                                    && !checked
                                                 {
-                                                    if !checked {
-                                                        self.config.default_theme =
-                                                            theme_name.clone();
-                                                        etx.set_style(theme.style.clone());
-                                                    }
+                                                    self.config.default_theme = theme_name.clone();
+                                                    etx.set_style(theme.style.clone());
                                                 }
                                             }
                                         });

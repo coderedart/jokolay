@@ -239,12 +239,10 @@ impl MarkerManager {
                     "This will cancel any pack import in progress. If import is already finished, then it wil simply clear the import status").clicked() {
                     self.ui_data.import_status = None;
                 }
-            } else {
-                if ui.button("import pack").on_hover_text("select a taco/zip file to import the marker pack from").clicked() {
-                    let import_status = Arc::new(Mutex::default());
-                    self.ui_data.import_status = Some(import_status.clone());
-                    Self::pack_importer(import_status);
-                }
+            } else if ui.button("import pack").on_hover_text("select a taco/zip file to import the marker pack from").clicked() {
+                let import_status = Arc::new(Mutex::default());
+                self.ui_data.import_status = Some(import_status.clone());
+                Self::pack_importer(import_status);
             }
             if let Some(import_status) = self.ui_data.import_status.as_ref() {
                 if let Ok(mut status) = import_status.lock() {

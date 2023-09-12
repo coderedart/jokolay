@@ -117,7 +117,7 @@ pub fn save_pack_core_to_dir(
             dir.create(img_path.as_str())
                 .into_diagnostic()
                 .wrap_err_with(|| miette::miette!("failed to create file for image: {img_path}"))?
-                .write(&img)
+                .write(img)
                 .into_diagnostic()
                 .wrap_err_with(|| {
                     miette::miette!("failed to write image bytes to file: {img_path}")
@@ -200,7 +200,7 @@ fn serialize_trail_to_element(trail: &Trail, ele: &mut Element, names: &XotAttri
     ele.set_attribute(names.guid, BASE64_ENGINE.encode(trail.guid));
     ele.set_attribute(names.category, &trail.category);
     ele.set_attribute(names.map_id, format!("{}", trail.map_id));
-    serialize_common_attributes_to_element(&trail.props, ele, &names);
+    serialize_common_attributes_to_element(&trail.props, ele, names);
 }
 
 fn serialize_marker_to_element(marker: &Marker, ele: &mut Element, names: &XotAttributeNameIDs) {
