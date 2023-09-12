@@ -13,11 +13,6 @@ jobs:
       matrix:
         os: [ubuntu, windows]
     steps:
-      - name: Print Debug Info
-        run: |
-          echo github ref ${{github.ref}}
-          echo github retention days ${{github.retention_days}}
-
       - name: Checkout
         uses: actions/checkout@v2
 
@@ -34,9 +29,6 @@ jobs:
       - name: Build Jokolink
         if: ${{matrix.os == 'windows'}}
         run: cargo build --release -p jokolink
-
-      - name: List release files
-        run: ls -lh target/release/
 
       - name: Upload Assets
         uses: xresloader/upload-to-github-release@v1
