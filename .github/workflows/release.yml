@@ -45,6 +45,4 @@ jobs:
         with:
           tags: true
           draft: true
-          file: |
-            target/release/jokolay
-            target/release/jokolay.exe;target/release/jokolink.dll
+          file: "target/release/jokolay;target/release/jokolay.exe;target/release/jokolink.dll"
