@@ -4,7 +4,7 @@ use crate::{
 };
 use base64::Engine;
 use cap_std::fs_utf8::Dir;
-use glam::Vec3A;
+use glam::Vec3;
 use indexmap::IndexMap;
 use miette::{bail, Context, IntoDiagnostic, Result};
 use std::{collections::BTreeMap, io::Read};
@@ -148,7 +148,7 @@ fn parse_tbin_from_slice(bytes: &[u8]) -> Option<TBin> {
     let map_id = u32::from_ne_bytes(map_id_bytes);
 
     // this will either be empty vec or series of vec3s.
-    let nodes: Vec<Vec3A> = bytes[8..]
+    let nodes: Vec<Vec3> = bytes[8..]
         .chunks_exact(12)
         .map(|float_bytes| {
             // make [f32 ;3] out of those 12 bytes
@@ -176,7 +176,7 @@ fn parse_tbin_from_slice(bytes: &[u8]) -> Option<TBin> {
                 ]),
             ];
 
-            Vec3A::from_array(arr)
+            Vec3::from_array(arr)
         })
         .collect();
     Some(TBin {

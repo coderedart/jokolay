@@ -14,7 +14,7 @@ pub struct Trail {
 pub struct TBin {
     pub map_id: u32,
     pub version: u32,
-    pub nodes: Vec<glam::Vec3A>,
+    pub nodes: Vec<glam::Vec3>,
 }
 
 impl TBin {}

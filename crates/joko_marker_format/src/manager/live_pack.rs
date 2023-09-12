@@ -8,7 +8,7 @@ use egui::{ColorImage, TextureHandle};
 use glam::{vec2, Vec2, Vec3};
 use image::EncodableLayout;
 use indexmap::IndexMap;
-use joko_render::{MarkerObject, MarkerVertex};
+use joko_render::billboard::{MarkerObject, MarkerVertex, TrailObject};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -82,20 +82,6 @@ impl LoadedPack {
             &mut self.dirty.cats_selection,
         );
     }
-    // /// Clones almost everything except current map data, as that can be generated from the pack and current map anyway.
-    // pub fn try_clone(&self) -> Result<Self> {
-    //     Ok(Self {
-    //         dir: self
-    //             .dir
-    //             .try_clone()
-    //             .into_diagnostic()
-    //             .wrap_err("failed to clone loaded pack dir")?,
-    //         core: self.core.clone(),
-    //         cats_selection: self.cats_selection.clone(),
-    //         dirty: self.dirty.clone(),
-    //         current_map_data: Default::default(),
-    //     })
-    // }
     pub fn load_from_dir(dir: Dir) -> Result<Self> {
         if !dir
             .try_exists(Self::CORE_PACK_DIR_NAME)
@@ -176,8 +162,8 @@ impl LoadedPack {
                 self.current_map_data.map_id,
                 link.map_id, "current map data is updated."
             );
+            self.current_map_data = Default::default();
             if link.map_id == 0 {
-                self.current_map_data = Default::default();
                 return;
             }
             self.current_map_data.map_id = link.map_id;
@@ -243,8 +229,70 @@ impl LoadedPack {
                         fade_far: marker.props.fade_far.unwrap_or(-1.0) / INCHES_PER_METER,
                         icon_size: marker.props.icon_size.unwrap_or(1.0),
                     });
-                } else {
-                    info!(marker.category, ?marker.guid, "category is disabled. skipping marker");
+                }
+            }
+
+            for trail in self
+                .core
+                .maps
+                .get(&link.map_id)
+                .unwrap_or(&Default::default())
+                .trails
+                .iter()
+            {
+                if let Some(category_attributes) = enabled_cats_list.get(&trail.category) {
+                    let mut common_attributes = trail.props.clone();
+                    common_attributes.inherit_if_prop_none(category_attributes);
+                    if let Some(tex_path) = &common_attributes.texture {
+                        if !self.current_map_data.active_textures.contains_key(tex_path) {
+                            if let Some(tex) = self.core.textures.get(tex_path) {
+                                let img = image::load_from_memory(tex).unwrap();
+                                self.current_map_data.active_textures.insert(
+                                    tex_path.clone(),
+                                    etx.load_texture(
+                                        tex_path.as_str(),
+                                        ColorImage::from_rgba_unmultiplied(
+                                            [img.width() as _, img.height() as _],
+                                            img.into_rgba8().as_bytes(),
+                                        ),
+                                        Default::default(),
+                                    ),
+                                );
+                            } else {
+                                info!(%tex_path, ?self.core.textures, "failed to find this texture");
+                            }
+                        }
+                    } else {
+                        info!(?trail.props.texture, "no texture attribute on this marker");
+                    }
+                    let th = common_attributes
+                        .texture
+                        .as_ref()
+                        .and_then(|path| self.current_map_data.active_textures.get(path))
+                        .unwrap_or(default_tex_id);
+                    let (tex_id, width, height) = match th.id() {
+                        egui::TextureId::Managed(tid) => {
+                            (tid, th.size()[0] as u16, th.size()[1] as u16)
+                        }
+                        egui::TextureId::User(_) => unimplemented!(),
+                    };
+                    let tbin_path = if let Some(tbin) = common_attributes.trail_data_file {
+                        tbin
+                    } else {
+                        info!(?trail, "missing tbin path");
+                        continue;
+                    };
+                    let tbin = if let Some(tbin) = self.core.tbins.get(&tbin_path) {
+                        tbin
+                    } else {
+                        info!(%tbin_path, "failed to find tbin");
+                        continue;
+                    };
+                    if let Some(active_trail) =
+                        ActiveTrail::get_vertices_and_texture(&tbin.nodes, width, height, tex_id)
+                    {
+                        self.current_map_data.active_trails.push(active_trail);
+                    }
                 }
             }
         }
@@ -255,6 +303,12 @@ impl LoadedPack {
             {
                 joko_renderer.add_billboard(mo);
             }
+        }
+        for trail in self.current_map_data.active_trails.iter() {
+            joko_renderer.add_trail(TrailObject {
+                vertices: trail.trail_object.vertices.clone(),
+                texture: trail.trail_object.texture,
+            });
         }
     }
     pub fn save_all(&mut self) -> Result<()> {
@@ -307,8 +361,11 @@ pub struct CurrentMapData {
     /// The textures that are being used by the markers, so must be kept alive by this hashmap
     pub active_textures: HashMap<RelativePath, TextureHandle>,
     pub active_markers: Vec<ActiveMarker>,
+    pub active_trails: Vec<ActiveTrail>,
 }
-
+pub struct ActiveTrail {
+    pub trail_object: TrailObject,
+}
 pub struct ActiveMarker {
     pub pos: glam::Vec3,
     pub width: u16,
@@ -378,20 +435,22 @@ impl CategorySelection {
         ui: &mut egui::Ui,
         changed: &mut bool,
     ) {
-        for cat in selection.values_mut() {
-            ui.horizontal(|ui| {
-                if ui.checkbox(&mut cat.selected, "").changed() {
-                    *changed = true;
-                }
-                if !cat.children.is_empty() {
-                    ui.menu_button(&cat.display_name, |ui: &mut egui::Ui| {
-                        Self::recursive_selection_ui(&mut cat.children, ui, changed);
-                    });
-                } else {
-                    ui.label(&cat.display_name);
-                }
-            });
-        }
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for cat in selection.values_mut() {
+                ui.horizontal(|ui| {
+                    if ui.checkbox(&mut cat.selected, "").changed() {
+                        *changed = true;
+                    }
+                    if !cat.children.is_empty() {
+                        ui.menu_button(&cat.display_name, |ui: &mut egui::Ui| {
+                            Self::recursive_selection_ui(&mut cat.children, ui, changed);
+                        });
+                    } else {
+                        ui.label(&cat.display_name);
+                    }
+                });
+            }
+        });
     }
 }
 
@@ -464,6 +523,70 @@ impl ActiveMarker {
             vertices,
             texture,
             distance,
+        })
+    }
+}
+
+impl ActiveTrail {
+    pub fn get_vertices_and_texture(
+        positions: &[Vec3],
+        twidth: u16,
+        theight: u16,
+        texture: u64,
+    ) -> Option<Self> {
+        // can't have a trail without atleast two nodes
+        if positions.len() < 2 {
+            return None;
+        }
+        let horizontal_offset = twidth as f32 / 200.0; // 100 pixels = 1 meter. divide by another two to get offset from center
+        let height = theight as f32 / 50.0; // 50 pixels = 1 meter. just calculate the distance and keeping mod-ing to get the number of times to repeat the texture
+        let mut y_offset = 1.0;
+        let mut vertices = vec![];
+        for two_positions in positions.windows(2) {
+            let first = two_positions[0];
+            let second = two_positions[1];
+            let side = (second - first).normalize().cross(Vec3::Y).normalize() * -1.0;
+            let new_offset = (-1.0 * (first.distance(second) / height)) + y_offset;
+            let first_left = MarkerVertex {
+                position: first - (side * horizontal_offset),
+                texture_coordinates: vec2(0.0, y_offset),
+                padding: Default::default(),
+            };
+            let first_right = MarkerVertex {
+                position: first + (side * horizontal_offset),
+                texture_coordinates: vec2(1.0, y_offset),
+                padding: Default::default(),
+            };
+            let second_left = MarkerVertex {
+                position: second - (side * horizontal_offset),
+                texture_coordinates: vec2(0.0, new_offset),
+                padding: Default::default(),
+            };
+            let second_right = MarkerVertex {
+                position: second + (side * horizontal_offset),
+                texture_coordinates: vec2(1.0, new_offset),
+                padding: Default::default(),
+            };
+            y_offset = if new_offset.is_sign_positive() {
+                new_offset
+            } else {
+                1.0 - new_offset.fract().abs()
+            };
+            vertices.extend([
+                second_left,
+                first_left,
+                first_right,
+                first_right,
+                second_right,
+                second_left,
+            ]);
+        }
+
+        Some(ActiveTrail {
+            trail_object: TrailObject {
+                vertices: vertices.into(),
+                texture,
+            },
         })
     }
 }

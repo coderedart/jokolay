@@ -1,7 +1,7 @@
-mod billboard;
+pub mod billboard;
 use billboard::BillBoardRenderer;
-pub use billboard::MarkerObject;
-pub use billboard::MarkerVertex;
+use billboard::MarkerObject;
+use billboard::TrailObject;
 use bytemuck::cast_slice;
 use egui_backend::{egui, GfxBackend, WindowBackend};
 use egui_render_wgpu::wgpu::*;
@@ -206,7 +206,7 @@ impl GfxBackend for JokoRenderer {
     fn prepare_frame(&mut self, window_backend: &mut impl WindowBackend) {
         self.surface_manager
             .create_current_surface_texture_view(window_backend, &self.dev);
-        self.billboard_renderer.markers.clear();
+        self.billboard_renderer.prepare_frame();
     }
 
     fn render_egui(
@@ -340,6 +340,9 @@ impl JokoRenderer {
     }
     pub fn add_billboard(&mut self, marker_object: MarkerObject) {
         self.billboard_renderer.markers.push(marker_object);
+    }
+    pub fn add_trail(&mut self, trail_object: TrailObject) {
+        self.billboard_renderer.trails.push(trail_object);
     }
 }
 pub const TRANSFORM_MATRIX_UNIFORM_BINDGROUP_ENTRY: [BindGroupLayoutEntry; 1] =

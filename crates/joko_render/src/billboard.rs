@@ -1,12 +1,18 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use egui_render_wgpu::{wgpu::*, EguiTexture};
 use glam::{Vec2, Vec3, Vec4};
 pub struct BillBoardRenderer {
     pub markers: Vec<MarkerObject>,
+    pub trails: Vec<TrailObject>,
     pipeline: RenderPipeline,
     vb: Buffer,
     vb_len: u64,
+    trail_buffers: Vec<(Buffer, u64)>,
+}
+pub struct TrailObject {
+    pub vertices: Arc<[MarkerVertex]>,
+    pub texture: u64,
 }
 
 impl BillBoardRenderer {
@@ -66,7 +72,13 @@ impl BillBoardRenderer {
             pipeline,
             vb,
             vb_len: 0,
+            trails: Vec::new(),
+            trail_buffers: Default::default(),
         }
+    }
+    pub fn prepare_frame(&mut self) {
+        self.markers.clear();
+        self.trails.clear();
     }
     pub fn prepare_render_data(
         &mut self,
@@ -75,17 +87,17 @@ impl BillBoardRenderer {
         queue: &Queue,
         dev: &Device,
     ) {
-        let mut vb = vec![];
-
-        vb.reserve(self.markers.len() * 6 * std::mem::size_of::<MarkerVertex>());
         // sort by depth
         self.markers.sort_unstable_by(|first, second| {
             first.distance.total_cmp(&second.distance).reverse() // we need the farther markers (more distance from camera) to be rendered first, for correct alpha blending
         });
-        for marker_object in self.markers.iter() {
-            vb.extend_from_slice(&marker_object.vertices);
+
+        let mut required_size_in_bytes =
+            (self.markers.len() * 6 * std::mem::size_of::<MarkerVertex>()) as u64;
+        for trail in self.trails.iter() {
+            let len = (trail.vertices.len() * std::mem::size_of::<MarkerVertex>()) as u64;
+            required_size_in_bytes = required_size_in_bytes.max(len);
         }
-        let required_size_in_bytes = (vb.len() * std::mem::size_of::<MarkerVertex>()) as u64;
         if required_size_in_bytes > self.vb_len {
             self.vb = dev.create_buffer(&BufferDescriptor {
                 label: Some("marker vertex buffer"),
@@ -96,7 +108,47 @@ impl BillBoardRenderer {
 
             self.vb_len = required_size_in_bytes;
         }
+        let mut vb = vec![];
+        vb.reserve(self.markers.len() * 6 * std::mem::size_of::<MarkerVertex>());
+
+        for marker_object in self.markers.iter() {
+            vb.extend_from_slice(&marker_object.vertices);
+        }
         queue.write_buffer(&self.vb, 0, bytemuck::cast_slice(&vb));
+
+        if self.trails.len() > self.trail_buffers.len() {
+            let needs = self.trails.len() - self.trail_buffers.len();
+            for _ in 0..needs {
+                self.trail_buffers.push((
+                    dev.create_buffer(&BufferDescriptor {
+                        label: Some("trail vertex buffer"),
+                        size: 256, // a random size
+                        usage: BufferUsages::COPY_DST | BufferUsages::VERTEX,
+                        mapped_at_creation: false,
+                    }),
+                    256,
+                ));
+            }
+        }
+        for (trail, (trail_buffer, trail_buffer_len)) in
+            self.trails.iter().zip(self.trail_buffers.iter_mut())
+        {
+            let required_len = (trail.vertices.len() * std::mem::size_of::<MarkerVertex>()) as u64;
+            if required_len > *trail_buffer_len {
+                *trail_buffer = dev.create_buffer(&BufferDescriptor {
+                    label: Some("trail vertex buffer"),
+                    size: required_len, // a random size
+                    usage: BufferUsages::COPY_DST | BufferUsages::VERTEX,
+                    mapped_at_creation: false,
+                });
+                *trail_buffer_len = required_len;
+            }
+            queue.write_buffer(
+                &trail_buffer,
+                0,
+                bytemuck::cast_slice(trail.vertices.as_ref()),
+            );
+        }
     }
     pub fn render<'a: 'b, 'b>(
         &'a self,
@@ -113,6 +165,13 @@ impl BillBoardRenderer {
             if let Some(texture) = textures.get(&mo.texture) {
                 rpass.set_bind_group(1, &texture.bindgroup, &[]);
                 rpass.draw((index * 6)..((index + 1) * 6), 0..1);
+            }
+        }
+        for (trail, (trail_buffer, _)) in self.trails.iter().zip(self.trail_buffers.iter()) {
+            rpass.set_vertex_buffer(0, trail_buffer.slice(..));
+            if let Some(texture) = textures.get(&trail.texture) {
+                rpass.set_bind_group(1, &texture.bindgroup, &[]);
+                rpass.draw(0..trail.vertices.len() as _, 0..1);
             }
         }
     }
