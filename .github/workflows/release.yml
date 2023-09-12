@@ -1,0 +1,43 @@
+on:
+  push:
+    tags:
+      - "v*"
+
+name: Build Jokolay
+env:
+  CARGO_INCREMENTAL: 0
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      matrix:
+        os: [ubuntu, windows]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Install dependencies # for glfw and rfd
+        if: ${{matrix.os == 'ubuntu'}}
+        run: sudo apt install --no-install-recommends libglfw3-dev libgtk-3-dev
+
+      - name: Build Jokolay
+        run: cargo build --release -p jokolay
+
+      - name: Build Jokolink
+        if: ${{matrix.os == 'windows'}}
+        run: cargo build --release -p jokolink
+
+      - name: Upload Assets
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tags: true
+          draft: true
+          file: |
+            target/release/jokolay
+            target/release/jokolay.exe
+            target/release/jokolink.dll
