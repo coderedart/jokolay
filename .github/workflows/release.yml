@@ -3,7 +3,7 @@ on:
     tags:
       - "v*"
 
-name: Build Jokolay
+name: Release Jokolay
 env:
   CARGO_INCREMENTAL: 0
 jobs:

@@ -1,6 +1,6 @@
 on: [push, pull_request]
 
-name: Linux Checkmate
+name: Checkmate
 env:
   CARGO_INCREMENTAL: 0
 jobs:

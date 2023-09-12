@@ -1,6 +1,9 @@
-on: push
+on:
+  push:
+    paths:
+      - 'crates/jokolink/**'
 
-name: Build Jokolink
+name: Jokolink DLL
 env:
   CARGO_INCREMENTAL: 0
 jobs:
