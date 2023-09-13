@@ -4,10 +4,13 @@ use billboard::MarkerObject;
 use billboard::TrailObject;
 use bytemuck::cast_slice;
 use egui_backend::{egui, GfxBackend, WindowBackend};
+use egui_render_wgpu::wgpu::util::BufferInitDescriptor;
+use egui_render_wgpu::wgpu::util::DeviceExt;
 use egui_render_wgpu::wgpu::*;
 use egui_render_wgpu::EguiPainter;
 use egui_render_wgpu::SurfaceManager;
 use egui_render_wgpu::WgpuConfig;
+use glam::vec2;
 use glam::Mat4;
 use glam::Vec3;
 use jokolink::MumbleLink;
@@ -18,7 +21,9 @@ use tracing::info;
 pub struct JokoRenderer {
     mvp_bg: BindGroup,
     mvp_ub: Buffer,
+    view_proj: Mat4,
     player_visibility_pipeline: RenderPipeline,
+    viewport_buffer: Buffer,
     pub billboard_renderer: BillBoardRenderer,
     link: Option<Arc<MumbleLink>>,
     painter: EguiPainter,
@@ -175,8 +180,21 @@ impl GfxBackend for JokoRenderer {
         });
         let billboard_renderer =
             BillBoardRenderer::new(&dev, &mvp_bgl, surface_manager.surface_config.format);
+        let viewport_buffer = dev.create_buffer_init(&BufferInitDescriptor {
+            label: Some("viewport quad buffer"),
+            contents: bytemuck::cast_slice(&[
+                vec2(-1.0, -1.0),
+                vec2(-1.0, 1.0),
+                vec2(1.0, 1.0),
+                vec2(1.0, 1.0),
+                vec2(1.0, -1.0),
+                vec2(-1.0, -1.0),
+            ]),
+            usage: BufferUsages::VERTEX,
+        });
         Self {
             player_visibility_pipeline,
+            viewport_buffer,
             mvp_bg,
             mvp_ub,
             surface_manager,
@@ -187,6 +205,7 @@ impl GfxBackend for JokoRenderer {
             billboard_renderer,
             painter,
             link: None,
+            view_proj: Default::default(),
         }
     }
 
@@ -239,7 +258,7 @@ impl GfxBackend for JokoRenderer {
             );
         }
         {
-            let mut render_pass = command_encoder.begin_render_pass(&RenderPassDescriptor {
+            let mut rpass = command_encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("joko render pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     view: self
@@ -255,35 +274,36 @@ impl GfxBackend for JokoRenderer {
                 })],
                 depth_stencil_attachment: None,
             });
-            self.billboard_renderer.render(
-                &mut render_pass,
-                &self.mvp_bg,
-                &self.painter.managed_textures,
-            );
-            render_pass.set_pipeline(&self.player_visibility_pipeline);
-            /*
-            let point_on_screen = self.mvp.project_point3(self.player_position);
-            let width = self.wgpu_backend.surface_manager.surface_config.width as f32;
-            let height = self.wgpu_backend.surface_manager.surface_config.height as f32;
-            let x = point_on_screen.x * width / 2.0;
-            let y = point_on_screen.y * height / 2.0;
-            let x = width / 2.0 + x;
-            let y = height / 2.0 - y;
+            if let Some(link) = self.link.as_ref() {
+                self.billboard_renderer.render(
+                    &mut rpass,
+                    &self.mvp_bg,
+                    &self.painter.managed_textures,
+                );
+                // clear any pixels that are right over player
+                rpass.set_pipeline(&self.player_visibility_pipeline);
+                let point_on_screen = self.view_proj.project_point3(link.f_avatar_position);
+                let width = self.surface_manager.surface_config.width as f32;
+                let height = self.surface_manager.surface_config.height as f32;
+                let x = point_on_screen.x * width / 2.0;
+                let y = point_on_screen.y * height / 2.0;
+                let x = width / 2.0 + x;
+                let y = height / 2.0 - y;
 
-            rpass.set_viewport(
-                f32::max(x - width * 0.1 / 2.0, 0.0),
-                f32::max(y - height * 0.2 / 2.0, 0.0),
-                width * 0.1,
-                height * 0.2,
-                0.0,
-                1.0,
-            );
-            // rpass.set_viewport(0.0, 0.0, 300.0, 300.0, 0.0, 1.0);
-            rpass.set_vertex_buffer(0, self.viewport_buffer.slice(..));
-            rpass.draw(0..6, 0..1);
-             */
+                rpass.set_viewport(
+                    f32::max(x - width * 0.1 / 2.0, 0.0),
+                    f32::max(y - height * 0.2 / 2.0, 0.0),
+                    width * 0.1,
+                    height * 0.2,
+                    0.0,
+                    1.0,
+                );
+                rpass.set_vertex_buffer(0, self.viewport_buffer.slice(..));
+                rpass.draw(0..6, 0..1);
+                rpass.set_viewport(0.0, 0.0, width, height, 0.0, 1.0);
+            }
             self.painter
-                .draw_egui_with_renderpass(&mut render_pass, draw_calls);
+                .draw_egui_with_renderpass(&mut rpass, draw_calls);
         }
         self.queue.submit(std::iter::once(command_encoder.finish()));
     }
@@ -329,12 +349,10 @@ impl JokoRenderer {
 
             let projection_matrix = Mat4::perspective_lh(link.fov, viewport_ratio, 1.0, 1000.0);
 
-            let view_projection_matrix = projection_matrix * view_matrix;
-            self.queue.write_buffer(
-                &self.mvp_ub,
-                0,
-                cast_slice(view_projection_matrix.as_ref().as_slice()),
-            );
+            let view_proj = projection_matrix * view_matrix;
+            self.queue
+                .write_buffer(&self.mvp_ub, 0, cast_slice(view_proj.as_ref().as_slice()));
+            self.view_proj = view_proj;
         }
         self.link = link;
     }

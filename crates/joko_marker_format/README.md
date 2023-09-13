@@ -31,7 +31,7 @@ complain about it.
 Marker Pack
 
 1. Textures
-	1. identified by the relative path. case insensitive.
+	1. identified by the relative path. case sensitive. But to accommodate case-insensitive MS windows packs, we will convert all paths to lowercase when importing.
 	2. png format.
 	3. need to convert to a srgba texture and upload to gpu to use it
 	4. mostly tiny images. here's the composition of tekkit's pack textures
@@ -46,12 +46,13 @@ Marker Pack
 | 435   |   500x500     |
 
 2. Tbins
-	1. binary data of a series of vec3 positions. + mapid 
+	1. binary data of a series of vec3 positions. + mapid + a version (just ver 2 for now) 
 	2. need to generate a mesh to be usable to upload on gpu. different mesh for 2d map / minimap. trail_scale an affect width of the generated mesh
-	3. anim_speed attr needs dynamic texture coords (probably based on time delta)
+	3. anim_speed attr needs dynamic texture coords (probably based on time delta offset)
 	4. color attribute requires blending.
 	5. uses texture
 	6. can be statically or dynamically filtered (culled). but no cooldowns. 
+   
 3. MarkerCategories
    1. create a tree structure of menu to be displayed. 
    2. identified by their name (and parents in the hierarchy) as a unique path.
