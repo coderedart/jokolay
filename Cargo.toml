@@ -8,7 +8,7 @@ members = [
     "crates/jokolay",
     "crates/joko_core",
 ]
-
+resolver = "2"
 
 [workspace.dependencies]
 tracing = { version = "0.1" }
