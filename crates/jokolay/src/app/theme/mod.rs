@@ -4,7 +4,7 @@ use cap_std::fs_utf8::Dir;
 use egui::Style;
 use miette::{Context, IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, info};
 pub struct ThemeManager {
     dir: Dir,
     themes_dir: Dir,
@@ -19,6 +19,7 @@ pub struct ThemeManager {
 struct ThemeUIData {
     tab: ThemeUITab,
     theme_name: String,
+    current_theme_name: String,
 }
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 enum ThemeUITab {
@@ -235,26 +236,36 @@ impl ThemeManager {
                                 let theme_name = self.ui_data.theme_name.clone();
                                 match serde_json::to_string_pretty(&theme) {
                                     Ok(theme_json) => {
-                                        match self.themes_dir.write(
-                                            format!("{theme_name}.json"),
-                                            theme_json.as_bytes(),
-                                        ) {
-                                            Ok(_) => {
-                                                tracing::info!(
-                                                    notify = 3.0f64,
-                                                    "saved theme {theme_name} to themes directory"
-                                                );
-                                            }
+                                        match self.themes_dir.try_clone() {
+                                            Ok(themes_dir) => {
+                                                let theme_name = theme_name.clone();
+                                                rayon::spawn(move || {
+                                                    match themes_dir.write(
+                                                        format!("{theme_name}.json"),
+                                                        theme_json.as_bytes(),
+                                                    ) {
+                                                        Ok(_) => {
+                                                            tracing::info!(
+                                                                notify = 3.0f64,
+                                                                "saved theme {theme_name} to themes directory"
+                                                            );
+                                                        }
+                                                        Err(e) => {
+                                                            error!(?e, "failed to save theme to directory:(");
+                                                        }
+                                                    }
+                                                });
+                                            },
                                             Err(e) => {
-                                                error!(?e, "failed to save theme to directory:(");
-                                            }
+                                                error!(?e, "failed to clone themes dir to save theme");
+                                            },
                                         }
                                     }
                                     Err(e) => {
                                         error!(?e, "failed to serialize theme to json :(");
                                     }
                                 }
-                                self.themes.insert(theme_name, theme);
+                                self.themes.insert(theme_name.clone(), theme);
                             }
                             etx.style_ui(ui);
                         });
@@ -270,7 +281,7 @@ impl ThemeManager {
                                     egui::ComboBox::new("default theme", "default theme")
                                         .selected_text(&self.config.default_theme)
                                         .show_ui(ui, |ui| {
-                                            for (theme_name, theme) in self.themes.iter() {
+                                            for theme_name in self.themes.keys() {
                                                 let checked =
                                                     theme_name == &self.config.default_theme;
                                                 if ui
@@ -279,12 +290,97 @@ impl ThemeManager {
                                                     && !checked
                                                 {
                                                     self.config.default_theme = theme_name.clone();
+                                                }
+                                            }
+                                        });
+                                    ui.end_row();
+                                    ui.label("current theme: ");
+                                    egui::ComboBox::new("default theme", "default theme")
+                                        .selected_text(&self.ui_data.current_theme_name)
+                                        .show_ui(ui, |ui| {
+                                            for (theme_name, theme) in self.themes.iter() {
+                                                let checked =
+                                                    theme_name == &self.config.default_theme;
+                                                if ui
+                                                    .selectable_label(checked, theme_name)
+                                                    .clicked()
+                                                    && !checked
+                                                {
                                                     etx.set_style(theme.style.clone());
                                                 }
                                             }
                                         });
                                     ui.end_row();
                                 });
+                            if ui.button("save config").clicked() {
+                                match serde_json::to_string_pretty(&self.config) {
+                                    Ok(config_json) => {
+                                        match self.dir.try_clone() {
+                                            Ok(theme_manager_dir) => {
+                                                rayon::spawn(move || {
+                                                    match
+                                                    theme_manager_dir.write(Self::THEME_MANAGER_CONFIG_NAME, config_json.as_bytes()) {
+                                                        Ok(_) => {
+                                                            info!(notify = 5.0f64, "saved theme manager configuration");
+                                                        },
+                                                        Err(e) => {
+                                                            error!(?e, "failed to save theme manager config");
+                                                        },
+                                                    }
+                                                });
+                                            },
+                                            Err(e) => {
+                                                error!(?e, "failed to clone theme manager directory to save config");
+                                            },
+                                        }
+                                    },
+                                    Err(e) => {
+                                        error!(?e, "failed to serialize theme config");
+                                    },
+                                }
+                            }
+                            if ui.button("import font").clicked() {
+                                match self.fonts_dir.try_clone() {
+                                    Ok(fonts_dir) => {
+                                        rayon::spawn(move || {
+                                            if let Some(font_path) =  rfd::FileDialog::default().add_filter("fonts", &["ttf"])
+                                            .pick_file()
+                                            {
+                                                match std::fs::read(&font_path) {
+                                                    Ok(font_data) => {
+                                                        match font_path.file_name().and_then(std::ffi::OsStr::to_str) {
+                                                            Some(name) => {
+                                                                if name.ends_with("ttf") {
+
+                                                                    match fonts_dir.write(name, font_data) {
+                                                                        Ok(_) => {
+                                                                            info!(notify = 5.0f64, name, "saved font");
+                                                                        },
+                                                                        Err(e) => {
+                                                                            error!(?e, name, "failed to save font");
+                                                                        },
+                                                                    }
+                                                                } else {
+                                                                    error!(name, "only ttf font files are supported");
+                                                                }
+                                                            },
+                                                            None => {
+                                                                error!(?font_path, "invalid file name");
+                                                            },
+                                                        }
+                                                    },
+                                                    Err(e) => {
+                                                        error!(?e, ?font_path, "failed to read font");
+                                                    },
+                                                }
+                                            }
+                                        });
+                                    },
+                                    Err(e) => {
+                                        error!(?e, "failed to clone fonts directory to import font");
+                                    },
+                                }
+                            }
                         });
                     }
                 }

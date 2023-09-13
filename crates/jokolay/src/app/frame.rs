@@ -24,7 +24,7 @@ impl FrameStatistics {
         }
     }
 
-    pub fn gui(&mut self, ui: &mut egui::Ui) {
-        ui.label(&format!("fps: {}", self.average_fps));
-    }
+    // pub fn gui(&mut self, ui: &mut egui::Ui) {
+    //     ui.label(&format!("fps: {}", self.average_fps));
+    // }
 }

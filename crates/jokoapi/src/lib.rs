@@ -11,12 +11,12 @@
 //!     7. pagination
 //!     8. schema
 //! for already great implementations look at
-//! 1. https://github.com/GW2ToolBelt/GW2APIClient
-//! 2. https://github.com/greaka/gw2lib
+//! 1. <https://github.com/GW2ToolBelt/GW2APIClient>
+//! 2. <https://github.com/greaka/gw2lib>
 //! resources:
-//! 1. https://wiki.guildwars2.com/wiki/API:API_key
-//! 2. https://wiki.guildwars2.com/wiki/API:2
-//! 3. https://wiki.guildwars2.com/wiki/API:Main
+//! 1. <https://wiki.guildwars2.com/wiki/API:API_key>
+//! 2. <https://wiki.guildwars2.com/wiki/API:2>
+//! 3. <https://wiki.guildwars2.com/wiki/API:Main>
 pub mod end_point;
 
 pub(crate) mod prelude {

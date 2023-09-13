@@ -1,16 +1,11 @@
-mod notification;
-
-use std::{
-    collections::BTreeMap,
-    sync::{Mutex, OnceLock},
-};
+use std::sync::{Mutex, OnceLock};
 
 use cap_std::fs_utf8::Dir;
 use egui::Ui;
 use egui_extras::{Column, TableRow};
 use miette::{Context, IntoDiagnostic, Result};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
-use tracing::{field::Visit, Event, Level, Subscriber};
+use tracing::{field::Visit, span, Event, Level, Subscriber};
 use tracing_subscriber::Layer;
 pub struct JokolayTracingLayer;
 static JKL_TRACING_DATA: OnceLock<Mutex<GlobalTracingData>> = OnceLock::new();
@@ -110,8 +105,6 @@ impl JokolayTracingLayer {
 struct TracingEvent {
     /// Level of the event
     level: Level,
-    /// the line in source where this event was triggered
-    line: u32,
     /// The target of the event. Usually the module/function scope at which the even was triggered
     /// In future, we can use this as the "identifier" of a particular group/class of events which can be special cased
     /// eg: we can say that if the target string starts with "LUA", we will consider this an error from a plugin
@@ -123,19 +116,14 @@ struct TracingEvent {
     /// This is recorded as a field from the event. So, make sure to set it to 0u64 if you don't want to display the log as a notification.
     /// the value must be u64 and in seconds.
     notify: f32,
-    /// These are the fields recorded from this event
-    /// We can eventually optimize this as an enum to avoid allocating for primitives like bool/numbers.
-    fields: BTreeMap<String, String>,
 }
 impl Default for TracingEvent {
     fn default() -> Self {
         Self {
             level: Level::TRACE,
-            line: Default::default(),
             target: Default::default(),
             message: Default::default(),
             notify: Default::default(),
-            fields: Default::default(),
         }
     }
 }
@@ -146,20 +134,10 @@ impl Visit for EventVisitor<'_> {
             "message" => {
                 self.0.message = format!("{value:?}");
             }
-            "log.line" => {
-                self.0.line = format!("{value:?}").parse().unwrap();
-            }
             "log.target" => {
                 self.0.target = format!("{value:?}");
             }
-            _ => {
-                if field.name().starts_with("log.") {
-                    return;
-                }
-                let name = field.name().to_string();
-                let value = format!("{value:?}");
-                self.0.fields.insert(name, value);
-            }
+            _ => {}
         }
     }
 
@@ -178,21 +156,48 @@ impl Visit for EventVisitor<'_> {
             self.record_debug(field, &value)
         }
     }
+    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
+        if field.name() == "notify" {
+            self.0.notify = value as _;
+        } else {
+            self.record_debug(field, &value)
+        }
+    }
+    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
+        if field.name() == "notify" {
+            self.0.notify = value as _;
+        } else {
+            self.record_debug(field, &value)
+        }
+    }
 }
 impl TracingEvent {
-    fn from_event_and_ctx<S>(
-        event: &Event<'_>,
-        _ctx: tracing_subscriber::layer::Context<'_, S>,
-    ) -> Self {
+    fn ui_row(&self, row: &mut TableRow) {
+        row.col(|ui| {
+            ui.label(format!("{}", self.level));
+        });
+        row.col(|ui| {
+            ui.label(self.target.to_string());
+        });
+        row.col(|ui| {
+            ui.label(self.message.to_string());
+        });
+    }
+}
+impl<S: Subscriber> Layer<S> for JokolayTracingLayer {
+    fn on_event(&self, event: &Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        let level = *event.metadata().level();
+        let sp = ctx
+            .current_span()
+            .metadata()
+            .zip(ctx.current_span().id().cloned());
         let target = if event.metadata().target() == "log" {
             Default::default()
         } else {
             event.metadata().target().to_string()
         };
-        let level = *event.metadata().level();
-        let mut te = Self {
+        let mut te = TracingEvent {
             level,
-            line: event.metadata().line().unwrap_or_default(),
             target,
             notify: match level {
                 Level::TRACE | Level::DEBUG | Level::INFO => 0.0,
@@ -203,43 +208,133 @@ impl TracingEvent {
         };
         event.record(&mut EventVisitor(&mut te));
 
-        te
+        let mut global_tracing_data = JKL_TRACING_DATA.get().unwrap().lock().unwrap();
+        if te.notify > 0.1 {
+            if let Some((md, id)) = sp {
+                let message = te.message.clone();
+                global_tracing_data
+                    .notifications
+                    .spans
+                    .entry(id.clone())
+                    .or_insert_with(|| SpanNotification {
+                        title: md.name().to_string(),
+                        latest_message: te.message.clone(),
+                        level: te.level,
+                        time_to_live: f32::MAX,
+                    })
+                    .latest_message = message;
+            } else {
+                global_tracing_data
+                    .notifications
+                    .current
+                    .push(Notification {
+                        title: te.target.clone(),
+                        message: te.message.clone(),
+                        level: te.level,
+                        time_to_live: te.notify,
+                    });
+            }
+        }
+        global_tracing_data.buffer.push(te);
     }
-    fn ui_row(&self, row: &mut TableRow) {
-        row.col(|ui| {
-            ui.label(format!("{}", self.level));
-        });
-        row.col(|ui| {
-            ui.label(self.target.to_string());
-        });
-        row.col(|ui| {
-            ui.label(format!("{}", self.line));
-        });
-        row.col(|ui| {
-            ui.label(self.message.to_string());
-        });
-    }
-}
-impl<S: Subscriber> Layer<S> for JokolayTracingLayer {
-    fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        let te = TracingEvent::from_event_and_ctx(event, ctx);
 
-        JKL_TRACING_DATA
+    fn on_close(&self, id: span::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+        if let Some(span_notif) = JKL_TRACING_DATA
             .get()
             .unwrap()
             .lock()
             .unwrap()
-            .add_event(te);
+            .notifications
+            .spans
+            .get_mut(&id)
+        {
+            span_notif.time_to_live = 3.0;
+        }
     }
 }
 
 struct GlobalTracingData {
     pub buffer: AllocRingBuffer<TracingEvent>,
-    pub notifications: notification::Notifications,
+    pub notifications: Notifications,
 }
-impl GlobalTracingData {
-    pub fn add_event(&mut self, ev: TracingEvent) {
-        self.notifications.add_event(&ev);
-        self.buffer.push(ev);
+
+#[derive(Debug, Default)]
+struct Notifications {
+    current: Vec<Notification>,
+    spans: indexmap::IndexMap<span::Id, SpanNotification>,
+}
+impl Notifications {
+    fn tick_egui(&mut self, etx: &egui::Context) {
+        let dt = etx.input(|i| i.unstable_dt);
+        egui::Window::new("Notifications")
+            .anchor(egui::Align2::RIGHT_TOP, [0.0, 0.0])
+            .interactable(true)
+            .movable(false)
+            .title_bar(false)
+            .show(etx, |ui| {
+                let persistent_notifs = std::mem::take(&mut self.spans);
+                for (span_id, mut notif) in persistent_notifs {
+                    // show notification
+                    ui.group(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.strong(&notif.title);
+                            ui.add_space((ui.available_width() - 20.0).max(0.0));
+                            if ui
+                                .button(egui::RichText::new("X").color(egui::Color32::RED))
+                                .clicked()
+                            {
+                                notif.time_to_live = 0.0;
+                            }
+                        });
+                        ui.label(&notif.latest_message);
+                    });
+                    // reduce the ttl by the amount of time since last frame
+                    notif.time_to_live -= dt;
+                    // push to current if its still alive
+                    if notif.time_to_live > 0.0 {
+                        self.spans.insert(span_id, notif);
+                    }
+                }
+                let notifs = std::mem::take(&mut self.current);
+                for mut notif in notifs {
+                    // show notification
+                    ui.group(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.strong(&notif.title);
+                            ui.add_space((ui.available_width() - 20.0).max(0.0));
+                            if ui
+                                .button(egui::RichText::new("X").color(egui::Color32::RED))
+                                .clicked()
+                            {
+                                notif.time_to_live = 0.0;
+                            }
+                        });
+                        ui.label(&notif.message);
+                    });
+                    // reduce the ttl by the amount of time since last frame
+                    notif.time_to_live -= dt;
+                    // push to current if its still alive
+                    if notif.time_to_live > 0.0 {
+                        self.current.push(notif);
+                    }
+                }
+            });
     }
+}
+
+#[derive(Debug)]
+struct Notification {
+    pub title: String,
+    pub message: String,
+    #[allow(unused)]
+    pub level: Level,
+    pub time_to_live: f32,
+}
+#[derive(Debug)]
+struct SpanNotification {
+    pub title: String,
+    pub latest_message: String,
+    #[allow(unused)]
+    pub level: Level,
+    pub time_to_live: f32,
 }

@@ -144,7 +144,7 @@ impl BillBoardRenderer {
                 *trail_buffer_len = required_len;
             }
             queue.write_buffer(
-                &trail_buffer,
+                trail_buffer,
                 0,
                 bytemuck::cast_slice(trail.vertices.as_ref()),
             );

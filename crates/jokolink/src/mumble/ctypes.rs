@@ -129,7 +129,7 @@ impl CMumbleLink {
 pub struct CMumbleContext {
     /// first byte is `2` if ipv4. and `[4..7]` bytes contain the ipv4 octets.
     pub server_address: [u8; 28], // contains sockaddr_in or sockaddr_in6
-    /// Map ID https://wiki.guildwars2.com/wiki/API:2/maps
+    /// Map ID <https://wiki.guildwars2.com/wiki/API:2/maps>
     pub map_id: u32,
     pub map_type: u32,
     pub shard_id: u32,

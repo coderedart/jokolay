@@ -38,5 +38,6 @@ ringbuffer = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-
-sea-orm ={ version = "*", features = ["sqlx-sqlite"]}
+indexmap = { workspace = true }
+rfd = { workspace = true }
+# sea-orm ={ version = "*", features = ["sqlx-sqlite"]}
