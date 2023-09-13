@@ -3,7 +3,6 @@ use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
 mod frame;
 mod init;
-mod menu;
 mod theme;
 mod trace;
 use self::theme::ThemeManager;
@@ -158,6 +157,10 @@ impl UserApp for Jokolay {
                                     "Show Theme Manager",
                                 );
                                 ui.checkbox(&mut self.menu_panel.show_tracing_window, "Show Logs");
+                                if ui.button("exit").clicked() {
+                                    info!("exiting jokolay");
+                                    std::process::abort();
+                                }
                             },
                         );
                         self.marker_manager.menu_ui(ui);
