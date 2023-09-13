@@ -1,7 +1,7 @@
 on:
   push:
     paths:
-      - 'crates/jokolink/**'
+    - 'crates/jokolink/**'
 
 name: Jokolink DLL
 env:

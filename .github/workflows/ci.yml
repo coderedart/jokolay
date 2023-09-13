@@ -1,11 +1,11 @@
 on: [push, pull_request]
 
-name: Checkmate
+name: check everything
 env:
   CARGO_INCREMENTAL: 0
 jobs:
-  cargo-checkmate:
-    name: cargo-checkmate
+  cargo-check:
+    name: cargo-check
     runs-on: ${{matrix.os}}-latest
     strategy:
       matrix:
@@ -28,8 +28,17 @@ jobs:
         if: ${{matrix.os == 'ubuntu'}}
         run: sudo apt update && sudo apt install --no-install-recommends libglfw3-dev libgtk-3-dev
 
-      - name: Install checkmate
-        run: cargo install cargo-checkmate
+      - name: Fmt
+        run: cargo fmt --check
 
-      - name: Run checkmate
-        run: cargo-checkmate
+      - name: Check
+        run: cargo check --workspace
+
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Build
+        run: cargo build --workspace
+
+      - name: Audit
+        run: cargo audit
