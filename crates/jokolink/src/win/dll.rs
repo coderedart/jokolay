@@ -135,16 +135,17 @@ pub mod d3d11 {
     pub static mut JOKOLINK_QUIT_REQUESTER: Option<SyncSender<()>> = None;
     /// This is used to wait for wine_main fn thread to quit and send us a signal
     pub static mut JOKOLINK_QUIT_RESPONDER: Option<Receiver<()>> = None;
+    /// This function is called whenever the dll is loaded into process or thread, and whenever the dll is unloaded out of process/thread.
+    /// # Safety
+    /// Don't do *anything* complicated at all. It can easily lead to a deadlock
+    /// https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-best-practices
+    /// Improper synchronization within DllMain can cause an application to deadlock or access data or code in an uninitialized DLL.
     #[no_mangle]
     pub unsafe extern "system" fn DllMain(
         _dll_module: HINSTANCE,
         call_reason: u32,
         _: *mut (),
     ) -> bool {
-        // This function is called when our dll is loaded.
-        // https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-best-practices
-        // Improper synchronization within DllMain can cause an application to deadlock or access data or code in an uninitialized DLL.
-
         match call_reason {
             // process detach
             0 => {
@@ -169,6 +170,11 @@ pub mod d3d11 {
         }
         true
     }
+    /// This is the function we will "hook" into.
+    /// GW2 will call this function right after the "login window" when creating the main window
+    /// This is where we initialize our jokolink thread.
+    /// # Safety
+    /// Just need to load d3d11.dll from windows/system32 equivalent directory and call that function for gw2
     #[no_mangle]
     pub unsafe extern "system" fn D3D11CreateDevice(
         padapter: *mut ::core::ffi::c_void,

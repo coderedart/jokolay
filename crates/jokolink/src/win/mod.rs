@@ -130,7 +130,7 @@ impl MumbleWinImpl {
             let gw2_config_path = std::path::PathBuf::from_str(&gw2_config_path)
                 .into_diagnostic()
                 .wrap_err("failed to create pathbuf from gw2 config path in roaming appdata")?;
-            std::fs::create_dir_all(&gw2_config_path.parent().unwrap())
+            std::fs::create_dir_all(gw2_config_path.parent().unwrap())
                 .into_diagnostic()
                 .wrap_err("failed to create gw2 config dir in appdata roaming ")?;
             if !gw2_config_path.exists() {
@@ -500,7 +500,6 @@ impl MumbleWinImpl {
                         self.client_pos_size = client_pos_size;
                         self.last_ui_tick_update = Instant::now();
                         self.previous_pid = pid;
-                        return;
                     }
                     Err(e) => {
                         error!(?e, "failed to get client rect");
@@ -523,10 +522,10 @@ fn check_dpi_scaling_enabled(path: &std::path::Path) -> Result<i32> {
         .into_diagnostic()
         .wrap_err("failed to read gw2 file")?;
 
-    if contents.find(DPI_SCALING_FALSE).is_some() {
+    if contents.contains(DPI_SCALING_FALSE) {
         return Ok(0);
     };
-    if contents.find(DPI_SCALING_TRUE).is_some() {
+    if contents.contains(DPI_SCALING_TRUE) {
         return Ok(1);
     };
     error!(contents, "failed to read dpi scaling from gw2 config file");
@@ -646,14 +645,8 @@ fn get_window_pos_size(window_handle: isize) -> Result<[i32; 4]> {
         Ok([
             rect.left,
             rect.top,
-            (rect.right - rect.left)
-                .try_into()
-                .into_diagnostic()
-                .wrap_err("gw2 window width could not be cast into u32")?,
-            (rect.bottom - rect.top)
-                .try_into()
-                .into_diagnostic()
-                .wrap_err("gw2 height could not be cast into u32")?,
+            (rect.right - rect.left),
+            (rect.bottom - rect.top),
         ])
     }
 }
@@ -676,14 +669,8 @@ fn get_window_pos_size_without_borders(window_handle: HWND) -> Result<[i32; 4]> 
         Ok([
             rect.left,
             rect.top,
-            (rect.right - rect.left)
-                .try_into()
-                .into_diagnostic()
-                .wrap_err("gw2 window width could not be cast into u32")?,
-            (rect.bottom - rect.top)
-                .try_into()
-                .into_diagnostic()
-                .wrap_err("gw2 height could not be cast into u32")?,
+            (rect.right - rect.left),
+            (rect.bottom - rect.top),
         ])
     }
 }
@@ -708,14 +695,8 @@ fn get_client_rect_in_screen_coords(window_handle: HWND) -> Result<[i32; 4]> {
         Ok([
             point.x,
             point.y,
-            (rect.right - rect.left)
-                .try_into()
-                .into_diagnostic()
-                .wrap_err("gw2 window width could not be cast into u32")?,
-            (rect.bottom - rect.top)
-                .try_into()
-                .into_diagnostic()
-                .wrap_err("gw2 height could not be cast into u32")?,
+            (rect.right - rect.left),
+            (rect.bottom - rect.top),
         ])
     }
 }

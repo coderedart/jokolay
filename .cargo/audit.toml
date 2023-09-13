@@ -1,3 +1,0 @@
-
-[advisories]
-ignore = ["RUSTSEC-2020-0071"] # for chrono in arcdps_bindings dependency
