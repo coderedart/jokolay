@@ -25,7 +25,7 @@ pub struct LoadedPack {
     /// There should be a subdirectory called `core` which stores the pack core
     /// Files related to Jokolay thought will have to be stored directly inside this directory, to keep the xml subdirectory clean.
     /// eg: Active categories, activation data etc..
-    pub dir: Dir,
+    pub dir: Arc<Dir>,
     /// The actual xml pack.
     pub core: PackCore,
     /// The selection of categories which are "enabled" and markers belonging to these may be rendered
@@ -62,7 +62,7 @@ impl Dirty {
 impl LoadedPack {
     const CORE_PACK_DIR_NAME: &str = "core";
     const CATEGORY_SELECTION_FILE_NAME: &str = "cats.json";
-    pub fn new(core: PackCore, dir: Dir) -> Self {
+    pub fn new(core: PackCore, dir: Arc<Dir>) -> Self {
         let cats_selection = CategorySelection::default_from_pack_core(&core);
         LoadedPack {
             core,
@@ -82,7 +82,7 @@ impl LoadedPack {
             &mut self.dirty.cats_selection,
         );
     }
-    pub fn load_from_dir(dir: Dir) -> Result<Self> {
+    pub fn load_from_dir(dir: Arc<Dir>) -> Result<Self> {
         if !dir
             .try_exists(Self::CORE_PACK_DIR_NAME)
             .into_diagnostic()

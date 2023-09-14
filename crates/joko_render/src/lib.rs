@@ -51,8 +51,7 @@ impl GfxBackend for JokoRenderer {
             dx12_shader_compiler: Default::default(),
         }));
         debug!("iterating over all adapters");
-        #[cfg(not(target_arch = "wasm32"))]
-        for adapter in instance.enumerate_adapters(Backends::all()) {
+        for adapter in instance.enumerate_adapters(Backends::GL) {
             debug!("adapter: {:#?}", adapter.get_info());
         }
 

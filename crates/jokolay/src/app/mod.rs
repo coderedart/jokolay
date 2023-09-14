@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use cap_std::fs_utf8::Dir;
 use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
@@ -17,7 +19,7 @@ use tracing::{error, info};
 #[allow(unused)]
 pub struct Jokolay {
     frame_stats: frame::FrameStatistics,
-    jdir: Dir,
+    jdir: Arc<Dir>,
     menu_panel: MenuPanel,
     mumble_manager: MumbleManager,
     marker_manager: MarkerManager,
@@ -28,7 +30,7 @@ pub struct Jokolay {
 }
 
 impl Jokolay {
-    fn new(jdir: Dir) -> Result<Self> {
+    fn new(jdir: Arc<Dir>) -> Result<Self> {
         let mumble =
             MumbleManager::new("MumbleLink", None).wrap_err("failed to create mumble manager")?;
         let marker_manager =
@@ -159,7 +161,7 @@ impl UserApp for Jokolay {
                                 ui.checkbox(&mut self.menu_panel.show_tracing_window, "Show Logs");
                                 if ui.button("exit").clicked() {
                                     info!("exiting jokolay");
-                                    std::process::abort();
+                                    glfw_backend.window.set_should_close(true);
                                 }
                             },
                         );
@@ -256,7 +258,7 @@ pub fn start_jokolay() {
         );
     }
 
-    match Jokolay::new(jdir) {
+    match Jokolay::new(jdir.into()) {
         Ok(jokolay) => {
             <Jokolay as UserApp>::UserWindowBackend::run_event_loop(jokolay);
         }

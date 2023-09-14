@@ -44,10 +44,10 @@ pub struct MarkerManager {
     /// holds data that is useful for the ui
     ui_data: MarkerManagerUI,
     /// marker manager directory. not useful yet, but in future we could be using this to store config files etc..
-    _marker_manager_dir: Dir,
+    _marker_manager_dir: Arc<Dir>,
     /// packs directory which contains marker packs. each directory inside pack directory is an individual marker pack.
     /// The name of the child directory is the name of the pack
-    marker_packs_dir: Dir,
+    marker_packs_dir: Arc<Dir>,
     /// These are the marker packs
     /// The key is the name of the pack
     /// The value is a loaded pack that contains additional data for live marker packs like what needs to be saved or category selections etc..
@@ -127,7 +127,7 @@ impl MarkerManager {
                     .wrap_err("failed to open pack entry as directory")?;
                 {
                     let span_guard = info_span!("loading pack from dir", name).entered();
-                    match LoadedPack::load_from_dir(pack_dir) {
+                    match LoadedPack::load_from_dir(pack_dir.into()) {
                         Ok(lp) => {
                             packs.insert(name, lp);
                         }
@@ -142,8 +142,8 @@ impl MarkerManager {
 
         Ok(Self {
             packs,
-            marker_packs_dir,
-            _marker_manager_dir: marker_manager_dir,
+            marker_packs_dir: marker_packs_dir.into(),
+            _marker_manager_dir: marker_manager_dir.into(),
             ui_data: Default::default(),
             save_interval: 0.0,
             missing_texture: None,
@@ -280,7 +280,7 @@ impl MarkerManager {
                                     match self.marker_packs_dir.open_dir(name) {
                                         Ok(dir) => {
                                             let core = std::mem::take(pack);
-                                            let mut loaded_pack = LoadedPack::new(core, dir);
+                                            let mut loaded_pack = LoadedPack::new(core, dir.into());
                                             match loaded_pack.save_all() {
                                                 Ok(_) => {
                                                     self.packs.insert(name.to_string(), loaded_pack);

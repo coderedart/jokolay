@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, io::Read};
+use std::{collections::BTreeMap, io::Read, sync::Arc};
 
 use cap_std::fs_utf8::Dir;
 use egui::Style;
@@ -6,9 +6,9 @@ use miette::{Context, IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 pub struct ThemeManager {
-    dir: Dir,
-    themes_dir: Dir,
-    fonts_dir: Dir,
+    dir: Arc<Dir>,
+    themes_dir: Arc<Dir>,
+    fonts_dir: Arc<Dir>,
     themes: BTreeMap<String, Theme>,
     fonts: BTreeMap<String, Vec<u8>>,
     config: ThemeManagerConfig,
@@ -56,25 +56,28 @@ impl ThemeManager {
         jdir.create_dir_all(Self::THEME_MANAGER_DIR_NAME)
             .into_diagnostic()
             .wrap_err("failed to create theme manager dir")?;
-        let dir = jdir
+        let dir: Arc<Dir> = jdir
             .open_dir(Self::THEME_MANAGER_DIR_NAME)
             .into_diagnostic()
-            .wrap_err("failed to open theme_manager dir")?;
+            .wrap_err("failed to open theme_manager dir")?
+            .into();
         dir.create_dir_all(Self::THEMES_DIR_NAME)
             .into_diagnostic()
             .wrap_err("failed to create themes dir")?;
-        let themes_dir = dir
+        let themes_dir: Arc<Dir> = dir
             .open_dir(Self::THEMES_DIR_NAME)
             .into_diagnostic()
-            .wrap_err("failed to open themes dir")?;
+            .wrap_err("failed to open themes dir")?
+            .into();
 
         dir.create_dir_all(Self::FONTS_DIR_NAME)
             .into_diagnostic()
             .wrap_err("failed to create themes dir")?;
-        let fonts_dir = dir
+        let fonts_dir: Arc<Dir> = dir
             .open_dir(Self::FONTS_DIR_NAME)
             .into_diagnostic()
-            .wrap_err("failed to open themes dir")?;
+            .wrap_err("failed to open themes dir")?
+            .into();
         if !fonts_dir.exists(&format!("{}.ttf", Self::DEFAULT_FONT_NAME)) {
             fonts_dir
                 .write(
