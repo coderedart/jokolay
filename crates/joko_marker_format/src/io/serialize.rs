@@ -1,5 +1,5 @@
 use crate::{
-    pack::{Category, CommonAttributes, Marker, PackCore, RelativePath, Trail},
+    pack::{Category, Marker, PackCore, RelativePath, Trail},
     BASE64_ENGINE,
 };
 use base64::Engine;
@@ -12,7 +12,7 @@ use xot::{Element, Node, SerializeOptions, Xot};
 
 use super::XotAttributeNameIDs;
 /// Save the pack core as xml pack using the given directory as pack root path.
-pub fn save_pack_core_to_dir(
+pub(crate) fn save_pack_core_to_dir(
     pack_core: &PackCore,
     dir: &Dir,
     cats: bool,
@@ -190,7 +190,7 @@ fn recursive_cat_serializer(
             if cat.separator {
                 ele.set_attribute(names.separator, "1");
             }
-            serialize_common_attributes_to_element(&cat.props, ele, names);
+            cat.props.serialize_to_element(ele, names);
         }
         recursive_cat_serializer(tree, names, &cat.children, cat_node)?;
     }
@@ -200,7 +200,7 @@ fn serialize_trail_to_element(trail: &Trail, ele: &mut Element, names: &XotAttri
     ele.set_attribute(names.guid, BASE64_ENGINE.encode(trail.guid));
     ele.set_attribute(names.category, &trail.category);
     ele.set_attribute(names.map_id, format!("{}", trail.map_id));
-    serialize_common_attributes_to_element(&trail.props, ele, names);
+    trail.props.serialize_to_element(ele, names);
 }
 
 fn serialize_marker_to_element(marker: &Marker, ele: &mut Element, names: &XotAttributeNameIDs) {
@@ -210,21 +210,5 @@ fn serialize_marker_to_element(marker: &Marker, ele: &mut Element, names: &XotAt
     ele.set_attribute(names.guid, BASE64_ENGINE.encode(marker.guid));
     ele.set_attribute(names.map_id, format!("{}", marker.map_id));
     ele.set_attribute(names.category, &marker.category);
-    serialize_common_attributes_to_element(&marker.props, ele, names);
-}
-
-fn serialize_common_attributes_to_element(
-    ca: &CommonAttributes,
-    ele: &mut Element,
-    names: &XotAttributeNameIDs,
-) {
-    if let Some(icon_file) = &ca.icon_file {
-        ele.set_attribute(names.icon_file, icon_file.as_str());
-    }
-    if let Some(texture) = &ca.texture {
-        ele.set_attribute(names.texture, texture.as_str());
-    }
-    if let Some(trail_data) = &ca.trail_data_file {
-        ele.set_attribute(names.trail_data, trail_data.as_str());
-    }
+    marker.props.serialize_to_element(ele, names);
 }

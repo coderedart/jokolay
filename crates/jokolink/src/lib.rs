@@ -149,6 +149,7 @@ impl MumbleManager {
             dpi: cml.context.dpi,
             client_pos,
             client_size,
+            map_type: cml.context.map_type,
         });
         self.link = link.clone();
         Ok(if self.link.ui_tick == 0 {
@@ -218,6 +219,9 @@ fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
             ui.end_row();
             ui.label("character");
             ui.label(&link.name);
+            ui.end_row();
+            ui.label("map type");
+            ui.add(DragValue::new(&mut link.map_type));
             ui.end_row();
             ui.label("map id");
             ui.add(DragValue::new(&mut link.map_id));

@@ -4,12 +4,12 @@ use billboard::MarkerObject;
 use billboard::TrailObject;
 use bytemuck::cast_slice;
 use egui_backend::{egui, GfxBackend, WindowBackend};
+pub use egui_render_wgpu;
 use egui_render_wgpu::wgpu::util::BufferInitDescriptor;
 use egui_render_wgpu::wgpu::util::DeviceExt;
 use egui_render_wgpu::wgpu::*;
 use egui_render_wgpu::EguiPainter;
 use egui_render_wgpu::SurfaceManager;
-use egui_render_wgpu::WgpuConfig;
 use glam::vec2;
 use glam::Mat4;
 use glam::Vec3;
@@ -35,10 +35,10 @@ pub struct JokoRenderer {
 }
 
 impl GfxBackend for JokoRenderer {
-    type Configuration = WgpuConfig;
+    type Configuration = egui_render_wgpu::WgpuConfig;
 
     fn new(window_backend: &mut impl WindowBackend, settings: Self::Configuration) -> Self {
-        let WgpuConfig {
+        let egui_render_wgpu::WgpuConfig {
             power_preference,
             device_descriptor,
             surface_formats_priority,
@@ -51,7 +51,7 @@ impl GfxBackend for JokoRenderer {
             dx12_shader_compiler: Default::default(),
         }));
         debug!("iterating over all adapters");
-        for adapter in instance.enumerate_adapters(Backends::GL) {
+        for adapter in instance.enumerate_adapters(backends) {
             debug!("adapter: {:#?}", adapter.get_info());
         }
 

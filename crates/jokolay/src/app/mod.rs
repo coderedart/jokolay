@@ -9,7 +9,7 @@ mod theme;
 mod trace;
 use self::theme::ThemeManager;
 use init::get_jokolay_dir;
-use jmf::manager::MarkerManager;
+use jmf::MarkerManager;
 use joko_render::JokoRenderer;
 use jokolink::{MumbleChanges, MumbleManager};
 use miette::{Context, Result};
@@ -58,7 +58,15 @@ impl Jokolay {
             },
         );
 
-        let joko_renderer = JokoRenderer::new(&mut glfw_backend, Default::default());
+        let joko_renderer = JokoRenderer::new(&mut glfw_backend, {
+            use joko_render::egui_render_wgpu::*;
+            use wgpu::*;
+            WgpuConfig {
+                backends: Backends::VULKAN.union(Backends::GL),
+                power_preference: PowerPreference::HighPerformance,
+                ..Default::default()
+            }
+        });
         // remove decorations
         glfw_backend.window.set_decorated(false);
         Ok(Self {

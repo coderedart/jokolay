@@ -10,11 +10,11 @@ use miette::{bail, Context, IntoDiagnostic, Result};
 use std::{collections::BTreeMap, io::Read};
 use tracing::{info, info_span, instrument, warn};
 use uuid::Uuid;
-use xot::{Element, Node, Xot};
+use xot::{Node, Xot};
 
 use super::XotAttributeNameIDs;
 
-pub fn load_pack_core_from_dir(dir: &Dir) -> Result<PackCore> {
+pub(crate) fn load_pack_core_from_dir(dir: &Dir) -> Result<PackCore> {
     let mut pack = PackCore::default();
     // walks the directory and loads all files into the hashmap
     recursive_walk_dir_and_read_images_and_tbins(
@@ -206,7 +206,7 @@ fn recursive_marker_category_parser(
             continue;
         }
         let mut ca = CommonAttributes::default();
-        update_common_attributes_from_element(&mut ca, ele, names);
+        ca.update_common_attributes_from_element(ele, names);
 
         let display_name = ele.get_attribute(names.display_name).unwrap_or_default();
 
@@ -240,61 +240,7 @@ fn recursive_marker_category_parser(
         );
     }
 }
-fn update_common_attributes_from_element(
-    ca: &mut CommonAttributes,
-    ele: &Element,
-    names: &XotAttributeNameIDs,
-) {
-    if let Some(path) = ele.get_attribute(names.icon_file) {
-        ca.icon_file = Some(RelativePath::parse_from_str(path));
-    }
-    if let Some(path) = ele.get_attribute(names.texture) {
-        ca.texture = Some(RelativePath::parse_from_str(path));
-    }
-    if let Some(path) = ele.get_attribute(names.trail_data) {
-        ca.trail_data_file = Some(RelativePath::parse_from_str(path));
-    }
-    if let Some(value) = ele.get_attribute(names.icon_size) {
-        match value.trim().parse::<f32>() {
-            Ok(value) => {
-                ca.icon_size = Some(value);
-            }
-            Err(e) => {
-                info!(?e, value, "failed to parse iconSize");
-            }
-        }
-    }
-    if let Some(value) = ele.get_attribute(names.fade_near) {
-        match value.trim().parse::<f32>() {
-            Ok(value) => {
-                ca.fade_near = Some(value);
-            }
-            Err(e) => {
-                info!(?e, value, "failed to parse fadeNear");
-            }
-        }
-    }
-    if let Some(value) = ele.get_attribute(names.fade_far) {
-        match value.trim().parse::<f32>() {
-            Ok(value) => {
-                ca.fade_far = Some(value);
-            }
-            Err(e) => {
-                info!(?e, value, "failed to parse fadeFar");
-            }
-        }
-    }
-    if let Some(value) = ele.get_attribute(names.height_offset) {
-        match value.trim().parse::<f32>() {
-            Ok(value) => {
-                ca.height_offset = Some(value);
-            }
-            Err(e) => {
-                info!(?e, value, "failed to parse heightOffset");
-            }
-        }
-    }
-}
+
 fn parse_categories_file(cats_xml_str: &str, pack: &mut PackCore) -> Result<()> {
     let mut tree = xot::Xot::new();
     let xot_names = XotAttributeNameIDs::register_with_xot(&mut tree);
@@ -392,7 +338,7 @@ fn parse_map_file(map_id: u32, map_xml_str: &str, pack: &mut PackCore) -> Result
                     .parse::<f32>()
                     .into_diagnostic()?;
                 let mut ca = CommonAttributes::default();
-                update_common_attributes_from_element(&mut ca, child, &names);
+                ca.update_common_attributes_from_element(child, &names);
 
                 let marker = Marker {
                     position: [xpos, ypos, zpos].into(),
@@ -413,7 +359,7 @@ fn parse_map_file(map_id: u32, map_xml_str: &str, pack: &mut PackCore) -> Result
                     bail!("mapid doesn't match the file name");
                 }
                 let mut ca = CommonAttributes::default();
-                update_common_attributes_from_element(&mut ca, child, &names);
+                ca.update_common_attributes_from_element(child, &names);
 
                 let trail = Trail {
                     category,
@@ -448,7 +394,7 @@ fn recursive_marker_category_parser_categories_xml(
             }
             let span_guard = info_span!("category {name}").entered();
             let mut ca = CommonAttributes::default();
-            update_common_attributes_from_element(&mut ca, ele, names);
+            ca.update_common_attributes_from_element(ele, names);
 
             let display_name = ele.get_attribute(names.display_name).unwrap_or_default();
 
@@ -496,7 +442,7 @@ fn recursive_marker_category_parser_categories_xml(
 /// the intention is "best effort" parsing and not "validating" xml marker packs.
 /// we will ignore any issues like unknown attributes or xml tags. "unknown" attributes means Any attributes that jokolay doesn't parse into Zpack.
 #[instrument(skip_all)]
-pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
+pub(crate) fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
     // all the contents of ZPack
     let mut pack = PackCore::default();
     // parse zip file
@@ -525,7 +471,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
     }
     for name in images {
         let span = info_span!("load image", name).entered();
-        let file_path = RelativePath::parse_from_str(&name);
+        let file_path: RelativePath = name.parse().unwrap();
         if let Some(bytes) = read_file_bytes_from_zip_by_name(&name, &mut zip_archive) {
             match image::load_from_memory_with_format(&bytes, image::ImageFormat::Png) {
                 Ok(_) => assert!(
@@ -543,7 +489,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
     for name in tbins {
         let span = info_span!("load tbin {name}").entered();
 
-        let file_path = RelativePath::parse_from_str(&name);
+        let file_path: RelativePath = name.parse().unwrap();
         if let Some(bytes) = read_file_bytes_from_zip_by_name(&name, &mut zip_archive) {
             if let Some(tbin) = parse_tbin_from_slice(&bytes) {
                 assert!(
@@ -657,10 +603,10 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                         .parse::<f32>()
                         .unwrap_or_default();
                     let mut common_attributes = CommonAttributes::default();
-                    update_common_attributes_from_element(&mut common_attributes, child, &names);
-                    if let Some(t) = common_attributes.icon_file.as_ref() {
-                        if !pack.textures.contains_key(t) {
-                            info!(%t, "failed to find this texture in this pack");
+                    common_attributes.update_common_attributes_from_element(child, &names);
+                    if let Some(icon_file) = common_attributes.get_icon_file() {
+                        if !pack.textures.contains_key(icon_file) {
+                            info!(%icon_file, "failed to find this texture in this pack");
                         }
                     } else if let Some(icf) = child.get_attribute(names.icon_file) {
                         info!(icf, "marker's icon file attribute failed to parse");
@@ -680,14 +626,14 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                 if let Some(map_id) = child
                     .get_attribute(names.trail_data)
                     .and_then(|trail_data| {
-                        let path = RelativePath::parse_from_str(trail_data);
+                        let path: RelativePath = trail_data.parse().unwrap();
                         pack.tbins.get(&path).map(|tb| tb.map_id)
                     })
                 {
                     let mut common_attributes = CommonAttributes::default();
-                    update_common_attributes_from_element(&mut common_attributes, child, &names);
+                    common_attributes.update_common_attributes_from_element(child, &names);
 
-                    if let Some(tex) = common_attributes.texture.as_ref() {
+                    if let Some(tex) = common_attributes.get_texture() {
                         if !pack.textures.contains_key(tex) {}
                     }
 
@@ -700,7 +646,7 @@ pub fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                     pack.maps.entry(map_id).or_default().trails.push(trail);
                 } else {
                     let td = child.get_attribute(names.trail_data);
-                    let rp = RelativePath::parse_from_str(td.unwrap_or_default());
+                    let rp: RelativePath = td.unwrap_or_default().parse().unwrap();
                     let tbin = pack.tbins.get(&rp).map(|tbin| (tbin.map_id, tbin.version));
                     info!("missing map_id: {td:?} {rp} {tbin:?}");
                 }

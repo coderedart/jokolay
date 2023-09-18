@@ -6,6 +6,15 @@
 //!     2. $mapid.xml -> where the $mapid is the id (u16) of a map which contains markers/trails belonging to that particular map.
 //!     3. **/{.png | .trl} -> Any number of png images or trl binaries, in any location within this pack directory.
 
+/*
+expensive:
+categories being a tree with order among siblings (better to use a tree crate?)
+markers/trails referring to a category via full path.
+editing a category's name/path means that you have to load all the maps that refer to the category and change the reference.
+
+We will make not having a valid category/texture/tbin path as allowed. So, users can deal with the headache themselves.
+
+*/
 mod live_pack;
 use std::{
     collections::BTreeMap,
@@ -26,11 +35,12 @@ use self::live_pack::LoadedPack;
 
 use super::pack::PackCore;
 
-pub const PACK_LIST_URL: &str = "https://packlist.jokolay.com/packlist.json";
+// pub const PACK_LIST_URL: &str = "https://packlist.jokolay.com/packlist.json";
 
 pub const MARKER_MANAGER_DIRECTORY_NAME: &str = "marker_manager";
 pub const MARKER_PACKS_DIRECTORY_NAME: &str = "packs";
-pub const MARKER_MANAGER_CONFIG_NAME: &str = "marker_manager_config.json";
+// pub const MARKER_MANAGER_CONFIG_NAME: &str = "marker_manager_config.json";
+
 /// It manage everything that has to do with marker packs.
 /// 1. imports, loads, saves and exports marker packs.
 /// 2. maintains the categories selection data for every pack
@@ -59,7 +69,7 @@ pub struct MarkerManager {
 }
 
 #[derive(Debug, Default)]
-pub enum ImportStatus {
+pub(crate) enum ImportStatus {
     #[default]
     UnInitialized,
     WaitingForFileChooser,
@@ -68,8 +78,7 @@ pub enum ImportStatus {
     PackError(miette::Report),
 }
 #[derive(Debug, Default)]
-pub struct MarkerManagerUI {
-    pub import_pack_name: String,
+pub(crate) struct MarkerManagerUI {
     // tf is this type supposed to be? maybe we should have used a ECS for this reason.
     pub import_status: Option<Arc<Mutex<ImportStatus>>>,
 }

@@ -25,6 +25,7 @@ pub struct MumbleLink {
     pub name: String,
     /// API:2/maps
     pub map_id: u32,
+    pub map_type: u32,
     /// Vertical field-of-view
     pub fov: f32,
     /// A value corresponding to the user's current UI scaling.

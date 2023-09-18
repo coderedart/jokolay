@@ -19,6 +19,7 @@ image = { version = "0.24", default-features = false, features = ["png"] }
 # for rapid xml bindings
 cxx = { version = "1.0", features = ["std"] }
 base64 = "0.21.2"
+data-encoding = "2.4.0"
 enumflags2 = { workspace = true }
 cap-std = { workspace = true }
 tracing = { workspace = true }
@@ -29,9 +30,14 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
 rayon = { workspace = true }
+rfd = { workspace = true }
+smol_str = { workspace = true }
+itertools = { workspace = true }
+phf = { version = "*", features = ["macros"] }
+paste = { version = "*" }
 joko_render = { path = "../joko_render" }
 jokolink = { path = "../jokolink" }
-rfd = { workspace = true }
+jokoapi = { path = "../jokoapi" }
 [dev-dependencies]
 # jmf deps
 rstest = { version = "0", default-features = false }

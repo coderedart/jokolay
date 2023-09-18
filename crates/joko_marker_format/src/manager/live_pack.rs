@@ -20,7 +20,7 @@ use jokolink::MumbleLink;
 use miette::{bail, Context, IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
 
-pub struct LoadedPack {
+pub(crate) struct LoadedPack {
     /// The directory inside which the pack data is stored
     /// There should be a subdirectory called `core` which stores the pack core
     /// Files related to Jokolay thought will have to be stored directly inside this directory, to keep the xml subdirectory clean.
@@ -185,8 +185,8 @@ impl LoadedPack {
             {
                 if let Some(category_attributes) = enabled_cats_list.get(&marker.category) {
                     let mut common_attributes = marker.props.clone();
-                    common_attributes.inherit_if_prop_none(category_attributes);
-                    if let Some(tex_path) = &common_attributes.icon_file {
+                    common_attributes.inherit_if_attr_none(category_attributes);
+                    if let Some(tex_path) = common_attributes.get_icon_file() {
                         if !self.current_map_data.active_textures.contains_key(tex_path) {
                             if let Some(tex) = self.core.textures.get(tex_path) {
                                 let img = image::load_from_memory(tex).unwrap();
@@ -206,11 +206,10 @@ impl LoadedPack {
                             }
                         }
                     } else {
-                        info!(?marker.props.icon_file, "no texture attribute on this marker");
+                        info!("no texture attribute on this marker");
                     }
                     let th = common_attributes
-                        .icon_file
-                        .as_ref()
+                        .get_icon_file()
                         .and_then(|path| self.current_map_data.active_textures.get(path))
                         .unwrap_or(default_tex_id);
                     let (tex_id, width, height) = match th.id() {
@@ -224,10 +223,16 @@ impl LoadedPack {
                         width,
                         height,
                         texture: tex_id,
-                        height_offset: marker.props.height_offset.unwrap_or_default(),
-                        fade_near: marker.props.fade_near.unwrap_or(-1.0) / INCHES_PER_METER,
-                        fade_far: marker.props.fade_far.unwrap_or(-1.0) / INCHES_PER_METER,
-                        icon_size: marker.props.icon_size.unwrap_or(1.0),
+                        height_offset: marker
+                            .props
+                            .get_height_offset()
+                            .copied()
+                            .unwrap_or_default(),
+                        fade_near: marker.props.get_fade_near().copied().unwrap_or(-1.0)
+                            / INCHES_PER_METER,
+                        fade_far: marker.props.get_fade_far().copied().unwrap_or(-1.0)
+                            / INCHES_PER_METER,
+                        icon_size: marker.props.get_icon_size().copied().unwrap_or(1.0),
                     });
                 }
             }
@@ -242,8 +247,8 @@ impl LoadedPack {
             {
                 if let Some(category_attributes) = enabled_cats_list.get(&trail.category) {
                     let mut common_attributes = trail.props.clone();
-                    common_attributes.inherit_if_prop_none(category_attributes);
-                    if let Some(tex_path) = &common_attributes.texture {
+                    common_attributes.inherit_if_attr_none(category_attributes);
+                    if let Some(tex_path) = common_attributes.get_texture() {
                         if !self.current_map_data.active_textures.contains_key(tex_path) {
                             if let Some(tex) = self.core.textures.get(tex_path) {
                                 let img = image::load_from_memory(tex).unwrap();
@@ -263,11 +268,10 @@ impl LoadedPack {
                             }
                         }
                     } else {
-                        info!(?trail.props.texture, "no texture attribute on this marker");
+                        info!("no texture attribute on this marker");
                     }
                     let th = common_attributes
-                        .texture
-                        .as_ref()
+                        .get_texture()
                         .and_then(|path| self.current_map_data.active_textures.get(path))
                         .unwrap_or(default_tex_id);
                     let (tex_id, width, height) = match th.id() {
@@ -276,13 +280,13 @@ impl LoadedPack {
                         }
                         egui::TextureId::User(_) => unimplemented!(),
                     };
-                    let tbin_path = if let Some(tbin) = common_attributes.trail_data_file {
+                    let tbin_path = if let Some(tbin) = common_attributes.get_trail_data() {
                         tbin
                     } else {
                         info!(?trail, "missing tbin path");
                         continue;
                     };
-                    let tbin = if let Some(tbin) = self.core.tbins.get(&tbin_path) {
+                    let tbin = if let Some(tbin) = self.core.tbins.get(tbin_path) {
                         tbin
                     } else {
                         info!(%tbin_path, "failed to find tbin");
@@ -407,7 +411,7 @@ impl CategorySelection {
                     format!("{parent_name}.{name}")
                 };
                 let mut common_attributes = cat.props.clone();
-                common_attributes.inherit_if_prop_none(parent_common_attributes);
+                common_attributes.inherit_if_attr_none(parent_common_attributes);
                 Self::recursive_get_full_names(
                     &selected_cat.children,
                     &cat.children,

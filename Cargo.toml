@@ -33,3 +33,5 @@ ureq = { version = "*" }
 enumflags2 = { version = "*" }
 indexmap = { version = "2" }
 rfd = { version = "*" }
+smol_str = { version = "*" }
+itertools = { version = "*" }
