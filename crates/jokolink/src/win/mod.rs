@@ -290,6 +290,9 @@ impl MumbleWinImpl {
                     if dpi != self.dpi {
                         info!(dpi, self.dpi, "dpi changed for gw2 window");
                     }
+                    if dpi == 0 {
+                        error!(dpi, "invalid dpi value for guild wars 2");
+                    }
                     self.dpi = dpi;
                     // if the config changed, we will attempt to read dpi scaling.
                     // if we fail, we will just ignore it, and try again during next check of window pos (2 secs?)

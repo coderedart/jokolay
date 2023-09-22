@@ -698,11 +698,11 @@ impl ActiveTrail {
         let fade_far = attrs.get_fade_far().copied().unwrap_or(-1.0) / INCHES_PER_METER;
         let fade_near_far = Vec2::new(fade_near, fade_far);
         let color = attrs.get_color().copied().unwrap_or([0u8; 4]);
-        // 100 pixels = 1 meter. divide by another two to get offset from center
-        let horizontal_offset = twidth as f32 / 200.0;
+        // 200 pixels = 1 meter. divide by another two to get offset from center
+        let horizontal_offset = twidth as f32 / 400.0;
         // scale it trail scale
         let horizontal_offset = horizontal_offset * attrs.get_trail_scale().copied().unwrap_or(1.0);
-        let height = theight as f32 / 50.0; // 50 pixels = 1 meter. just calculate the distance and keeping mod-ing to get the number of times to repeat the texture
+        let height = theight as f32 / 200.0; // 50 pixels = 1 meter. just calculate the distance and keeping mod-ing to get the number of times to repeat the texture
         let mut y_offset = 1.0;
         let mut vertices = vec![];
         for two_positions in positions.windows(2) {

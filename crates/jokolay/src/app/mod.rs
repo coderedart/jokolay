@@ -339,7 +339,7 @@ impl MenuPanel {
         let mut ui_scaling_factor = 1.0;
         if let Some(link) = link.as_ref() {
             let gw2_scale: f32 = if link.dpi_scaling == 1 || link.dpi_scaling == -1 {
-                link.dpi as f32 / 96.0
+                (if link.dpi == 0 { 96.0 } else { link.dpi as f32 }) / 96.0
             } else {
                 1.0
             };
@@ -348,10 +348,6 @@ impl MenuPanel {
             let uisz_scale = convert_uisz_to_scale(link.uisz);
             ui_scaling_factor *= uisz_scale;
 
-            // ui.horizontal(|ui| {
-            //     ui.label("width * gw2 dpi");
-            //     ui.add(DragValue::new(&mut x));
-            // });
             let min_width = 1024.0 * gw2_scale;
             let min_height = 768.0 * gw2_scale;
             let gw2_width = link.client_size.x as f32;
@@ -361,16 +357,9 @@ impl MenuPanel {
 
             let min_ratio = min_height_ratio.min(min_width_ratio);
             ui_scaling_factor *= min_ratio;
-            // ui.horizontal(|ui| {
-            //     ui.label("width * min aspect ratio");
-            //     ui.add(DragValue::new(&mut x));
-            // });
+
             let egui_scale = etx.pixels_per_point();
             ui_scaling_factor /= egui_scale;
-            // ui.horizontal(|ui| {
-            //     ui.label("width / egui_scale");
-            //     ui.add(DragValue::new(&mut x));
-            // });
         }
 
         self.pos.x = ui_scaling_factor * (Self::WIDTH + 8.0); // add 8 pixels padding just for some space
