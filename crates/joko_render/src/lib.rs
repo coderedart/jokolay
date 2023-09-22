@@ -2,7 +2,6 @@ pub mod billboard;
 use billboard::BillBoardRenderer;
 use billboard::MarkerObject;
 use billboard::TrailObject;
-use bytemuck::cast_slice;
 use egui_backend::{egui, GfxBackend, WindowBackend};
 pub use egui_render_wgpu;
 use egui_render_wgpu::wgpu::util::BufferInitDescriptor;
@@ -19,8 +18,8 @@ use std::sync::Arc;
 use tracing::debug;
 use tracing::info;
 pub struct JokoRenderer {
-    mvp_bg: BindGroup,
-    mvp_ub: Buffer,
+    marker_bg: BindGroup,
+    marker_ub: Buffer,
     view_proj: Mat4,
     player_visibility_pipeline: RenderPipeline,
     viewport_buffer: Buffer,
@@ -98,26 +97,26 @@ impl GfxBackend for JokoRenderer {
 
         let painter = EguiPainter::new(&dev, surface_manager.surface_config.format);
 
-        let mvp_bgl = dev.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("marker transform matrix bindgroup layout"),
-            entries: &TRANSFORM_MATRIX_UNIFORM_BINDGROUP_ENTRY,
+        let marker_bgl = dev.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("marker uniform bindgroup layout"),
+            entries: &MARKER_UNIFORM_BINDGROUP_ENTRY,
         });
-        let mvp_ub = dev.create_buffer(&BufferDescriptor {
-            label: Some("mvp buffer"),
-            size: 64,
+        let marker_ub = dev.create_buffer(&BufferDescriptor {
+            label: Some("marker buffer"),
+            size: std::mem::size_of::<MarkerUniform>() as _,
             usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
-        let mvp_bg = dev.create_bind_group(&BindGroupDescriptor {
-            label: Some("mvp bg"),
-            layout: &mvp_bgl,
+        let marker_bg = dev.create_bind_group(&BindGroupDescriptor {
+            label: Some("marker bg"),
+            layout: &marker_bgl,
             entries: &[BindGroupEntry {
                 binding: 0,
-                resource: BindingResource::Buffer(mvp_ub.as_entire_buffer_binding()),
+                resource: BindingResource::Buffer(marker_ub.as_entire_buffer_binding()),
             }],
         });
         queue.write_buffer(
-            &mvp_ub,
+            &marker_ub,
             0,
             bytemuck::cast_slice(Mat4::IDENTITY.as_ref().as_slice()),
         );
@@ -178,7 +177,7 @@ impl GfxBackend for JokoRenderer {
             multiview: None,
         });
         let billboard_renderer =
-            BillBoardRenderer::new(&dev, &mvp_bgl, surface_manager.surface_config.format);
+            BillBoardRenderer::new(&dev, &marker_bgl, surface_manager.surface_config.format);
         let viewport_buffer = dev.create_buffer_init(&BufferInitDescriptor {
             label: Some("viewport quad buffer"),
             contents: bytemuck::cast_slice(&[
@@ -194,8 +193,8 @@ impl GfxBackend for JokoRenderer {
         Self {
             player_visibility_pipeline,
             viewport_buffer,
-            mvp_bg,
-            mvp_ub,
+            marker_bg,
+            marker_ub,
             surface_manager,
             dev,
             queue,
@@ -276,12 +275,12 @@ impl GfxBackend for JokoRenderer {
             if let Some(link) = self.link.as_ref() {
                 self.billboard_renderer.render(
                     &mut rpass,
-                    &self.mvp_bg,
+                    &self.marker_bg,
                     &self.painter.managed_textures,
                 );
                 // clear any pixels that are right over player
                 rpass.set_pipeline(&self.player_visibility_pipeline);
-                let point_on_screen = self.view_proj.project_point3(link.f_avatar_position);
+                let point_on_screen = self.view_proj.project_point3(link.player_pos);
                 let width = self.surface_manager.surface_config.width as f32;
                 let height = self.surface_manager.surface_config.height as f32;
                 let x = point_on_screen.x * width / 2.0;
@@ -343,14 +342,19 @@ impl JokoRenderer {
         if let Some(link) = link.as_ref() {
             let viewport_ratio = self.surface_manager.surface_config.width as f32
                 / self.surface_manager.surface_config.height as f32;
-            let center = link.f_camera_position + link.f_camera_front;
-            let view_matrix = Mat4::look_at_lh(link.f_camera_position, center, Vec3::Y);
+            let center = link.cam_pos + link.f_camera_front;
+            let view_matrix = Mat4::look_at_lh(link.cam_pos, center, Vec3::Y);
 
             let projection_matrix = Mat4::perspective_lh(link.fov, viewport_ratio, 1.0, 1000.0);
 
             let view_proj = projection_matrix * view_matrix;
+            let uniform_data = MarkerUniform {
+                vp: view_proj,
+                cam_pos: link.cam_pos,
+                padding: 0.0,
+            };
             self.queue
-                .write_buffer(&self.mvp_ub, 0, cast_slice(view_proj.as_ref().as_slice()));
+                .write_buffer(&self.marker_ub, 0, bytemuck::bytes_of(&uniform_data));
             self.view_proj = view_proj;
         }
         self.link = link;
@@ -362,14 +366,21 @@ impl JokoRenderer {
         self.billboard_renderer.trails.push(trail_object);
     }
 }
-pub const TRANSFORM_MATRIX_UNIFORM_BINDGROUP_ENTRY: [BindGroupLayoutEntry; 1] =
-    [BindGroupLayoutEntry {
-        binding: 0,
-        visibility: ShaderStages::VERTEX,
-        ty: BindingType::Buffer {
-            ty: BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: NonZeroU64::new(64),
-        },
-        count: None,
-    }];
+pub const MARKER_UNIFORM_BINDGROUP_ENTRY: [BindGroupLayoutEntry; 1] = [BindGroupLayoutEntry {
+    binding: 0,
+    visibility: ShaderStages::VERTEX,
+    ty: BindingType::Buffer {
+        ty: BufferBindingType::Uniform,
+        has_dynamic_offset: false,
+        min_binding_size: NonZeroU64::new(std::mem::size_of::<MarkerUniform>() as _),
+    },
+    count: None,
+}];
+
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+struct MarkerUniform {
+    vp: Mat4,
+    cam_pos: Vec3,
+    padding: f32,
+}

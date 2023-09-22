@@ -17,7 +17,24 @@ pub enum Mount {
     Skiff = 1 << 8,
     SiegeTurtle = 1 << 9,
 }
-
+/// impl for mumble link
+impl Mount {
+    pub fn try_from_mumble_link(value: u8) -> Option<Self> {
+        Some(match value {
+            1 => Mount::Jackal,
+            2 => Mount::Griffon,
+            3 => Mount::Springer,
+            4 => Mount::Skimmer,
+            5 => Mount::Raptor,
+            6 => Mount::RollerBeetle,
+            7 => Mount::Warclaw,
+            8 => Mount::Skyscale,
+            9 => Mount::Skiff,
+            10 => Mount::SiegeTurtle,
+            _ => return None,
+        })
+    }
+}
 impl FromStr for Mount {
     type Err = &'static str;
 

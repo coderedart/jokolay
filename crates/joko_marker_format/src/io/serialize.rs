@@ -210,5 +210,5 @@ fn serialize_marker_to_element(marker: &Marker, ele: &mut Element, names: &XotAt
     ele.set_attribute(names.guid, BASE64_ENGINE.encode(marker.guid));
     ele.set_attribute(names.map_id, format!("{}", marker.map_id));
     ele.set_attribute(names.category, &marker.category);
-    marker.props.serialize_to_element(ele, names);
+    marker.attrs.serialize_to_element(ele, names);
 }

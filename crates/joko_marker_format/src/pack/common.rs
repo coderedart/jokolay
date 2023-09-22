@@ -838,6 +838,7 @@ pub enum Behavior {
     OncePerInstancePerChar,
     /// I have no idea.
     WvWObjective,
+    WeeklyReset = 101,
 }
 impl FromStr for Behavior {
     type Err = &'static str;
@@ -854,6 +855,7 @@ impl FromStr for Behavior {
             "7" => Self::DailyPerChar,
             "8" => Self::OncePerInstancePerChar,
             "9" => Self::WvWObjective,
+            "101" => Self::WeeklyReset,
             _ => return Err("invalid behavior value"),
         })
     }

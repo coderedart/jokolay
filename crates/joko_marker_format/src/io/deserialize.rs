@@ -344,7 +344,7 @@ fn parse_map_file(map_id: u32, map_xml_str: &str, pack: &mut PackCore) -> Result
                     position: [xpos, ypos, zpos].into(),
                     map_id,
                     category,
-                    props: ca,
+                    attrs: ca,
                     guid,
                 };
 
@@ -615,7 +615,7 @@ pub(crate) fn get_pack_from_taco_zip(taco: &[u8]) -> Result<PackCore> {
                         position: [xpos, ypos, zpos].into(),
                         map_id,
                         category,
-                        props: common_attributes,
+                        attrs: common_attributes,
                         guid,
                     };
                     pack.maps.entry(map_id).or_default().markers.push(marker);

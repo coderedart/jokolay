@@ -10,6 +10,7 @@ use image::EncodableLayout;
 use indexmap::IndexMap;
 use joko_render::billboard::{MarkerObject, MarkerVertex, TrailObject};
 use tracing::{debug, error, info};
+use uuid::Uuid;
 
 use crate::{
     io::{load_pack_core_from_dir, save_pack_core_to_dir},
@@ -31,6 +32,7 @@ pub(crate) struct LoadedPack {
     /// The selection of categories which are "enabled" and markers belonging to these may be rendered
     cats_selection: HashMap<String, CategorySelection>,
     dirty: Dirty,
+    activation_data: ActivationData,
     current_map_data: CurrentMapData,
 }
 
@@ -58,10 +60,28 @@ impl Dirty {
             || !self.tbin.is_empty()
     }
 }
-
+/// This is the activation data per pack
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ActivationData {
+    /// this is for markers which are global and only activate once regardless of account
+    pub global: IndexMap<Uuid, ActivationType>,
+    /// this is the activation data per character
+    /// for markers which trigger once per character
+    pub character: IndexMap<String, IndexMap<Uuid, ActivationType>>,
+}
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum ActivationType {
+    /// clean these up when the map is changed
+    ReappearOnMapChange,
+    /// clean these up when the timestamp is reached
+    TimeStamp(time::OffsetDateTime),
+    Instance(std::net::IpAddr),
+}
 impl LoadedPack {
     const CORE_PACK_DIR_NAME: &str = "core";
     const CATEGORY_SELECTION_FILE_NAME: &str = "cats.json";
+    const ACTIVATION_DATA_FILE_NAME: &str = "activation.json";
+
     pub fn new(core: PackCore, dir: Arc<Dir>) -> Self {
         let cats_selection = CategorySelection::default_from_pack_core(&core);
         LoadedPack {
@@ -73,6 +93,7 @@ impl LoadedPack {
             },
             current_map_data: Default::default(),
             dir,
+            activation_data: Default::default(),
         }
     }
     pub fn category_sub_menu(&mut self, ui: &mut egui::Ui) {
@@ -96,18 +117,22 @@ impl LoadedPack {
             .wrap_err("failed to open core pack directory")?;
         let core = load_pack_core_from_dir(&core_dir).wrap_err("failed to load pack from dir")?;
 
-        let cats_selection = (match dir.read_to_string(Self::CATEGORY_SELECTION_FILE_NAME) {
-            Ok(cd_json) => match serde_json::from_str(&cd_json) {
-                Ok(cd) => Some(cd),
+        let cats_selection = (if dir.exists(Self::ACTIVATION_DATA_FILE_NAME) {
+            match dir.read_to_string(Self::CATEGORY_SELECTION_FILE_NAME) {
+                Ok(cd_json) => match serde_json::from_str(&cd_json) {
+                    Ok(cd) => Some(cd),
+                    Err(e) => {
+                        error!(?e, "failed to deserialize category data");
+                        None
+                    }
+                },
                 Err(e) => {
-                    error!(?e, "failed to deserialize category data");
+                    error!(?e, "failed to read string of category data");
                     None
                 }
-            },
-            Err(e) => {
-                error!(?e, "failed to read string of category data");
-                None
             }
+        } else {
+            None
         })
         .flatten()
         .unwrap_or_else(|| {
@@ -127,12 +152,32 @@ impl LoadedPack {
             }
             cs
         });
+        let activation_data = (if dir.exists(Self::ACTIVATION_DATA_FILE_NAME) {
+            match dir.read_to_string(Self::ACTIVATION_DATA_FILE_NAME) {
+                Ok(contents) => match serde_json::from_str(&contents) {
+                    Ok(cd) => Some(cd),
+                    Err(e) => {
+                        error!(?e, "failed to deserialize activation data");
+                        None
+                    }
+                },
+                Err(e) => {
+                    error!(?e, "failed to read string of category data");
+                    None
+                }
+            }
+        } else {
+            None
+        })
+        .flatten()
+        .unwrap_or_default();
         Ok(LoadedPack {
             dir,
             core,
             cats_selection,
             dirty: Default::default(),
             current_map_data: Default::default(),
+            activation_data,
         })
     }
     pub fn tick(
@@ -158,161 +203,210 @@ impl LoadedPack {
         };
 
         if self.current_map_data.map_id != link.map_id || categories_changed {
-            info!(
-                self.current_map_data.map_id,
-                link.map_id, "current map data is updated."
-            );
-            self.current_map_data = Default::default();
-            if link.map_id == 0 {
-                return;
-            }
-            self.current_map_data.map_id = link.map_id;
-            let mut enabled_cats_list = Default::default();
-            CategorySelection::recursive_get_full_names(
-                &self.cats_selection,
-                &self.core.categories,
-                &mut enabled_cats_list,
-                "",
-                &Default::default(),
-            );
-            for marker in self
-                .core
-                .maps
-                .get(&link.map_id)
-                .unwrap_or(&Default::default())
-                .markers
-                .iter()
-            {
-                if let Some(category_attributes) = enabled_cats_list.get(&marker.category) {
-                    let mut common_attributes = marker.props.clone();
-                    common_attributes.inherit_if_attr_none(category_attributes);
-                    if let Some(tex_path) = common_attributes.get_icon_file() {
-                        if !self.current_map_data.active_textures.contains_key(tex_path) {
-                            if let Some(tex) = self.core.textures.get(tex_path) {
-                                let img = image::load_from_memory(tex).unwrap();
-                                self.current_map_data.active_textures.insert(
-                                    tex_path.clone(),
-                                    etx.load_texture(
-                                        tex_path.as_str(),
-                                        ColorImage::from_rgba_unmultiplied(
-                                            [img.width() as _, img.height() as _],
-                                            img.into_rgba8().as_bytes(),
-                                        ),
-                                        Default::default(),
-                                    ),
-                                );
-                            } else {
-                                info!(%tex_path, ?self.core.textures, "failed to find this texture");
-                            }
-                        }
-                    } else {
-                        info!("no texture attribute on this marker");
-                    }
-                    let th = common_attributes
-                        .get_icon_file()
-                        .and_then(|path| self.current_map_data.active_textures.get(path))
-                        .unwrap_or(default_tex_id);
-                    let (tex_id, width, height) = match th.id() {
-                        egui::TextureId::Managed(tid) => {
-                            (tid, th.size()[0] as u16, th.size()[1] as u16)
-                        }
-                        egui::TextureId::User(_) => unimplemented!(),
-                    };
-                    self.current_map_data.active_markers.push(ActiveMarker {
-                        pos: marker.position,
-                        width,
-                        height,
-                        texture: tex_id,
-                        height_offset: marker
-                            .props
-                            .get_height_offset()
-                            .copied()
-                            .unwrap_or_default(),
-                        fade_near: marker.props.get_fade_near().copied().unwrap_or(-1.0)
-                            / INCHES_PER_METER,
-                        fade_far: marker.props.get_fade_far().copied().unwrap_or(-1.0)
-                            / INCHES_PER_METER,
-                        icon_size: marker.props.get_icon_size().copied().unwrap_or(1.0),
-                    });
-                }
-            }
-
-            for trail in self
-                .core
-                .maps
-                .get(&link.map_id)
-                .unwrap_or(&Default::default())
-                .trails
-                .iter()
-            {
-                if let Some(category_attributes) = enabled_cats_list.get(&trail.category) {
-                    let mut common_attributes = trail.props.clone();
-                    common_attributes.inherit_if_attr_none(category_attributes);
-                    if let Some(tex_path) = common_attributes.get_texture() {
-                        if !self.current_map_data.active_textures.contains_key(tex_path) {
-                            if let Some(tex) = self.core.textures.get(tex_path) {
-                                let img = image::load_from_memory(tex).unwrap();
-                                self.current_map_data.active_textures.insert(
-                                    tex_path.clone(),
-                                    etx.load_texture(
-                                        tex_path.as_str(),
-                                        ColorImage::from_rgba_unmultiplied(
-                                            [img.width() as _, img.height() as _],
-                                            img.into_rgba8().as_bytes(),
-                                        ),
-                                        Default::default(),
-                                    ),
-                                );
-                            } else {
-                                info!(%tex_path, ?self.core.textures, "failed to find this texture");
-                            }
-                        }
-                    } else {
-                        info!("no texture attribute on this marker");
-                    }
-                    let th = common_attributes
-                        .get_texture()
-                        .and_then(|path| self.current_map_data.active_textures.get(path))
-                        .unwrap_or(default_tex_id);
-                    let (tex_id, width, height) = match th.id() {
-                        egui::TextureId::Managed(tid) => {
-                            (tid, th.size()[0] as u16, th.size()[1] as u16)
-                        }
-                        egui::TextureId::User(_) => unimplemented!(),
-                    };
-                    let tbin_path = if let Some(tbin) = common_attributes.get_trail_data() {
-                        tbin
-                    } else {
-                        info!(?trail, "missing tbin path");
-                        continue;
-                    };
-                    let tbin = if let Some(tbin) = self.core.tbins.get(tbin_path) {
-                        tbin
-                    } else {
-                        info!(%tbin_path, "failed to find tbin");
-                        continue;
-                    };
-                    if let Some(active_trail) =
-                        ActiveTrail::get_vertices_and_texture(&tbin.nodes, width, height, tex_id)
-                    {
-                        self.current_map_data.active_trails.push(active_trail);
-                    }
-                }
-            }
+            self.on_map_changed(etx, link, default_tex_id);
         }
 
-        for marker in self.current_map_data.active_markers.iter() {
-            if let Some(mo) =
-                marker.get_vertices_and_texture(link.f_camera_position, link.f_avatar_position)
-            {
+        for marker in self.current_map_data.active_markers.values() {
+            if let Some(mo) = marker.get_vertices_and_texture(link) {
                 joko_renderer.add_billboard(mo);
             }
         }
-        for trail in self.current_map_data.active_trails.iter() {
+        for trail in self.current_map_data.active_trails.values() {
             joko_renderer.add_trail(TrailObject {
                 vertices: trail.trail_object.vertices.clone(),
                 texture: trail.trail_object.texture,
             });
+        }
+    }
+    fn on_map_changed(
+        &mut self,
+        etx: &egui::Context,
+        link: &MumbleLink,
+        default_tex_id: &TextureHandle,
+    ) {
+        info!(
+            self.current_map_data.map_id,
+            link.map_id, "current map data is updated."
+        );
+        self.current_map_data = Default::default();
+        if link.map_id == 0 {
+            return;
+        }
+        self.current_map_data.map_id = link.map_id;
+        let mut enabled_cats_list = Default::default();
+        CategorySelection::recursive_get_full_names(
+            &self.cats_selection,
+            &self.core.categories,
+            &mut enabled_cats_list,
+            "",
+            &Default::default(),
+        );
+        for (index, marker) in self
+            .core
+            .maps
+            .get(&link.map_id)
+            .unwrap_or(&Default::default())
+            .markers
+            .iter()
+            .enumerate()
+        {
+            if let Some(category_attributes) = enabled_cats_list.get(&marker.category) {
+                let mut common_attributes = marker.attrs.clone();
+                common_attributes.inherit_if_attr_none(category_attributes);
+                let key = &marker.guid;
+                if let Some(behavior) = common_attributes.get_behavior() {
+                    use crate::pack::Behavior;
+                    if match behavior {
+                        Behavior::AlwaysVisible => false,
+                        Behavior::ReappearOnMapChange
+                        | Behavior::ReappearOnDailyReset
+                        | Behavior::OnlyVisibleBeforeActivation
+                        | Behavior::ReappearAfterTimer
+                        | Behavior::ReappearOnMapReset
+                        | Behavior::WeeklyReset => self.activation_data.global.contains_key(key),
+                        Behavior::OncePerInstance => self
+                            .activation_data
+                            .global
+                            .get(key)
+                            .map(|a| match a {
+                                ActivationType::Instance(a) => a == &link.server_address,
+                                _ => false,
+                            })
+                            .unwrap_or_default(),
+                        Behavior::DailyPerChar => self
+                            .activation_data
+                            .character
+                            .get(&link.name)
+                            .map(|a| a.contains_key(key))
+                            .unwrap_or_default(),
+                        Behavior::OncePerInstancePerChar => self
+                            .activation_data
+                            .character
+                            .get(&link.name)
+                            .map(|a| {
+                                a.get(key)
+                                    .map(|a| match a {
+                                        ActivationType::Instance(a) => a == &link.server_address,
+                                        _ => false,
+                                    })
+                                    .unwrap_or_default()
+                            })
+                            .unwrap_or_default(),
+                        Behavior::WvWObjective => {
+                            false // ???
+                        }
+                    } {
+                        continue;
+                    }
+                }
+                if let Some(tex_path) = common_attributes.get_icon_file() {
+                    if !self.current_map_data.active_textures.contains_key(tex_path) {
+                        if let Some(tex) = self.core.textures.get(tex_path) {
+                            let img = image::load_from_memory(tex).unwrap();
+                            self.current_map_data.active_textures.insert(
+                                tex_path.clone(),
+                                etx.load_texture(
+                                    tex_path.as_str(),
+                                    ColorImage::from_rgba_unmultiplied(
+                                        [img.width() as _, img.height() as _],
+                                        img.into_rgba8().as_bytes(),
+                                    ),
+                                    Default::default(),
+                                ),
+                            );
+                        } else {
+                            info!(%tex_path, ?self.core.textures, "failed to find this texture");
+                        }
+                    }
+                } else {
+                    info!("no texture attribute on this marker");
+                }
+                let th = common_attributes
+                    .get_icon_file()
+                    .and_then(|path| self.current_map_data.active_textures.get(path))
+                    .unwrap_or(default_tex_id);
+                let texture_id = match th.id() {
+                    egui::TextureId::Managed(i) => i,
+                    egui::TextureId::User(_) => todo!(),
+                };
+                self.current_map_data.active_markers.insert(
+                    index,
+                    ActiveMarker {
+                        width: th.size()[0] as u16,
+                        height: th.size()[1] as u16,
+                        texture_id,
+
+                        _texture: th.clone(),
+                        attrs: common_attributes,
+                        pos: marker.position,
+                    },
+                );
+            }
+        }
+
+        for (index, trail) in self
+            .core
+            .maps
+            .get(&link.map_id)
+            .unwrap_or(&Default::default())
+            .trails
+            .iter()
+            .enumerate()
+        {
+            if let Some(category_attributes) = enabled_cats_list.get(&trail.category) {
+                let mut common_attributes = trail.props.clone();
+                common_attributes.inherit_if_attr_none(category_attributes);
+                if let Some(tex_path) = common_attributes.get_texture() {
+                    if !self.current_map_data.active_textures.contains_key(tex_path) {
+                        if let Some(tex) = self.core.textures.get(tex_path) {
+                            let img = image::load_from_memory(tex).unwrap();
+                            self.current_map_data.active_textures.insert(
+                                tex_path.clone(),
+                                etx.load_texture(
+                                    tex_path.as_str(),
+                                    ColorImage::from_rgba_unmultiplied(
+                                        [img.width() as _, img.height() as _],
+                                        img.into_rgba8().as_bytes(),
+                                    ),
+                                    Default::default(),
+                                ),
+                            );
+                        } else {
+                            info!(%tex_path, ?self.core.textures, "failed to find this texture");
+                        }
+                    }
+                } else {
+                    info!("no texture attribute on this marker");
+                }
+                let th = common_attributes
+                    .get_texture()
+                    .and_then(|path| self.current_map_data.active_textures.get(path))
+                    .unwrap_or(default_tex_id);
+
+                let tbin_path = if let Some(tbin) = common_attributes.get_trail_data() {
+                    tbin
+                } else {
+                    info!(?trail, "missing tbin path");
+                    continue;
+                };
+                let tbin = if let Some(tbin) = self.core.tbins.get(tbin_path) {
+                    tbin
+                } else {
+                    info!(%tbin_path, "failed to find tbin");
+                    continue;
+                };
+                if let Some(active_trail) = ActiveTrail::get_vertices_and_texture(
+                    &common_attributes,
+                    &tbin.nodes,
+                    th.size()[0] as u16,
+                    th.size()[1] as u16,
+                    th.clone(),
+                ) {
+                    self.current_map_data
+                        .active_trails
+                        .insert(index, active_trail);
+                }
+            }
         }
     }
     pub fn save_all(&mut self) -> Result<()> {
@@ -359,26 +453,41 @@ impl LoadedPack {
 }
 
 #[derive(Default)]
-pub struct CurrentMapData {
+pub(crate) struct CurrentMapData {
     /// the map to which the current map data belongs to
     pub map_id: u32,
     /// The textures that are being used by the markers, so must be kept alive by this hashmap
     pub active_textures: HashMap<RelativePath, TextureHandle>,
-    pub active_markers: Vec<ActiveMarker>,
-    pub active_trails: Vec<ActiveTrail>,
+    /// The key is the index of the marker in the map markers
+    /// Their position in the map markers serves as their "id" as uuids can be duplicates.
+    pub active_markers: IndexMap<usize, ActiveMarker>,
+    /// The key is the position/index of this trail in the map trails. same as markers
+    pub active_trails: IndexMap<usize, ActiveTrail>,
 }
+
+/*
+- activation data with uuids and track the latest timestamp that will be activated
+- category activation data -> track and changes to propagate to markers of this map
+- current active markers, which will keep track of their original marker, so as to propagate any changes easily
+*/
 pub struct ActiveTrail {
     pub trail_object: TrailObject,
+    pub texture_handle: TextureHandle,
 }
-pub struct ActiveMarker {
-    pub pos: glam::Vec3,
+/// This is an active marker.
+/// It stores all the info that we need to scan every frame
+pub(crate) struct ActiveMarker {
+    /// width of the texture
     pub width: u16,
+    /// height of the texture
     pub height: u16,
-    pub texture: u64,
-    pub height_offset: f32,
-    pub fade_near: f32,
-    pub fade_far: f32,
-    pub icon_size: f32,
+    /// texture id from managed textures
+    pub texture_id: u64,
+    /// owned texture handle to keep it alive
+    pub _texture: TextureHandle,
+    /// position
+    pub pos: Vec3,
+    pub attrs: CommonAttributes,
 }
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 struct CategorySelection {
@@ -461,59 +570,100 @@ impl CategorySelection {
 pub const _BILLBOARD_MAX_VISIBILITY_DISTANCE: f32 = 10000.0;
 
 impl ActiveMarker {
-    pub fn get_vertices_and_texture(
-        &self,
-        cam_pos: Vec3,
-        player_pos: Vec3,
-    ) -> Option<MarkerObject> {
+    pub fn get_vertices_and_texture(&self, link: &MumbleLink) -> Option<MarkerObject> {
         let Self {
-            pos,
             width,
             height,
-            texture,
-            height_offset,
-            fade_far,
-            icon_size,
+            texture_id,
+            pos,
+            attrs,
             ..
-        } = *self;
-        let distance = pos.distance(player_pos);
+        } = self;
+        // filters
+        if let Some(mounts) = attrs.get_mount() {
+            if let Some(current) = link.mount {
+                if !mounts.contains(current) {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+        }
+        let pos = *pos;
+        let height_offset = attrs.get_height_offset().copied().unwrap_or_default();
+        let fade_near = attrs.get_fade_near().copied().unwrap_or(-1.0) / INCHES_PER_METER;
+        let fade_far = attrs.get_fade_far().copied().unwrap_or(-1.0) / INCHES_PER_METER;
+        let icon_size = attrs.get_icon_size().copied().unwrap_or(1.0);
+        let distance = pos.distance(link.player_pos);
+        let fade_near_far = Vec2::new(fade_near, fade_far);
+
+        let alpha = attrs.get_alpha().copied().unwrap_or(1.0);
+        let color = attrs.get_color().copied().unwrap_or_default();
+        /*
+           1. we need to filter the markers
+               1. statically - mapid, character, map_type, race, profession
+               2. dynamically - achievement, behavior, mount, fade_far, cull
+               3. force hide/show by user discretion
+           2. for active markers (not forcibly shown), we must do the dynamic checks every frame like behavior
+           3. store the state for these markers activation data, and temporary data like bounce
+        */
+        /*
+        skip if:
+        alpha is 0.0
+        achievement id/bit is done (maybe this should be at map filter level?)
+        behavior (activation)
+        cull
+        distance > fade_far
+        visibility (ingame/map/minimap)
+        mount
+        specialization
+        */
         if fade_far > 0.0 && distance > fade_far {
             return None;
         }
+
         // if marker further than 150 metres, skip rendering them to avoid ugly tiny pixel objects on screen
-        if distance > 150.0 {
+        if distance > 500.0 {
             return None;
         }
         let mut pos = pos;
         pos.y += height_offset;
-        let direction_to_marker = cam_pos - pos;
+        let direction_to_marker = link.cam_pos - pos;
         let direction_to_side = direction_to_marker.normalize().cross(Vec3::Y);
 
         // we want to map 100 pixels to one meter in game
         // we are supposed to half the width/height too, as offset from the center will be half of the whole billboard
         // But, i will ignore that as that makes markers too small
-        let x_offset = (width as f32 / 100.0) * icon_size;
-        let y_offset = (height as f32 / 100.0) * icon_size;
+        let x_offset = (*width as f32 / 100.0) * icon_size;
+        let y_offset = (*height as f32 / 100.0) * icon_size;
         let bottom_left = MarkerVertex {
             position: (pos - (direction_to_side * x_offset) - (Vec3::Y * y_offset)),
             texture_coordinates: vec2(0.0, 1.0),
-            padding: Vec2::default(),
+            alpha,
+            color,
+            fade_near_far,
         };
 
         let top_left = MarkerVertex {
             position: (pos - (direction_to_side * x_offset) + (Vec3::Y * y_offset)),
             texture_coordinates: vec2(0.0, 0.0),
-            padding: Vec2::default(),
+            alpha,
+            color,
+            fade_near_far,
         };
         let top_right = MarkerVertex {
             position: (pos + (direction_to_side * x_offset) + (Vec3::Y * y_offset)),
             texture_coordinates: vec2(1.0, 0.0),
-            padding: Vec2::default(),
+            alpha,
+            color,
+            fade_near_far,
         };
         let bottom_right = MarkerVertex {
             position: (pos + (direction_to_side * x_offset) - (Vec3::Y * y_offset)),
             texture_coordinates: vec2(1.0, 1.0),
-            padding: Vec2::default(),
+            alpha,
+            color,
+            fade_near_far,
         };
         let vertices = [
             top_left,
@@ -525,24 +675,33 @@ impl ActiveMarker {
         ];
         Some(MarkerObject {
             vertices,
-            texture,
+            texture: *texture_id,
             distance,
         })
     }
 }
 
 impl ActiveTrail {
-    pub fn get_vertices_and_texture(
+    fn get_vertices_and_texture(
+        attrs: &CommonAttributes,
         positions: &[Vec3],
         twidth: u16,
         theight: u16,
-        texture: u64,
+        texture: TextureHandle,
     ) -> Option<Self> {
         // can't have a trail without atleast two nodes
         if positions.len() < 2 {
             return None;
         }
-        let horizontal_offset = twidth as f32 / 200.0; // 100 pixels = 1 meter. divide by another two to get offset from center
+        let alpha = attrs.get_alpha().copied().unwrap_or(1.0);
+        let fade_near = attrs.get_fade_near().copied().unwrap_or(-1.0) / INCHES_PER_METER;
+        let fade_far = attrs.get_fade_far().copied().unwrap_or(-1.0) / INCHES_PER_METER;
+        let fade_near_far = Vec2::new(fade_near, fade_far);
+        let color = attrs.get_color().copied().unwrap_or([0u8; 4]);
+        // 100 pixels = 1 meter. divide by another two to get offset from center
+        let horizontal_offset = twidth as f32 / 200.0;
+        // scale it trail scale
+        let horizontal_offset = horizontal_offset * attrs.get_trail_scale().copied().unwrap_or(1.0);
         let height = theight as f32 / 50.0; // 50 pixels = 1 meter. just calculate the distance and keeping mod-ing to get the number of times to repeat the texture
         let mut y_offset = 1.0;
         let mut vertices = vec![];
@@ -554,22 +713,30 @@ impl ActiveTrail {
             let first_left = MarkerVertex {
                 position: first - (side * horizontal_offset),
                 texture_coordinates: vec2(0.0, y_offset),
-                padding: Default::default(),
+                alpha,
+                color,
+                fade_near_far,
             };
             let first_right = MarkerVertex {
                 position: first + (side * horizontal_offset),
                 texture_coordinates: vec2(1.0, y_offset),
-                padding: Default::default(),
+                alpha,
+                color,
+                fade_near_far,
             };
             let second_left = MarkerVertex {
                 position: second - (side * horizontal_offset),
                 texture_coordinates: vec2(0.0, new_offset),
-                padding: Default::default(),
+                alpha,
+                color,
+                fade_near_far,
             };
             let second_right = MarkerVertex {
                 position: second + (side * horizontal_offset),
                 texture_coordinates: vec2(1.0, new_offset),
-                padding: Default::default(),
+                alpha,
+                color,
+                fade_near_far,
             };
             y_offset = if new_offset.is_sign_positive() {
                 new_offset
@@ -589,8 +756,12 @@ impl ActiveTrail {
         Some(ActiveTrail {
             trail_object: TrailObject {
                 vertices: vertices.into(),
-                texture,
+                texture: match texture.id() {
+                    egui::TextureId::Managed(i) => i,
+                    egui::TextureId::User(_) => todo!(),
+                },
             },
+            texture_handle: texture,
         })
     }
 }

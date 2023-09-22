@@ -12,6 +12,7 @@ mod mumble;
 use egui::DragValue;
 use enumflags2::BitFlags;
 use glam::IVec2;
+use jokoapi::end_point::mounts::Mount;
 use miette::{IntoDiagnostic, Result, WrapErr};
 pub use mumble::*;
 use serde_json::from_str;
@@ -89,7 +90,12 @@ impl MumbleManager {
         let uisz = identity
             .get_uisz()
             .ok_or(miette::miette!("uisz is invalid"))?;
-
+        let server_address = if cml.context.server_address[0] == 2 {
+            let addr = cml.context.server_address;
+            std::net::Ipv4Addr::new(addr[4], addr[5], addr[6], addr[7]).into()
+        } else {
+            std::net::Ipv4Addr::UNSPECIFIED.into()
+        };
         if self.link.ui_tick != cml.ui_tick {
             changes.insert(MumbleChanges::UiTick);
         }
@@ -132,9 +138,9 @@ impl MumbleManager {
         }
         let link = Arc::new(MumbleLink {
             ui_tick: cml.ui_tick,
-            f_avatar_position: cml.f_avatar_position.into(),
+            player_pos: cml.f_avatar_position.into(),
             f_avatar_front: cml.f_avatar_front.into(),
-            f_camera_position: cml.f_camera_position.into(),
+            cam_pos: cml.f_camera_position.into(),
             f_camera_front: cml.f_camera_front.into(),
             name: identity.name,
             map_id: cml.context.map_id,
@@ -150,6 +156,21 @@ impl MumbleManager {
             client_pos,
             client_size,
             map_type: cml.context.map_type,
+            server_address,
+            shard_id: cml.context.shard_id,
+            instance: cml.context.instance,
+            build_id: cml.context.build_id,
+            ui_state: cml.context.ui_state,
+            compass_width: cml.context.compass_width,
+            compass_height: cml.context.compass_height,
+            compass_rotation: cml.context.compass_rotation,
+            player_x: cml.context.player_x,
+            player_y: cml.context.player_y,
+            map_center_x: cml.context.map_center_x,
+            map_center_y: cml.context.map_center_y,
+            map_scale: cml.context.map_scale,
+            process_id: cml.context.process_id,
+            mount: Mount::try_from_mumble_link(cml.context.mount_index),
         });
         self.link = link.clone();
         Ok(if self.link.ui_tick == 0 {
@@ -182,9 +203,9 @@ fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
             ui.end_row();
             ui.label("player position");
             ui.horizontal(|ui| {
-                ui.add(DragValue::new(&mut link.f_avatar_position.x));
-                ui.add(DragValue::new(&mut link.f_avatar_position.y));
-                ui.add(DragValue::new(&mut link.f_avatar_position.z));
+                ui.add(DragValue::new(&mut link.player_pos.x));
+                ui.add(DragValue::new(&mut link.player_pos.y));
+                ui.add(DragValue::new(&mut link.player_pos.z));
             });
             ui.end_row();
             ui.label("player direction");
@@ -196,9 +217,9 @@ fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
             ui.end_row();
             ui.label("camera position");
             ui.horizontal(|ui| {
-                ui.add(DragValue::new(&mut link.f_camera_position.x));
-                ui.add(DragValue::new(&mut link.f_camera_position.y));
-                ui.add(DragValue::new(&mut link.f_camera_position.z));
+                ui.add(DragValue::new(&mut link.cam_pos.x));
+                ui.add(DragValue::new(&mut link.cam_pos.y));
+                ui.add(DragValue::new(&mut link.cam_pos.z));
             });
             ui.end_row();
             ui.label("camera direction");
@@ -220,11 +241,23 @@ fn mumble_ui(ui: &mut egui::Ui, mut link: MumbleLink) {
             ui.label("character");
             ui.label(&link.name);
             ui.end_row();
+            ui.label("map id");
+            ui.add(DragValue::new(&mut link.map_id));
+            ui.end_row();
             ui.label("map type");
             ui.add(DragValue::new(&mut link.map_type));
             ui.end_row();
-            ui.label("map id");
-            ui.add(DragValue::new(&mut link.map_id));
+            ui.label("address");
+            ui.label(format!("{}", link.server_address));
+            ui.end_row();
+            ui.label("instance");
+            ui.add(DragValue::new(&mut link.instance));
+            ui.end_row();
+            ui.label("shard id");
+            ui.add(DragValue::new(&mut link.shard_id));
+            ui.end_row();
+            ui.label("mount");
+            ui.label(format!("{:?}", link.mount));
             ui.end_row();
             ui.label("client pos");
             ui.horizontal(|ui| {

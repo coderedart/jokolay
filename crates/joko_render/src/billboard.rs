@@ -39,11 +39,17 @@ impl BillBoardRenderer {
             vertex: VertexState {
                 module: &shader_module,
                 entry_point: "vs_main",
-                buffers: &[ VertexBufferLayout {
+                buffers: &[VertexBufferLayout {
                     array_stride: std::mem::size_of::<MarkerVertex>() as u64,
                     step_mode: VertexStepMode::Vertex,
-                    attributes: &egui_render_wgpu::wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2],
-                } ],
+                    attributes: &egui_render_wgpu::wgpu::vertex_attr_array![
+                    0 => Float32x3,
+                    1 => Float32x2,
+                    2 => Float32,
+                    3 => Unorm8x4,
+                    4 => Float32x2,
+                    ],
+                }],
             },
             primitive: PIPELINE_PRIMITIVE_STATE,
             depth_stencil: None,
@@ -159,19 +165,19 @@ impl BillBoardRenderer {
         rpass.set_pipeline(&self.pipeline);
         rpass.set_bind_group(0, mvp_bg, &[]);
 
+        for (trail, (trail_buffer, _)) in self.trails.iter().zip(self.trail_buffers.iter()) {
+            rpass.set_vertex_buffer(0, trail_buffer.slice(..));
+            if let Some(texture) = textures.get(&trail.texture) {
+                rpass.set_bind_group(1, &texture.bindgroup, &[]);
+                rpass.draw(0..trail.vertices.len() as _, 0..1);
+            }
+        }
         rpass.set_vertex_buffer(0, self.vb.slice(..));
         for (index, mo) in self.markers.iter().enumerate() {
             let index: u32 = index.try_into().unwrap();
             if let Some(texture) = textures.get(&mo.texture) {
                 rpass.set_bind_group(1, &texture.bindgroup, &[]);
                 rpass.draw((index * 6)..((index + 1) * 6), 0..1);
-            }
-        }
-        for (trail, (trail_buffer, _)) in self.trails.iter().zip(self.trail_buffers.iter()) {
-            rpass.set_vertex_buffer(0, trail_buffer.slice(..));
-            if let Some(texture) = textures.get(&trail.texture) {
-                rpass.set_bind_group(1, &texture.bindgroup, &[]);
-                rpass.draw(0..trail.vertices.len() as _, 0..1);
             }
         }
     }
@@ -182,7 +188,9 @@ impl BillBoardRenderer {
 pub struct MarkerVertex {
     pub position: Vec3,
     pub texture_coordinates: Vec2,
-    pub padding: Vec2,
+    pub alpha: f32,
+    pub color: [u8; 4],
+    pub fade_near_far: Vec2,
 }
 
 pub const TEXTURE_BINDGROUP_ENTRIES: [BindGroupLayoutEntry; 2] = [

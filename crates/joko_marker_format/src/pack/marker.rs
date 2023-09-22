@@ -8,5 +8,5 @@ pub(crate) struct Marker {
     pub position: Vec3,
     pub map_id: u32,
     pub category: String,
-    pub props: CommonAttributes,
+    pub attrs: CommonAttributes,
 }

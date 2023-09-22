@@ -8,8 +8,8 @@ edition = "2021"
 # for marker packs 
 xot = { version = "0" }
 # to keep the order of files inside zip. markers packs rely on some files like aaa.xml being read first for marker category order# for representing the paths of files inside xml pack zip
-indexmap = { workspace = true }
-uuid = { version = "1", features = ["v4", "fast-rng", "macro-diagnostics"] }
+indexmap = { workspace = true, features = ["serde"]}
+uuid = { version = "1", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
 
 
 # for easier extraction to folers and compression of folders into zip files (.taco format alias)
@@ -33,11 +33,14 @@ rayon = { workspace = true }
 rfd = { workspace = true }
 smol_str = { workspace = true }
 itertools = { workspace = true }
+time = { workspace = true , features = ["serde"]}
 phf = { version = "*", features = ["macros"] }
 paste = { version = "*" }
 joko_render = { path = "../joko_render" }
 jokolink = { path = "../jokolink" }
 jokoapi = { path = "../jokoapi" }
+
+
 [dev-dependencies]
 # jmf deps
 rstest = { version = "0", default-features = false }

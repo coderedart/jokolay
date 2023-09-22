@@ -183,6 +183,9 @@ impl UserApp for Jokolay {
             JokolayTracingLayer::gui(&etx, &mut self.menu_panel.show_tracing_window);
             self.theme_manager
                 .gui(&etx, &mut self.menu_panel.show_theme_window);
+            egui::Window::new("fps").show(&etx, |ui| {
+                self.frame_stats.gui(ui);
+            });
             // show notifications
             JokolayTracingLayer::show_notifications(&etx);
 
