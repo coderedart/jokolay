@@ -268,7 +268,7 @@ impl ThemeManager {
                                         error!(?e, "failed to serialize theme to json :(");
                                     }
                                 }
-                                self.themes.insert(theme_name.clone(), theme);
+                                self.themes.insert(theme_name, theme);
                             }
                             etx.style_ui(ui);
                         });

@@ -17,7 +17,7 @@ pub fn get_jokolay_dir() -> Result<cap_std::fs_utf8::Dir> {
             .wrap_err("failed to create jokolay directory")?;
         Dir::open_ambient_dir(&jkl_path, authoratah)
             .into_diagnostic()
-            .wrap_err(jkl_path.clone())
+            .wrap_err(jkl_path)
             .wrap_err("failed to open jokolay data dir")?
     } else {
         let dir = cap_directories::ProjectDirs::from("com.jokolay", "", "jokolay", authoratah)

@@ -728,6 +728,21 @@ impl CommonAttributes {
             ]
         );
     }
+    /*
+
+    TF32 height = 1.5f;
+    TF32 triggerRange = 2.0f;
+    TF32 animSpeed = 1;
+    TS32 miniMapSize = 20;
+    TF32 miniMapFadeOutLevel = 100.0f;
+    TF32 infoRange = 2.0f;
+    CColor color = CColor( 0xffffffff );
+
+    TS16 resetLength = 0;
+    TS16 minSize = 5;
+    TS16 maxSize = 2048;
+
+    */
 }
 
 #[allow(non_camel_case_types)]
