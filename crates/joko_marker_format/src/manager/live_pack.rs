@@ -205,9 +205,9 @@ impl LoadedPack {
         if self.current_map_data.map_id != link.map_id || categories_changed {
             self.on_map_changed(etx, link, default_tex_id);
         }
-
+        let z_near = joko_renderer.get_z_near();
         for marker in self.current_map_data.active_markers.values() {
-            if let Some(mo) = marker.get_vertices_and_texture(link) {
+            if let Some(mo) = marker.get_vertices_and_texture(link, z_near) {
                 joko_renderer.add_billboard(mo);
             }
         }
@@ -251,10 +251,10 @@ impl LoadedPack {
             .enumerate()
         {
             if let Some(category_attributes) = enabled_cats_list.get(&marker.category) {
-                let mut common_attributes = marker.attrs.clone();
-                common_attributes.inherit_if_attr_none(category_attributes);
+                let mut attrs = marker.attrs.clone();
+                attrs.inherit_if_attr_none(category_attributes);
                 let key = &marker.guid;
-                if let Some(behavior) = common_attributes.get_behavior() {
+                if let Some(behavior) = attrs.get_behavior() {
                     use crate::pack::Behavior;
                     if match behavior {
                         Behavior::AlwaysVisible => false,
@@ -299,7 +299,7 @@ impl LoadedPack {
                         continue;
                     }
                 }
-                if let Some(tex_path) = common_attributes.get_icon_file() {
+                if let Some(tex_path) = attrs.get_icon_file() {
                     if !self.current_map_data.active_textures.contains_key(tex_path) {
                         if let Some(tex) = self.core.textures.get(tex_path) {
                             let img = image::load_from_memory(tex).unwrap();
@@ -321,7 +321,7 @@ impl LoadedPack {
                 } else {
                     info!("no texture attribute on this marker");
                 }
-                let th = common_attributes
+                let th = attrs
                     .get_icon_file()
                     .and_then(|path| self.current_map_data.active_textures.get(path))
                     .unwrap_or(default_tex_id);
@@ -329,16 +329,24 @@ impl LoadedPack {
                     egui::TextureId::Managed(i) => i,
                     egui::TextureId::User(_) => todo!(),
                 };
+
+                let width = th.size()[0] as u16;
+                let height = th.size()[1] as u16;
+                let max_pixel_size = (width.max(height) as f32)
+                    .min(attrs.get_max_size().copied().unwrap_or(f32::MAX));
+                let min_pixel_size = (width.min(height) as f32)
+                    .max(attrs.get_min_size().copied().unwrap_or_default());
                 self.current_map_data.active_markers.insert(
                     index,
                     ActiveMarker {
-                        width: th.size()[0] as u16,
-                        height: th.size()[1] as u16,
                         texture_id,
-
                         _texture: th.clone(),
-                        attrs: common_attributes,
+                        attrs,
                         pos: marker.position,
+                        width,
+                        height,
+                        max_pixel_size,
+                        min_pixel_size,
                     },
                 );
             }
@@ -487,6 +495,10 @@ pub(crate) struct ActiveMarker {
     pub _texture: TextureHandle,
     /// position
     pub pos: Vec3,
+    /// billboard must not be bigger than this size in pixels
+    pub max_pixel_size: f32,
+    /// billboard must not be smaller than this size in pixels
+    pub min_pixel_size: f32,
     pub attrs: CommonAttributes,
 }
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -570,15 +582,21 @@ impl CategorySelection {
 pub const _BILLBOARD_MAX_VISIBILITY_DISTANCE: f32 = 10000.0;
 
 impl ActiveMarker {
-    pub fn get_vertices_and_texture(&self, link: &MumbleLink) -> Option<MarkerObject> {
+    pub fn get_vertices_and_texture(&self, link: &MumbleLink, z_near: f32) -> Option<MarkerObject> {
         let Self {
             width,
             height,
             texture_id,
             pos,
             attrs,
-            ..
+            _texture,
+            max_pixel_size,
+            min_pixel_size,
         } = self;
+        let width = *width;
+        let height = *height;
+        let texture_id = *texture_id;
+        let pos = *pos;
         // filters
         if let Some(mounts) = attrs.get_mount() {
             if let Some(current) = link.mount {
@@ -589,7 +607,6 @@ impl ActiveMarker {
                 return None;
             }
         }
-        let pos = *pos;
         let height_offset = attrs.get_height_offset().copied().unwrap_or_default();
         let fade_near = attrs.get_fade_near().copied().unwrap_or(-1.0) / INCHES_PER_METER;
         let fade_far = attrs.get_fade_far().copied().unwrap_or(-1.0) / INCHES_PER_METER;
@@ -599,6 +616,7 @@ impl ActiveMarker {
 
         let alpha = attrs.get_alpha().copied().unwrap_or(1.0);
         let color = attrs.get_color().copied().unwrap_or_default();
+        let _size = min_pixel_size.max(*max_pixel_size) * z_near;
         /*
            1. we need to filter the markers
                1. statically - mapid, character, map_type, race, profession
@@ -622,20 +640,16 @@ impl ActiveMarker {
             return None;
         }
 
-        // if marker further than 150 metres, skip rendering them to avoid ugly tiny pixel objects on screen
-        if distance > 500.0 {
-            return None;
-        }
         let mut pos = pos;
         pos.y += height_offset;
         let direction_to_marker = link.cam_pos - pos;
         let direction_to_side = direction_to_marker.normalize().cross(Vec3::Y);
-
+        // let pixel_ratio = width as f32 * (distance / z_near);// (near width / far width) = near_z / far_z;
         // we want to map 100 pixels to one meter in game
         // we are supposed to half the width/height too, as offset from the center will be half of the whole billboard
         // But, i will ignore that as that makes markers too small
-        let x_offset = (*width as f32 / 100.0) * icon_size;
-        let y_offset = (*height as f32 / 100.0) * icon_size;
+        let x_offset = (width as f32 / 100.0) * icon_size;
+        let y_offset = (height as f32 / 100.0) * icon_size;
         let bottom_left = MarkerVertex {
             position: (pos - (direction_to_side * x_offset) - (Vec3::Y * y_offset)),
             texture_coordinates: vec2(0.0, 1.0),
@@ -675,7 +689,7 @@ impl ActiveMarker {
         ];
         Some(MarkerObject {
             vertices,
-            texture: *texture_id,
+            texture: texture_id,
             distance,
         })
     }

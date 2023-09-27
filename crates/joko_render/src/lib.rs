@@ -338,6 +338,12 @@ intmap of user textures :)
 */
 
 impl JokoRenderer {
+    pub fn get_z_near(&self) -> f32 {
+        1.0
+    }
+    pub fn get_z_far(&self) -> f32 {
+        1000.0
+    }
     pub fn tick(&mut self, link: Option<Arc<MumbleLink>>) {
         if let Some(link) = link.as_ref() {
             let viewport_ratio = self.surface_manager.surface_config.width as f32
@@ -345,7 +351,12 @@ impl JokoRenderer {
             let center = link.cam_pos + link.f_camera_front;
             let view_matrix = Mat4::look_at_lh(link.cam_pos, center, Vec3::Y);
 
-            let projection_matrix = Mat4::perspective_lh(link.fov, viewport_ratio, 1.0, 1000.0);
+            let projection_matrix = Mat4::perspective_lh(
+                link.fov,
+                viewport_ratio,
+                self.get_z_near(),
+                self.get_z_far(),
+            );
 
             let view_proj = projection_matrix * view_matrix;
             let uniform_data = MarkerUniform {
