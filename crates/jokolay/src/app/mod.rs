@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use cap_std::fs_utf8::Dir;
-use egui_backend::{egui, BackendConfig, GfxBackend, UserApp, WindowBackend};
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
 mod frame;
 mod init;
@@ -15,7 +14,6 @@ use jokolink::{MumbleChanges, MumbleManager};
 use miette::{Context, Result};
 use trace::JokolayTracingLayer;
 use tracing::{error, info};
-
 #[allow(unused)]
 pub struct Jokolay {
     frame_stats: frame::FrameStatistics,
@@ -30,7 +28,7 @@ pub struct Jokolay {
 }
 
 impl Jokolay {
-    fn new(jdir: Arc<Dir>) -> Result<Self> {
+    pub fn new(jdir: Arc<Dir>) -> Result<Self> {
         let mumble =
             MumbleManager::new("MumbleLink", None).wrap_err("failed to create mumble manager")?;
         let marker_manager =
@@ -39,24 +37,21 @@ impl Jokolay {
             ThemeManager::new(&jdir).wrap_err("failed to create theme manager")?;
         let egui_context = egui::Context::default();
         theme_manager.init_egui(&egui_context);
-        let mut glfw_backend = GlfwBackend::new(
-            GlfwConfig {
-                glfw_callback: Box::new(|glfw_context| {
-                    glfw_context.window_hint(
-                        egui_window_glfw_passthrough::glfw::WindowHint::SRgbCapable(true),
-                    );
-                    glfw_context.window_hint(
-                        egui_window_glfw_passthrough::glfw::WindowHint::Floating(true),
-                    );
-                }),
-                ..Default::default()
-            },
-            BackendConfig {
-                transparent: Some(true),
-                is_opengl: false,
-                ..Default::default()
-            },
-        );
+        let mut glfw_backend = GlfwBackend::new(GlfwConfig {
+            glfw_callback: Box::new(|glfw_context| {
+                glfw_context.window_hint(
+                    egui_window_glfw_passthrough::glfw::WindowHint::SRgbCapable(true),
+                );
+                glfw_context.window_hint(egui_window_glfw_passthrough::glfw::WindowHint::Floating(
+                    true,
+                ));
+            }),
+            opengl_window: Some(false),
+            transparent_window: Some(true),
+            ..Default::default()
+        });
+        glfw_backend.window.set_floating(true);
+        glfw_backend.window.set_decorated(false);
 
         let joko_renderer = JokoRenderer::new(&mut glfw_backend, {
             use joko_render::egui_render_wgpu::*;
@@ -81,49 +76,32 @@ impl Jokolay {
             menu_panel: MenuPanel::default(),
         })
     }
-}
-impl UserApp for Jokolay {
-    fn gui_run(&mut self) {
-        // most of the fn contents are in Self::run fn instead.
-        // As we need some custom input filtering (to match scale of gw2 UI or custom scaling)
-    }
+    pub fn enter_event_loop(mut self) {
+        tracing::info!("entering glfw event loop");
+        loop {
+            let Self {
+                frame_stats,
+                jdir: _,
+                menu_panel,
+                mumble_manager,
+                marker_manager,
+                theme_manager,
+                joko_renderer,
+                egui_context,
+                glfw_backend,
+            } = &mut self;
+            let etx = egui_context.clone();
+            // gather events
+            glfw_backend.tick();
 
-    type UserGfxBackend = JokoRenderer;
+            if glfw_backend.resized_event_pending {
+                let latest_size = glfw_backend.window.get_framebuffer_size();
+                joko_renderer.resize_framebuffer([latest_size.0 as _, latest_size.1 as _]);
+                glfw_backend.resized_event_pending = false;
+            }
 
-    type UserWindowBackend = GlfwBackend;
-
-    fn get_all(
-        &mut self,
-    ) -> (
-        &mut Self::UserWindowBackend,
-        &mut Self::UserGfxBackend,
-        &egui::Context,
-    ) {
-        (
-            &mut self.glfw_backend,
-            &mut self.joko_renderer,
-            &self.egui_context,
-        )
-    }
-
-    fn run(
-        &mut self,
-        logical_size: [f32; 2],
-    ) -> Option<(egui::PlatformOutput, std::time::Duration)> {
-        let Self {
-            mumble_manager,
-            marker_manager,
-            joko_renderer,
-            egui_context,
-            glfw_backend,
-            frame_stats,
-            ..
-        } = self;
-        let etx = egui_context.clone();
-        // don't bother doing anything if there's no window
-        if let Some(full_output) = if glfw_backend.get_window().is_some() {
             let input = glfw_backend.take_raw_input();
-            joko_renderer.prepare_frame(glfw_backend);
+            joko_renderer.prepare_frame(glfw_backend.framebuffer_size_physical);
             let latest_time = glfw_backend.glfw.get_time();
             // do all the non-gui stuff first
             frame_stats.tick(latest_time);
@@ -136,13 +114,12 @@ impl UserApp for Jokolay {
             };
             joko_renderer.tick(link.clone());
             marker_manager.tick(&etx, latest_time, joko_renderer, &link);
-            self.menu_panel
-                .tick(&etx, link.clone().as_ref().map(|m| m.as_ref()));
+            menu_panel.tick(&etx, link.clone().as_ref().map(|m| m.as_ref()));
 
             // do the gui stuff now
             etx.begin_frame(input);
             egui::Area::new("menu panel")
-                .fixed_pos(self.menu_panel.pos)
+                .fixed_pos(menu_panel.pos)
                 .interactable(true)
                 .order(egui::Order::Foreground)
                 .show(&etx, |ui| {
@@ -151,40 +128,37 @@ impl UserApp for Jokolay {
                     ui.horizontal(|ui| {
                         ui.menu_button(
                             egui::RichText::new("JKL")
-                                .size((MenuPanel::HEIGHT - 2.0) * self.menu_panel.ui_scaling_factor)
+                                .size((MenuPanel::HEIGHT - 2.0) * menu_panel.ui_scaling_factor)
                                 .background_color(egui::Color32::TRANSPARENT),
                             |ui| {
                                 ui.checkbox(
-                                    &mut self.menu_panel.show_marker_manager_window,
+                                    &mut menu_panel.show_marker_manager_window,
                                     "Show Marker Manager",
                                 );
                                 ui.checkbox(
-                                    &mut self.menu_panel.show_mumble_manager_winodw,
+                                    &mut menu_panel.show_mumble_manager_winodw,
                                     "Show Mumble Manager",
                                 );
                                 ui.checkbox(
-                                    &mut self.menu_panel.show_theme_window,
+                                    &mut menu_panel.show_theme_window,
                                     "Show Theme Manager",
                                 );
-                                ui.checkbox(&mut self.menu_panel.show_tracing_window, "Show Logs");
+                                ui.checkbox(&mut menu_panel.show_tracing_window, "Show Logs");
                                 if ui.button("exit").clicked() {
                                     info!("exiting jokolay");
                                     glfw_backend.window.set_should_close(true);
                                 }
                             },
                         );
-                        self.marker_manager.menu_ui(ui);
+                        marker_manager.menu_ui(ui);
                     });
                 });
-            self.marker_manager
-                .gui(&etx, &mut self.menu_panel.show_marker_manager_window);
-            self.mumble_manager
-                .gui(&etx, &mut self.menu_panel.show_mumble_manager_winodw);
-            JokolayTracingLayer::gui(&etx, &mut self.menu_panel.show_tracing_window);
-            self.theme_manager
-                .gui(&etx, &mut self.menu_panel.show_theme_window);
+            marker_manager.gui(&etx, &mut menu_panel.show_marker_manager_window);
+            mumble_manager.gui(&etx, &mut menu_panel.show_mumble_manager_winodw);
+            JokolayTracingLayer::gui(&etx, &mut menu_panel.show_tracing_window);
+            theme_manager.gui(&etx, &mut menu_panel.show_theme_window);
             egui::Window::new("fps").show(&etx, |ui| {
-                self.frame_stats.gui(ui);
+                frame_stats.gui(ui);
             });
             // show notifications
             JokolayTracingLayer::show_notifications(&etx);
@@ -216,28 +190,37 @@ impl UserApp for Jokolay {
                 .window
                 .set_mouse_passthrough(!(etx.wants_keyboard_input() || etx.wants_pointer_input()));
             etx.request_repaint();
-            Some(etx.end_frame())
-        } else {
-            None
-        } {
+
             let egui::FullOutput {
                 platform_output,
                 repaint_after,
                 textures_delta,
                 shapes,
-            } = full_output;
-            let (wb, gb, egui_context) = self.get_all();
-            let egui_context = egui_context.clone();
+            } = etx.end_frame();
 
-            gb.render_egui(
-                egui_context.tessellate(shapes),
+            joko_renderer.render_egui(
+                etx.tessellate(shapes),
                 textures_delta,
-                logical_size,
+                glfw_backend.window_size_logical,
             );
-            gb.present(wb);
-            return Some((platform_output, repaint_after));
+
+            if !platform_output.copied_text.is_empty() {
+                glfw_backend
+                    .window
+                    .set_clipboard_string(&platform_output.copied_text);
+            }
+
+            if glfw_backend.window.should_close() {
+                tracing::warn!("should close is true. So, exiting event loop");
+                break;
+            }
+            joko_renderer.present();
+            glfw_backend.glfw.wait_events_timeout(
+                repaint_after
+                    .min(std::time::Duration::from_secs(1))
+                    .as_secs_f64(),
+            );
         }
-        None
     }
 }
 
@@ -271,7 +254,7 @@ pub fn start_jokolay() {
 
     match Jokolay::new(jdir.into()) {
         Ok(jokolay) => {
-            <Jokolay as UserApp>::UserWindowBackend::run_event_loop(jokolay);
+            jokolay.enter_event_loop();
         }
         Err(e) => {
             error!(?e, "failed to create Jokolay App");

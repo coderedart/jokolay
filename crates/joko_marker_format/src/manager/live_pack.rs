@@ -205,7 +205,7 @@ impl LoadedPack {
         if self.current_map_data.map_id != link.map_id || categories_changed {
             self.on_map_changed(etx, link, default_tex_id);
         }
-        let z_near = joko_renderer.get_z_near();
+          let z_near = joko_renderer.get_z_near();
         for marker in self.current_map_data.active_markers.values() {
             if let Some(mo) = marker.get_vertices_and_texture(link, z_near) {
                 joko_renderer.add_billboard(mo);

@@ -2,13 +2,14 @@ pub mod billboard;
 use billboard::BillBoardRenderer;
 use billboard::MarkerObject;
 use billboard::TrailObject;
-use egui_backend::{egui, GfxBackend, WindowBackend};
 pub use egui_render_wgpu;
 use egui_render_wgpu::wgpu::util::BufferInitDescriptor;
 use egui_render_wgpu::wgpu::util::DeviceExt;
 use egui_render_wgpu::wgpu::*;
 use egui_render_wgpu::EguiPainter;
 use egui_render_wgpu::SurfaceManager;
+use egui_render_wgpu::WgpuConfig;
+use egui_window_glfw_passthrough::GlfwBackend;
 use glam::vec2;
 use glam::Mat4;
 use glam::Vec3;
@@ -18,32 +19,31 @@ use std::sync::Arc;
 use tracing::debug;
 use tracing::info;
 pub struct JokoRenderer {
-    marker_bg: BindGroup,
-    marker_ub: Buffer,
-    view_proj: Mat4,
-    player_visibility_pipeline: RenderPipeline,
-    viewport_buffer: Buffer,
+    pub marker_bg: BindGroup,
+    pub marker_ub: Buffer,
+    pub view_proj: Mat4,
+    pub player_visibility_pipeline: RenderPipeline,
+    pub viewport_buffer: Buffer,
     pub billboard_renderer: BillBoardRenderer,
-    link: Option<Arc<MumbleLink>>,
-    painter: EguiPainter,
-    surface_manager: SurfaceManager,
-    dev: Arc<Device>,
-    queue: Arc<Queue>,
-    adapter: Arc<Adapter>,
-    instance: Arc<Instance>,
+    pub link: Option<Arc<MumbleLink>>,
+    pub painter: EguiPainter,
+    pub surface_manager: SurfaceManager,
+    pub dev: Arc<Device>,
+    pub queue: Arc<Queue>,
+    pub adapter: Arc<Adapter>,
+    pub instance: Arc<Instance>,
 }
 
-impl GfxBackend for JokoRenderer {
-    type Configuration = egui_render_wgpu::WgpuConfig;
-
-    fn new(window_backend: &mut impl WindowBackend, settings: Self::Configuration) -> Self {
+impl JokoRenderer {
+    pub fn new(glfw_backend: &mut GlfwBackend, config: WgpuConfig) -> Self {
         let egui_render_wgpu::WgpuConfig {
             power_preference,
             device_descriptor,
             surface_formats_priority,
             surface_config,
             backends,
-        } = settings;
+            transparent_surface,
+        } = config;
         debug!("using wgpu backends: {:?}", backends);
         let instance = Arc::new(Instance::new(InstanceDescriptor {
             backends,
@@ -54,11 +54,14 @@ impl GfxBackend for JokoRenderer {
             debug!("adapter: {:#?}", adapter.get_info());
         }
 
-        let surface = window_backend.get_window().map(|w| unsafe {
-            use egui_backend::raw_window_handle::HasRawWindowHandle;
-            debug!("creating a surface with {:?}", w.raw_window_handle());
+        let surface = Some(unsafe {
+            use raw_window_handle::HasRawWindowHandle;
+            debug!(
+                "creating a surface with {:?}",
+                glfw_backend.window.raw_window_handle()
+            );
             instance
-                .create_surface(w)
+                .create_surface(&glfw_backend.window)
                 .expect("failed to create surface")
         });
 
@@ -81,9 +84,12 @@ impl GfxBackend for JokoRenderer {
 
         let dev = Arc::new(dev);
         let queue = Arc::new(queue);
-
+        let latest_fb_size = glfw_backend.window.get_framebuffer_size();
+        let latest_fb_size = [latest_fb_size.0 as _, latest_fb_size.1 as _];
         let surface_manager = SurfaceManager::new(
-            window_backend,
+            Some(&glfw_backend.window),
+            transparent_surface,
+            latest_fb_size,
             &instance,
             &adapter,
             &dev,
@@ -207,26 +213,13 @@ impl GfxBackend for JokoRenderer {
         }
     }
 
-    fn resume(&mut self, window_backend: &mut impl WindowBackend) {
-        self.surface_manager.reconfigure_surface(
-            window_backend,
-            &self.instance,
-            &self.adapter,
-            &self.dev,
-        );
-        self.painter.on_resume(
-            &self.dev,
-            self.surface_manager.surface_config.view_formats[0],
-        );
-    }
-
-    fn prepare_frame(&mut self, window_backend: &mut impl WindowBackend) {
+    pub fn prepare_frame(&mut self, latest_size: [u32; 2]) {
         self.surface_manager
-            .create_current_surface_texture_view(window_backend, &self.dev);
+            .create_current_surface_texture_view(latest_size, &self.dev);
         self.billboard_renderer.prepare_frame();
     }
 
-    fn render_egui(
+    pub fn render_egui(
         &mut self,
         meshes: Vec<egui::ClippedPrimitive>,
         textures_delta: egui::TexturesDelta,
@@ -306,7 +299,7 @@ impl GfxBackend for JokoRenderer {
         self.queue.submit(std::iter::once(command_encoder.finish()));
     }
 
-    fn present(&mut self, _window_backend: &mut impl WindowBackend) {
+    pub fn present(&mut self) {
         assert!(self.surface_manager.surface_view.is_some());
 
         {
@@ -322,13 +315,9 @@ impl GfxBackend for JokoRenderer {
             .present();
     }
 
-    fn resize_framebuffer(&mut self, window_backend: &mut impl WindowBackend) {
+    pub fn resize_framebuffer(&mut self, latest_size: [u32; 2]) {
         self.surface_manager
-            .resize_framebuffer(&self.dev, window_backend);
-    }
-
-    fn suspend(&mut self, _window_backend: &mut impl WindowBackend) {
-        self.surface_manager.suspend();
+            .resize_framebuffer(&self.dev, latest_size);
     }
 }
 /*

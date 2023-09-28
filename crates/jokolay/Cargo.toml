@@ -17,8 +17,7 @@ joko_render = { path = "../joko_render" }
 jmf = { path = "../joko_marker_format", package = "joko_marker_format" }
 jokolink = { path = "../jokolink" }
 url = { workspace = true, features = ["serde"] }
-egui_window_glfw_passthrough = { version = "*" }
-egui_backend = "*"
+egui_window_glfw_passthrough = { version = "0.5" }
 # we use this instead of cap-dirs because we want to debug/show the jokolay path to users
 # and `Dir` from cap-dirs doesn't allow us to get the path.
 cap-directories = { version = "*" }
