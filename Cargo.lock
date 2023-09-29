@@ -628,9 +628,9 @@ dependencies = [
 
 [[package]]
 name = "egui_render_wgpu"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d95e505a7928e39b4ee6ffbb1c425820a774617cd5b8eec3c48ec6e9a07821d"
+checksum = "75c941710515a7e67caeefef9bf8d05e9369c4a06503aa7222f3ba31d589e8d7"
 dependencies = [
  "bytemuck",
  "egui",
@@ -3002,9 +3002,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu-hal"
-version = "0.17.1"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0df4fc240da3c460a52cf0ff8f1b71fd6544a6b49f74ff2330238fcb0fd99512"
+checksum = "6654a13885a17f475e8324efb46dc6986d7aaaa98353330f8de2077b153d0101"
 dependencies = [
  "android_system_properties",
  "arrayvec",

@@ -48,22 +48,21 @@ impl Jokolay {
             }),
             opengl_window: Some(false),
             transparent_window: Some(true),
+            window_title: "Jokolay".to_string(),
             ..Default::default()
         });
         glfw_backend.window.set_floating(true);
         glfw_backend.window.set_decorated(false);
-
         let joko_renderer = JokoRenderer::new(&mut glfw_backend, {
             use joko_render::egui_render_wgpu::*;
             use wgpu::*;
             WgpuConfig {
                 backends: Backends::VULKAN.union(Backends::GL),
                 power_preference: PowerPreference::HighPerformance,
+                transparent_surface: Some(true),
                 ..Default::default()
             }
         });
-        // remove decorations
-        glfw_backend.window.set_decorated(false);
         Ok(Self {
             mumble_manager: mumble,
             marker_manager,
@@ -91,17 +90,44 @@ impl Jokolay {
                 glfw_backend,
             } = &mut self;
             let etx = egui_context.clone();
+
             // gather events
+            glfw_backend.glfw.poll_events();
             glfw_backend.tick();
+
+            if glfw_backend.window.should_close() {
+                tracing::warn!("should close is true. So, exiting event loop");
+                break;
+            }
 
             if glfw_backend.resized_event_pending {
                 let latest_size = glfw_backend.window.get_framebuffer_size();
-                joko_renderer.resize_framebuffer([latest_size.0 as _, latest_size.1 as _]);
+                let latest_size = [latest_size.0 as _, latest_size.1 as _];
+
+                glfw_backend.framebuffer_size_physical = latest_size;
+                glfw_backend.window_size_logical = [
+                    latest_size[0] as f32 / glfw_backend.scale,
+                    latest_size[1] as f32 / glfw_backend.scale,
+                ];
+                joko_renderer.resize_framebuffer(latest_size);
                 glfw_backend.resized_event_pending = false;
             }
-
+            joko_renderer.prepare_frame(|| {
+                let latest_size = glfw_backend.window.get_framebuffer_size();
+                tracing::info!(
+                    ?latest_size,
+                    "failed to get surface texture, so calling latest framebuffer size"
+                );
+                let latest_size = [latest_size.0 as _, latest_size.1 as _];
+                glfw_backend.framebuffer_size_physical = latest_size;
+                glfw_backend.window_size_logical = [
+                    latest_size[0] as f32 / glfw_backend.scale,
+                    latest_size[1] as f32 / glfw_backend.scale,
+                ];
+                latest_size
+            });
             let input = glfw_backend.take_raw_input();
-            joko_renderer.prepare_frame(glfw_backend.framebuffer_size_physical);
+            etx.begin_frame(input);
             let latest_time = glfw_backend.glfw.get_time();
             // do all the non-gui stuff first
             frame_stats.tick(latest_time);
@@ -117,7 +143,6 @@ impl Jokolay {
             menu_panel.tick(&etx, link.clone().as_ref().map(|m| m.as_ref()));
 
             // do the gui stuff now
-            etx.begin_frame(input);
             egui::Area::new("menu panel")
                 .fixed_pos(menu_panel.pos)
                 .interactable(true)
@@ -185,24 +210,14 @@ impl Jokolay {
                         .set_size(link.client_size.x - 1, link.client_size.y - 1);
                 }
             }
-            // if it doesn't require either keyboard or pointer, set passthrough to true
-            glfw_backend
-                .window
-                .set_mouse_passthrough(!(etx.wants_keyboard_input() || etx.wants_pointer_input()));
             etx.request_repaint();
 
             let egui::FullOutput {
                 platform_output,
-                repaint_after,
                 textures_delta,
                 shapes,
+                ..
             } = etx.end_frame();
-
-            joko_renderer.render_egui(
-                etx.tessellate(shapes),
-                textures_delta,
-                glfw_backend.window_size_logical,
-            );
 
             if !platform_output.copied_text.is_empty() {
                 glfw_backend
@@ -210,16 +225,16 @@ impl Jokolay {
                     .set_clipboard_string(&platform_output.copied_text);
             }
 
-            if glfw_backend.window.should_close() {
-                tracing::warn!("should close is true. So, exiting event loop");
-                break;
-            }
-            joko_renderer.present();
-            glfw_backend.glfw.wait_events_timeout(
-                repaint_after
-                    .min(std::time::Duration::from_secs(1))
-                    .as_secs_f64(),
+            // if it doesn't require either keyboard or pointer, set passthrough to true
+            glfw_backend
+                .window
+                .set_mouse_passthrough(!(etx.wants_keyboard_input() || etx.wants_pointer_input()));
+            joko_renderer.render_egui(
+                etx.tessellate(shapes),
+                textures_delta,
+                glfw_backend.window_size_logical,
             );
+            joko_renderer.present();
         }
     }
 }

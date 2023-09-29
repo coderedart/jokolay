@@ -213,9 +213,9 @@ impl JokoRenderer {
         }
     }
 
-    pub fn prepare_frame(&mut self, latest_size: [u32; 2]) {
+    pub fn prepare_frame(&mut self, latest_framebuffer_size_getter: impl FnMut() -> [u32; 2]) {
         self.surface_manager
-            .create_current_surface_texture_view(latest_size, &self.dev);
+            .create_current_surface_texture_view(latest_framebuffer_size_getter, &self.dev);
         self.billboard_renderer.prepare_frame();
     }
 
@@ -301,7 +301,6 @@ impl JokoRenderer {
 
     pub fn present(&mut self) {
         assert!(self.surface_manager.surface_view.is_some());
-
         {
             self.surface_manager
                 .surface_view
@@ -316,6 +315,7 @@ impl JokoRenderer {
     }
 
     pub fn resize_framebuffer(&mut self, latest_size: [u32; 2]) {
+        tracing::info!(?latest_size, "resizing framebuffer");
         self.surface_manager
             .resize_framebuffer(&self.dev, latest_size);
     }
