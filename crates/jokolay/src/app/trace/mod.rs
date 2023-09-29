@@ -215,7 +215,7 @@ impl<S: Subscriber> Layer<S> for JokolayTracingLayer {
                 global_tracing_data
                     .notifications
                     .spans
-                    .entry(id.clone())
+                    .entry(id)
                     .or_insert_with(|| SpanNotification {
                         title: md.name().to_string(),
                         latest_message: te.message.clone(),

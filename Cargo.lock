@@ -1339,6 +1339,7 @@ dependencies = [
  "egui",
  "egui_extras",
  "egui_window_glfw_passthrough",
+ "glam",
  "indexmap 2.0.1",
  "joko_marker_format",
  "joko_render",

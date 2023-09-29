@@ -330,12 +330,8 @@ impl LoadedPack {
                     egui::TextureId::User(_) => todo!(),
                 };
 
-                let width = th.size()[0] as u16;
-                let height = th.size()[1] as u16;
-                let max_pixel_size = (width.max(height) as f32)
-                    .min(attrs.get_max_size().copied().unwrap_or(f32::MAX));
-                let min_pixel_size = (width.min(height) as f32)
-                    .max(attrs.get_min_size().copied().unwrap_or_default());
+                let max_pixel_size = attrs.get_max_size().copied().unwrap_or(2048.0); // default taco max size
+                let min_pixel_size = attrs.get_min_size().copied().unwrap_or(5.0); // default taco min size
                 self.current_map_data.active_markers.insert(
                     index,
                     ActiveMarker {
@@ -343,8 +339,6 @@ impl LoadedPack {
                         _texture: th.clone(),
                         attrs,
                         pos: marker.position,
-                        width,
-                        height,
                         max_pixel_size,
                         min_pixel_size,
                     },
@@ -406,8 +400,6 @@ impl LoadedPack {
                 if let Some(active_trail) = ActiveTrail::get_vertices_and_texture(
                     &common_attributes,
                     &tbin.nodes,
-                    th.size()[0] as u16,
-                    th.size()[1] as u16,
                     th.clone(),
                 ) {
                     self.current_map_data
@@ -485,10 +477,6 @@ pub struct ActiveTrail {
 /// This is an active marker.
 /// It stores all the info that we need to scan every frame
 pub(crate) struct ActiveMarker {
-    /// width of the texture
-    pub width: u16,
-    /// height of the texture
-    pub height: u16,
     /// texture id from managed textures
     pub texture_id: u64,
     /// owned texture handle to keep it alive
@@ -584,17 +572,16 @@ pub const _BILLBOARD_MAX_VISIBILITY_DISTANCE: f32 = 10000.0;
 impl ActiveMarker {
     pub fn get_vertices_and_texture(&self, link: &MumbleLink, z_near: f32) -> Option<MarkerObject> {
         let Self {
-            width,
-            height,
             texture_id,
             pos,
             attrs,
             _texture,
             max_pixel_size,
             min_pixel_size,
+            ..
         } = self;
-        let width = *width;
-        let height = *height;
+        // let width = *width;
+        // let height = *height;
         let texture_id = *texture_id;
         let pos = *pos;
         // filters
@@ -607,16 +594,16 @@ impl ActiveMarker {
                 return None;
             }
         }
-        let height_offset = attrs.get_height_offset().copied().unwrap_or_default();
+        let height_offset = attrs.get_height_offset().copied().unwrap_or(1.5); // default taco height offset
         let fade_near = attrs.get_fade_near().copied().unwrap_or(-1.0) / INCHES_PER_METER;
         let fade_far = attrs.get_fade_far().copied().unwrap_or(-1.0) / INCHES_PER_METER;
         let icon_size = attrs.get_icon_size().copied().unwrap_or(1.0);
-        let distance = pos.distance(link.player_pos);
+        let player_distance = pos.distance(link.player_pos);
+        let camera_distance = pos.distance(link.cam_pos);
         let fade_near_far = Vec2::new(fade_near, fade_far);
 
         let alpha = attrs.get_alpha().copied().unwrap_or(1.0);
         let color = attrs.get_color().copied().unwrap_or_default();
-        let _size = min_pixel_size.max(*max_pixel_size) * z_near;
         /*
            1. we need to filter the markers
                1. statically - mapid, character, map_type, race, profession
@@ -636,20 +623,44 @@ impl ActiveMarker {
         mount
         specialization
         */
-        if fade_far > 0.0 && distance > fade_far {
+        if fade_far > 0.0 && player_distance > fade_far {
             return None;
         }
-
+        // markers are 1 meter in width/height by default
         let mut pos = pos;
         pos.y += height_offset;
         let direction_to_marker = link.cam_pos - pos;
         let direction_to_side = direction_to_marker.normalize().cross(Vec3::Y);
+
+        let far_offset = {
+            let dpi = if link.dpi_scaling <= 0 {
+                96.0
+            } else {
+                link.dpi as f32
+            } / 96.0;
+            let gw2_width = link.client_size.as_vec2().x / dpi;
+
+            // offset (half width i.e. distance from center of the marker to the side of the marker)
+            const SIDE_OFFSET_FAR: f32 = 1.0;
+            // the size of the projected on to the near plane
+            let near_offset = SIDE_OFFSET_FAR * icon_size * (z_near / camera_distance);
+            // convert the near_plane width offset into pixels by multiplying the near_ffset with gw2 window width
+            let near_offset_in_pixels = near_offset * gw2_width;
+
+            // we will clamp the texture width between min and max widths, and make sure that it is less than gw2 window width
+            let near_offset_in_pixels = near_offset_in_pixels
+                .clamp(*min_pixel_size, *max_pixel_size)
+                .min(gw2_width / 2.0);
+
+            let near_offset_of_marker = near_offset_in_pixels / gw2_width;
+            near_offset_of_marker * camera_distance / z_near
+        };
         // let pixel_ratio = width as f32 * (distance / z_near);// (near width / far width) = near_z / far_z;
         // we want to map 100 pixels to one meter in game
         // we are supposed to half the width/height too, as offset from the center will be half of the whole billboard
         // But, i will ignore that as that makes markers too small
-        let x_offset = (width as f32 / 100.0) * icon_size;
-        let y_offset = (height as f32 / 100.0) * icon_size;
+        let x_offset = far_offset;
+        let y_offset = x_offset; // seems all markers are squares
         let bottom_left = MarkerVertex {
             position: (pos - (direction_to_side * x_offset) - (Vec3::Y * y_offset)),
             texture_coordinates: vec2(0.0, 1.0),
@@ -690,7 +701,7 @@ impl ActiveMarker {
         Some(MarkerObject {
             vertices,
             texture: texture_id,
-            distance,
+            distance: player_distance,
         })
     }
 }
@@ -699,8 +710,6 @@ impl ActiveTrail {
     fn get_vertices_and_texture(
         attrs: &CommonAttributes,
         positions: &[Vec3],
-        twidth: u16,
-        theight: u16,
         texture: TextureHandle,
     ) -> Option<Self> {
         // can't have a trail without atleast two nodes
@@ -712,41 +721,43 @@ impl ActiveTrail {
         let fade_far = attrs.get_fade_far().copied().unwrap_or(-1.0) / INCHES_PER_METER;
         let fade_near_far = Vec2::new(fade_near, fade_far);
         let color = attrs.get_color().copied().unwrap_or([0u8; 4]);
-        // 200 pixels = 1 meter. divide by another two to get offset from center
-        let horizontal_offset = twidth as f32 / 400.0;
+        // default taco width
+        let horizontal_offset = 20.0 / INCHES_PER_METER;
         // scale it trail scale
         let horizontal_offset = horizontal_offset * attrs.get_trail_scale().copied().unwrap_or(1.0);
-        let height = theight as f32 / 200.0; // 50 pixels = 1 meter. just calculate the distance and keeping mod-ing to get the number of times to repeat the texture
+        let height = horizontal_offset * 2.0;
         let mut y_offset = 1.0;
         let mut vertices = vec![];
         for two_positions in positions.windows(2) {
             let first = two_positions[0];
             let second = two_positions[1];
-            let side = (second - first).normalize().cross(Vec3::Y).normalize() * -1.0;
+            // right side of the vector from first to second
+            let right_side = (second - first).normalize().cross(Vec3::Y).normalize();
+
             let new_offset = (-1.0 * (first.distance(second) / height)) + y_offset;
             let first_left = MarkerVertex {
-                position: first - (side * horizontal_offset),
+                position: first - (right_side * horizontal_offset),
                 texture_coordinates: vec2(0.0, y_offset),
                 alpha,
                 color,
                 fade_near_far,
             };
             let first_right = MarkerVertex {
-                position: first + (side * horizontal_offset),
+                position: first + (right_side * horizontal_offset),
                 texture_coordinates: vec2(1.0, y_offset),
                 alpha,
                 color,
                 fade_near_far,
             };
             let second_left = MarkerVertex {
-                position: second - (side * horizontal_offset),
+                position: second - (right_side * horizontal_offset),
                 texture_coordinates: vec2(0.0, new_offset),
                 alpha,
                 color,
                 fade_near_far,
             };
             let second_right = MarkerVertex {
-                position: second + (side * horizontal_offset),
+                position: second + (right_side * horizontal_offset),
                 texture_coordinates: vec2(1.0, new_offset),
                 alpha,
                 color,

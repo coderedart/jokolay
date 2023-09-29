@@ -26,7 +26,6 @@ pub struct Jokolay {
     egui_context: egui::Context,
     glfw_backend: GlfwBackend,
 }
-
 impl Jokolay {
     pub fn new(jdir: Arc<Dir>) -> Result<Self> {
         let mumble =
