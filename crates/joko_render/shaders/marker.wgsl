@@ -50,9 +50,9 @@ fn vs_main(
 
 @fragment
 fn fs_main(vout: VertexOutput) -> @location(0) vec4<f32> {
-    var color: vec4<f32> = textureSample(r_tex_color, r_tex_sampler, vout.tex_coord);
+    var color: vec4<f32> = textureSampleBias(r_tex_color, r_tex_sampler, vout.tex_coord, -2.0);
     color.a = color.a * vout.alpha;
-    if color.a < 0.001 {
+    if color.a < 0.01 {
         discard;
     }
     return color;

@@ -1,8 +1,28 @@
 [package]
 name = "joko_core"
-version = "0.1.0"
+version = "0.2.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cap-directories = { version = "*" }
+cap-std = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "time",
+] } # for ErrorLayer
+tracing-appender = { version = "*" }
+miette = { workspace = true }
+
+egui = { workspace = true, features = ["serde"] }
+egui_extras = { workspace = true }
+
+ringbuffer = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+indexmap = { workspace = true }
+rfd = { workspace = true }
+glam = { workspace = true }

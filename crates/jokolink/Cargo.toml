@@ -1,6 +1,6 @@
 [package]
 name = "jokolink"
-version = "0.1.0"
+version = "0.2.1"
 edition = "2021"
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -23,7 +23,7 @@ egui = { workspace = true }
 serde = { workspace = true }
 glam = { workspace = true }
 serde_json = { workspace = true }
-notify ={ version = "*", default-features = false}
+notify = { version = "*", default-features = false }
 [target.'cfg(unix)'.dependencies]
 x11rb = { version = "0.12", default-features = false, features = [] }
 

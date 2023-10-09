@@ -1,6 +1,6 @@
 [package]
 name = "jokolay"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 default-run = "jokolay"
 
@@ -13,6 +13,7 @@ path = "src/main.rs"
 wayland = ["egui_window_glfw_passthrough/wayland"]
 
 [dependencies]
+joko_core = { path = "../joko_core" }
 joko_render = { path = "../joko_render" }
 jmf = { path = "../joko_marker_format", package = "joko_marker_format" }
 jokolink = { path = "../jokolink" }

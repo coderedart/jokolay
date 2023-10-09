@@ -1,14 +1,9 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+pub mod manager;
+/*
+each manager must have
+1. a main thread struct
+2. an off thread struct
+3. commands that they send/receive
+4. a public api for other managers to access
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+*/

@@ -2,21 +2,18 @@ use std::sync::Arc;
 
 use cap_std::fs_utf8::Dir;
 use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
-mod frame;
 mod init;
-mod theme;
-mod trace;
-use self::theme::ThemeManager;
+mod wm;
 use init::get_jokolay_dir;
 use jmf::MarkerManager;
+use joko_core::manager::{theme::ThemeManager, trace::JokolayTracingLayer};
 use joko_render::JokoRenderer;
 use jokolink::{MumbleChanges, MumbleManager};
 use miette::{Context, Result};
-use trace::JokolayTracingLayer;
 use tracing::{error, info};
 #[allow(unused)]
 pub struct Jokolay {
-    frame_stats: frame::FrameStatistics,
+    frame_stats: wm::WindowStatistics,
     jdir: Arc<Dir>,
     menu_panel: MenuPanel,
     mumble_manager: MumbleManager,
@@ -65,7 +62,7 @@ impl Jokolay {
         Ok(Self {
             mumble_manager: mumble,
             marker_manager,
-            frame_stats: frame::FrameStatistics::new(glfw_backend.glfw.get_time() as _),
+            frame_stats: wm::WindowStatistics::new(glfw_backend.glfw.get_time() as _),
             joko_renderer,
             glfw_backend,
             jdir,
@@ -76,6 +73,8 @@ impl Jokolay {
     }
     pub fn enter_event_loop(mut self) {
         tracing::info!("entering glfw event loop");
+        self.menu_panel.show_theme_window = true;
+        self.menu_panel.show_marker_manager_window = true;
         loop {
             let Self {
                 frame_stats,
@@ -125,9 +124,12 @@ impl Jokolay {
                 ];
                 latest_size
             });
-            let input = glfw_backend.take_raw_input();
-            etx.begin_frame(input);
+
             let latest_time = glfw_backend.glfw.get_time();
+            let mut input = glfw_backend.take_raw_input();
+            input.time = Some(latest_time);
+
+            etx.begin_frame(input);
             // do all the non-gui stuff first
             frame_stats.tick(latest_time);
             let link = match mumble_manager.tick() {
@@ -156,6 +158,10 @@ impl Jokolay {
                                 .background_color(egui::Color32::TRANSPARENT),
                             |ui| {
                                 ui.checkbox(
+                                    &mut menu_panel.show_window_manager,
+                                    "Show Window Manager",
+                                );
+                                ui.checkbox(
                                     &mut menu_panel.show_marker_manager_window,
                                     "Show Marker Manager",
                                 );
@@ -181,9 +187,7 @@ impl Jokolay {
             mumble_manager.gui(&etx, &mut menu_panel.show_mumble_manager_winodw);
             JokolayTracingLayer::gui(&etx, &mut menu_panel.show_tracing_window);
             theme_manager.gui(&etx, &mut menu_panel.show_theme_window);
-            egui::Window::new("fps").show(&etx, |ui| {
-                frame_stats.gui(ui);
-            });
+            frame_stats.gui(&etx, glfw_backend, &mut menu_panel.show_window_manager);
             // show notifications
             JokolayTracingLayer::show_notifications(&etx);
 
@@ -327,6 +331,7 @@ pub struct MenuPanel {
     // show_settings_window: bool,
     show_marker_manager_window: bool,
     show_mumble_manager_winodw: bool,
+    show_window_manager: bool,
 }
 
 impl MenuPanel {

@@ -40,7 +40,7 @@ impl JokoRenderer {
             power_preference,
             device_descriptor,
             surface_formats_priority,
-            surface_config,
+            mut surface_config,
             backends,
             transparent_surface,
         } = config;
@@ -53,7 +53,7 @@ impl JokoRenderer {
         for adapter in instance.enumerate_adapters(backends) {
             debug!("adapter: {:#?}", adapter.get_info());
         }
-
+        surface_config.present_mode = egui_render_wgpu::wgpu::PresentMode::AutoVsync;
         let surface = Some(unsafe {
             use raw_window_handle::HasRawWindowHandle;
             debug!(
