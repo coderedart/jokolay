@@ -22,9 +22,8 @@ use three_d::prelude::*;
 #[macro_export]
 macro_rules! gl_error {
     ($gl:expr) => {{
-        use crate::three_d::context::NO_ERROR;
         let e = $gl.get_error();
-        if e != NO_ERROR {
+        if e != egui_render_three_d::three_d::context::NO_ERROR {
             tracing::error!("glerror {} at {} {} {}", e, file!(), line!(), column!());
         }
     }};

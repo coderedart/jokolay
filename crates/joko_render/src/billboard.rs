@@ -245,7 +245,7 @@ pub fn new_program(
         gl.delete_shader(frag_shader);
         gl_error!(gl);
         let active_attribute_count = gl.get_active_attributes(program);
-        let mut shader_info = format!("Shader Info:\nvertex attributes: 5");
+        let mut shader_info = format!("Shader Info:\nvertex attributes: {active_attribute_count}");
         for index in 0..active_attribute_count {
             if let Some(attr) = gl.get_active_attribute(program, index) {
                 let location = gl.get_attrib_location(program, &attr.name);

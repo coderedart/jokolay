@@ -726,56 +726,62 @@ impl ActiveTrail {
         // scale it trail scale
         let horizontal_offset = horizontal_offset * attrs.get_trail_scale().copied().unwrap_or(1.0);
         let height = horizontal_offset * 2.0;
-        let mut y_offset = 1.0;
-        let mut vertices = vec![];
-        for two_positions in positions.windows(2) {
-            let first = two_positions[0];
-            let second = two_positions[1];
-            // right side of the vector from first to second
-            let right_side = (second - first).normalize().cross(Vec3::Y).normalize();
 
-            let new_offset = (-1.0 * (first.distance(second) / height)) + y_offset;
-            let first_left = MarkerVertex {
-                position: first - (right_side * horizontal_offset),
-                texture_coordinates: vec2(0.0, y_offset),
-                alpha,
-                color,
-                fade_near_far,
-            };
-            let first_right = MarkerVertex {
-                position: first + (right_side * horizontal_offset),
-                texture_coordinates: vec2(1.0, y_offset),
-                alpha,
-                color,
-                fade_near_far,
-            };
-            let second_left = MarkerVertex {
-                position: second - (right_side * horizontal_offset),
-                texture_coordinates: vec2(0.0, new_offset),
-                alpha,
-                color,
-                fade_near_far,
-            };
-            let second_right = MarkerVertex {
-                position: second + (right_side * horizontal_offset),
-                texture_coordinates: vec2(1.0, new_offset),
-                alpha,
-                color,
-                fade_near_far,
-            };
-            y_offset = if new_offset.is_sign_positive() {
-                new_offset
-            } else {
-                1.0 - new_offset.fract().abs()
-            };
-            vertices.extend([
-                second_left,
-                first_left,
-                first_right,
-                first_right,
-                second_right,
-                second_left,
-            ]);
+        let mut vertices = vec![];
+        // trail mesh is split by separating different parts with a [0, 0, 0]
+        // we will call each separate trail mesh as a "strip" of trail.
+        // each strip should *almost* act as an independent trail, but they all are drawn at the same time with the same parameters.
+        for strip in positions.split(|&v| v == Vec3::ZERO) {
+            let mut y_offset = 1.0;
+            for two_positions in strip.windows(2) {
+                let first = two_positions[0];
+                let second = two_positions[1];
+                // right side of the vector from first to second
+                let right_side = (second - first).normalize().cross(Vec3::Y).normalize();
+
+                let new_offset = (-1.0 * (first.distance(second) / height)) + y_offset;
+                let first_left = MarkerVertex {
+                    position: first - (right_side * horizontal_offset),
+                    texture_coordinates: vec2(0.0, y_offset),
+                    alpha,
+                    color,
+                    fade_near_far,
+                };
+                let first_right = MarkerVertex {
+                    position: first + (right_side * horizontal_offset),
+                    texture_coordinates: vec2(1.0, y_offset),
+                    alpha,
+                    color,
+                    fade_near_far,
+                };
+                let second_left = MarkerVertex {
+                    position: second - (right_side * horizontal_offset),
+                    texture_coordinates: vec2(0.0, new_offset),
+                    alpha,
+                    color,
+                    fade_near_far,
+                };
+                let second_right = MarkerVertex {
+                    position: second + (right_side * horizontal_offset),
+                    texture_coordinates: vec2(1.0, new_offset),
+                    alpha,
+                    color,
+                    fade_near_far,
+                };
+                y_offset = if new_offset.is_sign_positive() {
+                    new_offset
+                } else {
+                    1.0 - new_offset.fract().abs()
+                };
+                vertices.extend([
+                    second_left,
+                    first_left,
+                    first_right,
+                    first_right,
+                    second_right,
+                    second_left,
+                ]);
+            }
         }
 
         Some(ActiveTrail {
