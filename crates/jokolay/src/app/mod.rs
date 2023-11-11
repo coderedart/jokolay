@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use cap_std::fs_utf8::Dir;
-use egui_window_glfw_passthrough::{GlfwBackend, GlfwConfig};
+use egui_window_glfw_passthrough::{glfw::Context as _, GlfwBackend, GlfwConfig};
 mod init;
 mod wm;
 use init::get_jokolay_dir;
@@ -41,24 +41,18 @@ impl Jokolay {
                 glfw_context.window_hint(egui_window_glfw_passthrough::glfw::WindowHint::Floating(
                     true,
                 ));
+                glfw_context.window_hint(
+                    egui_window_glfw_passthrough::glfw::WindowHint::ContextVersion(4, 6),
+                );
             }),
-            opengl_window: Some(false),
+            opengl_window: Some(true),
             transparent_window: Some(true),
             window_title: "Jokolay".to_string(),
             ..Default::default()
         });
         glfw_backend.window.set_floating(true);
         glfw_backend.window.set_decorated(false);
-        let joko_renderer = JokoRenderer::new(&mut glfw_backend, {
-            use joko_render::egui_render_wgpu::*;
-            use wgpu::*;
-            WgpuConfig {
-                backends: Backends::VULKAN.union(Backends::GL),
-                power_preference: PowerPreference::HighPerformance,
-                transparent_surface: Some(true),
-                ..Default::default()
-            }
-        });
+        let joko_renderer = JokoRenderer::new(&mut glfw_backend, Default::default());
         Ok(Self {
             mumble_manager: mumble,
             marker_manager,
@@ -238,6 +232,7 @@ impl Jokolay {
                 glfw_backend.window_size_logical,
             );
             joko_renderer.present();
+            glfw_backend.window.swap_buffers();
         }
     }
 }

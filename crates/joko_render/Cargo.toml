@@ -6,11 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-egui_render_wgpu = { version = "0.5" }
+egui_render_three_d = { version = "*" }
 egui_window_glfw_passthrough = { version = "0.5" }
 bytemuck = { version = "1", default-features = false }
 jokolink = { path = "../jokolink" }
-pollster = { version = "*" }
 glam = { workspace = true, features = ["bytemuck"] }
 tracing = { workspace = true }
 serde = { workspace = true }
